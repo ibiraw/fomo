@@ -16,6 +16,7 @@ import { ThemePicker } from '@/components/ThemePicker';
 import { useBackground } from '@/hooks/use-background';
 import { useHolds } from '@/hooks/use-holds';
 import { useTheme } from '@/hooks/use-theme';
+import { useTokenSymbols } from '@/hooks/use-token-symbols';
 import { useWatchPrice } from '@/hooks/use-watch-price';
 import { mintFromFomoUrl } from '@/lib/format';
 import { applyPanelVars } from '@/lib/themes';
@@ -36,6 +37,7 @@ export default function App() {
   const [tabMint, setTabMint] = useState<string | null>(null);
   const [theme] = useTheme();
   const holds = useHolds(tabMint, state?.status === 'connected', send, state?.orders ?? []);
+  const labels = useTokenSymbols((state?.orders ?? []).map((o) => o.mint), send, state?.status === 'connected');
   useEffect(() => applyPanelVars(document.documentElement, theme), [theme]);
 
   const priceError = useWatchPrice(tabMint, state?.status === 'connected', send);
@@ -75,7 +77,7 @@ export default function App() {
             <NewOrderForm ticks={state.ticks} initialMint={tabMint} holds={holds} onCreate={(order) => send({ type: 'order.create', order })} />
           </TabsContent>
           <TabsContent value="orders" className="pt-2">
-            <OrderList orders={state.orders} ticks={state.ticks} showMint onCancel={(id) => send({ type: 'order.cancel', id })} />
+            <OrderList orders={state.orders} ticks={state.ticks} showMint labels={labels} onCancel={(id) => send({ type: 'order.cancel', id })} />
           </TabsContent>
           <TabsContent value="settings" className="space-y-5 pt-2">
             <section className="space-y-2">

@@ -44,10 +44,16 @@ interface Props {
   readonly emptyText?: string;
   /** Show which token each order is for (popup lists every token). */
   readonly showMint?: boolean;
+  /** mint → display label such as "$UNPEG" (falls back to a shortened address). */
+  readonly labels?: Record<string, string>;
+  /** Where token links open: a new tab (popup) or the current fomo tab (Limit panel). */
+  readonly linkTarget?: '_blank' | '_self';
 }
 
 /** One compact order row. */
-function OrderRow({ order, tick, onCancel, showMint }: { order: Order; tick: PriceTick | undefined; onCancel: Props['onCancel']; showMint: boolean }) {
+function OrderRow({ order, tick, onCancel, showMint, label, linkTarget }: {
+  order: Order; tick: PriceTick | undefined; onCancel: Props['onCancel']; showMint: boolean; label: string | undefined; linkTarget: '_blank' | '_self';
+}) {
   const cancel = useMutation({ mutationFn: () => onCancel(order.id) });
   const active = isCancellable(order.status);
   const note = shortNote(order);
@@ -60,7 +66,9 @@ function OrderRow({ order, tick, onCancel, showMint }: { order: Order; tick: Pri
         <span className="min-w-0 flex-1 truncate text-foreground">
           {triggerLabel(order)} · {amountShort(order)}
           {showMint && (
-            <a className="ml-1 text-muted-foreground hover:underline" href={tokenUrl(order.mint)} target="_blank" rel="noreferrer">{shortMint(order.mint)}</a>
+            <a className="ml-1 font-semibold text-muted-foreground hover:text-foreground hover:underline" href={tokenUrl(order.mint)} target={linkTarget} rel="noreferrer" title={order.mint}>
+              {label ?? shortMint(order.mint)}
+            </a>
           )}
         </span>
         <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold', STATUS_STYLE[order.status])}>{STATUS_LABEL[order.status]}</span>
@@ -91,7 +99,7 @@ function OrderRow({ order, tick, onCancel, showMint }: { order: Order; tick: Pri
 }
 
 /** All orders, active first. */
-export function OrderList({ orders, ticks, onCancel, height = 380, emptyText = 'No orders yet.', showMint = false }: Props) {
+export function OrderList({ orders, ticks, onCancel, height = 380, emptyText = 'No orders yet.', showMint = false, labels = {}, linkTarget = '_blank' }: Props) {
   if (orders.length === 0) {
     return <p className="py-4 text-center text-xs text-muted-foreground">{emptyText}</p>;
   }
@@ -99,7 +107,9 @@ export function OrderList({ orders, ticks, onCancel, height = 380, emptyText = '
   return (
     <ScrollArea className="pr-3" style={{ maxHeight: height }}>
       <div className="space-y-1.5">
-        {sorted.map((o) => <OrderRow key={o.id} order={o} tick={ticks[o.mint]} onCancel={onCancel} showMint={showMint} />)}
+        {sorted.map((o) => (
+          <OrderRow key={o.id} order={o} tick={ticks[o.mint]} onCancel={onCancel} showMint={showMint} label={labels[o.mint]} linkTarget={linkTarget} />
+        ))}
       </div>
     </ScrollArea>
   );

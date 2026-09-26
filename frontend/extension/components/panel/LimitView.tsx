@@ -5,7 +5,7 @@
  * @author Reborn1987
  */
 
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 import { NewOrderForm } from '@/components/orders/NewOrderForm';
 import { OrderList } from '@/components/orders/OrderList';
@@ -13,6 +13,9 @@ import { ThemePicker } from '@/components/ThemePicker';
 import { useBackground } from '@/hooks/use-background';
 import { useFomoSupply } from '@/hooks/use-fomo-supply';
 import { useHolds } from '@/hooks/use-holds';
+import { useTokenSymbols } from '@/hooks/use-token-symbols';
+import { isCancellable } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { useWatchPrice } from '@/hooks/use-watch-price';
 import type { ConnectionStatus } from '@/lib/server-connection';
 
@@ -37,6 +40,9 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
   const { state, send } = useBackground();
   const supply = useFomoSupply(mint);
   const holds = useHolds(mint, state?.status === 'connected', send, state?.orders ?? []);
+  const [scope, setScope] = useState<'token' | 'all'>('token');
+  const allOrders = state?.orders ?? [];
+  const labels = useTokenSymbols(allOrders.map((o) => o.mint), send, state?.status === 'connected');
   const priceError = useWatchPrice(mint, state?.status === 'connected', send);
 
   if (!state) return <p className="p-2 text-sm text-muted-foreground">Loading…</p>;
@@ -44,6 +50,8 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
 
   const notice = OFFLINE_TEXT[state.status];
   const orders = state.orders.filter((o) => o.mint === mint);
+  const activeHere = orders.filter((o) => isCancellable(o.status)).length;
+  const activeAll = state.orders.filter((o) => isCancellable(o.status)).length;
 
   return (
     <div className="space-y-4 p-1 pt-2">
@@ -58,8 +66,39 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
         <NewOrderForm key={`form:${mint}`} ticks={state.ticks} initialMint={mint} lockMint mcSupply={supply} holds={holds} onCreate={(order) => send({ type: 'order.create', order })} />
       )}
       <div className="space-y-2">
-        <p className="text-xs font-semibold text-muted-foreground">Orders on this token</p>
-        <OrderList orders={orders} ticks={state.ticks} height={260} emptyText="No orders on this token yet." onCancel={(id) => send({ type: 'order.cancel', id })} />
+        <div className="flex rounded-md bg-secondary p-0.5" role="tablist" aria-label="Which orders to show">
+          {([['token', `This token${activeHere ? ` (${activeHere})` : ''}`], ['all', `All tokens${activeAll ? ` (${activeAll})` : ''}`]] as const).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={scope === k}
+              onClick={() => setScope(k)}
+              className={cn('flex-1 rounded px-2 py-1 text-xs font-medium transition-colors', scope === k ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground')}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {scope === 'token' && orders.length === 0 && state.orders.length > 0 ? (
+          <p className="py-4 text-center text-xs text-muted-foreground">
+            No orders on this token.{' '}
+            <button type="button" onClick={() => setScope('all')} className="font-semibold text-foreground underline-offset-2 hover:underline">
+              See all tokens ({activeAll} active)
+            </button>
+          </p>
+        ) : (
+          <OrderList
+            orders={scope === 'token' ? orders : state.orders}
+            ticks={state.ticks}
+            height={260}
+            showMint={scope === 'all'}
+            labels={labels}
+            linkTarget="_self"
+            emptyText={scope === 'token' ? 'No orders on this token yet.' : 'No orders yet.'}
+            onCancel={(id) => send({ type: 'order.cancel', id })}
+          />
+        )}
       </div>
       <div className="flex items-center justify-between gap-2 border-t pt-3">
         <span className="text-xs text-muted-foreground">Theme</span>
