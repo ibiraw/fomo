@@ -6,6 +6,7 @@
  */
 
 import { useMutation } from '@tanstack/react-query';
+import type React from 'react';
 import { X } from 'lucide-react';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -105,7 +106,11 @@ export function OrderList({ orders, ticks, onCancel, height = 380, emptyText = '
   }
   const sorted = [...orders].sort((a, b) => Number(isCancellable(b.status)) - Number(isCancellable(a.status)) || b.createdAt - a.createdAt);
   return (
-    <ScrollArea className="pr-3" style={{ maxHeight: height }}>
+    // The height cap goes on the scrolling viewport; capping the ScrollArea root alone lets content spill out.
+    <ScrollArea
+      className="pr-3 [&_[data-slot=scroll-area-viewport]]:max-h-[var(--order-list-max)]"
+      style={{ '--order-list-max': `${height}px` } as React.CSSProperties}
+    >
       <div className="space-y-1.5">
         {sorted.map((o) => (
           <OrderRow key={o.id} order={o} tick={ticks[o.mint]} onCancel={onCancel} showMint={showMint} label={labels[o.mint]} linkTarget={linkTarget} />
