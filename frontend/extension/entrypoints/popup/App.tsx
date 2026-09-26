@@ -59,7 +59,7 @@ export default function App() {
   return (
     <div className="p-4 space-y-4">
       <header className="flex items-center justify-between">
-        <h1 className="text-base font-bold">FOMO Limit Orders</h1>
+        <h1 className="text-base font-bold">auto fomo</h1>
         <Badge className={cn(state.status === 'connected' ? 'bg-buy/20 text-buy' : 'bg-sell/20 text-sell')}>{STATUS_TEXT[state.status]}</Badge>
       </header>
 

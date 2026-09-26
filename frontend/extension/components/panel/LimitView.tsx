@@ -28,7 +28,7 @@ export interface MintStore {
 }
 
 const OFFLINE_TEXT: Partial<Record<ConnectionStatus, string>> = {
-  no_token: 'Not paired yet — open the FOMO Limit Orders extension and paste the pairing code.',
+  no_token: 'Not paired yet — open the auto fomo extension and paste the pairing code.',
   bad_token: 'Pairing code rejected — re-pair in the extension popup.',
   disconnected: 'Order server offline — start it with npm run dev in backend/.',
   connecting: 'Connecting to the order server…',

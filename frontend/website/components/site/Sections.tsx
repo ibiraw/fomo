@@ -234,6 +234,7 @@ export function SiteFooter() {
         <Wordmark className="text-base text-foreground" />
         <p>auto fomo is an independent, unofficial tool and is not affiliated with, endorsed by or connected to fomo.family or Fomo Labs. &quot;fomo&quot; is used only to describe the platform this tool works with.</p>
         <p>Nothing here is financial advice. Crypto trading is risky; memecoins especially. Automated orders can fail, fill at unexpected prices, or break if fomo changes its site. Use at your own risk.</p>
+        <p><a href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy policy</a></p>
       </div>
     </footer>
   );

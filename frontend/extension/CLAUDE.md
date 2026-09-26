@@ -24,6 +24,11 @@ Chrome MV3 extension built with WXT. Connects to the local backend (ws://127.0.0
 | `components/ui/` | shadcn components |
 | `tests/` | vitest (+ happy-dom); `tests/fake-fomo.ts` simulates FOMO's trade panel |
 
+## Store (Chrome Web Store, unlisted)
+- `store/LISTING.md` — listing text, permission justifications, privacy answers, screenshot list.
+- `store/assets/` — store icon + promo tile (`node scripts/store-assets.mjs`); toolbar icons from `assets/icon.svg` (`node scripts/icons.mjs`).
+- `npm run zip` → `.output/auto-fomo-<version>-chrome.zip`. Privacy policy: website `/privacy`.
+
 ## Commands
 - `npm run build` → load `.output/chrome-mv3` via chrome://extensions → Load unpacked
 - `npm run dev` — WXT dev mode
