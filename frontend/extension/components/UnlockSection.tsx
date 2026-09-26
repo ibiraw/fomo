@@ -149,7 +149,13 @@ export function UnlockBanner({ status, where }: { status: BillingStatus | null; 
   const locked = mustUnlock(status);
   const hint = where === 'popup' ? 'Settings → Unlock' : 'the auto fomo popup → Settings';
   return (
-    <p className={cn('rounded-md px-2 py-1.5 text-xs', locked ? 'bg-yellow/10 text-yellow' : 'bg-secondary text-muted-foreground')}>
+    <p
+      role="status"
+      className={cn(
+        'rounded-md px-2.5 py-2 text-xs font-semibold',
+        locked ? 'bg-yellow text-black' : 'border border-yellow/60 bg-yellow/15 text-yellow',
+      )}
+    >
       {locked
         ? `Free orders used — unlock for $${status.priceUsd} USDC in ${hint}.`
         : `${status.freeOrdersLeft} free ${status.freeOrdersLeft === 1 ? 'order' : 'orders'} left, then $${status.priceUsd} USDC once (${hint}).`}
