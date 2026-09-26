@@ -35,7 +35,17 @@ export interface Order {
   readonly id: string;
   readonly mint: string;
   readonly side: OrderSide;
-  readonly trigger: { readonly metric: TriggerMetric; readonly direction: TriggerDirection; readonly value: number };
+  readonly trigger: {
+    readonly metric: TriggerMetric;
+    readonly direction: TriggerDirection;
+    readonly value: number;
+    /**
+     * Supply to compute market cap with (the figure fomo displays). fomo's supply can differ from the
+     * on-chain mint supply (e.g. after burns), so MC orders placed from the fomo page carry it to match
+     * exactly what the user sees. Null = use the price feed's market cap.
+     */
+    readonly supply: number | null;
+  };
   readonly amount: OrderAmount;
   readonly status: OrderStatus;
   readonly attempts: number;
@@ -61,6 +71,7 @@ export const CreateOrderSchema = z
       metric: z.enum(['price', 'marketCap']),
       direction: z.enum(['below', 'above']),
       value: z.number().positive().finite(),
+      supply: z.number().positive().finite().nullable().default(null),
     }),
     amount: z.discriminatedUnion('kind', [
       z.object({ kind: z.literal('usd'), value: z.number().finite().min(MIN_TRADE_USD, `Minimum trade is $${MIN_TRADE_USD}`) }),
@@ -73,13 +84,14 @@ export const CreateOrderSchema = z
 export type CreateOrderInput = z.input<typeof CreateOrderSchema>;
 export type ValidCreateOrder = z.output<typeof CreateOrderSchema>;
 
-/** Returns the tick value the trigger compares against. */
-export function metricValue(order: Pick<Order, 'trigger'>, tick: PriceTick): number {
-  return order.trigger.metric === 'price' ? tick.priceUsd : tick.marketCapUsd;
+/** Returns the tick value the trigger compares against (MC uses the order's supply when it has one). */
+export function metricValue(order: { readonly trigger: Pick<Order['trigger'], 'metric' | 'supply'> }, tick: PriceTick): number {
+  if (order.trigger.metric === 'price') return tick.priceUsd;
+  return order.trigger.supply ? tick.priceUsd * order.trigger.supply : tick.marketCapUsd;
 }
 
 /** True when the tick satisfies the order's trigger condition. */
-export function isTriggered(order: Pick<Order, 'trigger'>, tick: PriceTick): boolean {
+export function isTriggered(order: { readonly trigger: Pick<Order['trigger'], 'metric' | 'supply' | 'direction' | 'value'> }, tick: PriceTick): boolean {
   const v = metricValue(order, tick);
   return order.trigger.direction === 'below' ? v <= order.trigger.value : v >= order.trigger.value;
 }

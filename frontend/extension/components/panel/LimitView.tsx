@@ -10,6 +10,7 @@ import { useSyncExternalStore } from 'react';
 import { NewOrderForm } from '@/components/orders/NewOrderForm';
 import { OrderList } from '@/components/orders/OrderList';
 import { useBackground } from '@/hooks/use-background';
+import { useFomoSupply } from '@/hooks/use-fomo-supply';
 import { useWatchPrice } from '@/hooks/use-watch-price';
 import type { ConnectionStatus } from '@/lib/server-connection';
 
@@ -32,6 +33,7 @@ const OFFLINE_TEXT: Partial<Record<ConnectionStatus, string>> = {
 export function LimitView({ mintStore }: { mintStore: MintStore }) {
   const mint = useSyncExternalStore(mintStore.subscribe, mintStore.get);
   const { state, send } = useBackground();
+  const supply = useFomoSupply(mint);
   const priceError = useWatchPrice(mint, state?.status === 'connected', send);
 
   if (!state) return <p className="p-2 text-sm text-muted-foreground">Loading…</p>;
@@ -50,7 +52,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
           <p className="text-xs text-muted-foreground">{priceError}</p>
         </div>
       ) : (
-        <NewOrderForm key={`form:${mint}`} ticks={state.ticks} initialMint={mint} lockMint onCreate={(order) => send({ type: 'order.create', order })} />
+        <NewOrderForm key={`form:${mint}`} ticks={state.ticks} initialMint={mint} lockMint mcSupply={supply} onCreate={(order) => send({ type: 'order.create', order })} />
       )}
       <div className="space-y-2">
         <p className="text-xs font-semibold text-muted-foreground">Orders on this token</p>

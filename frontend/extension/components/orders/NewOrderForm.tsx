@@ -30,10 +30,12 @@ interface Props {
   readonly initialMint?: string | null;
   /** When true the token is fixed (on-page panel) and the address field is hidden. */
   readonly lockMint?: boolean;
+  /** fomo's displayed supply: market cap is computed with it so it matches the fomo page exactly. */
+  readonly mcSupply?: number | null;
 }
 
 /** Order entry form. */
-export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false }: Props) {
+export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, mcSupply = null }: Props) {
   const [mint, setMint] = useState(initialMint ?? '');
   const [side, setSide] = useState<OrderSide>('buy');
   const [unit, setUnit] = useState<AmountUnit>('usd');
@@ -54,7 +56,9 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false }:
   useEffect(() => { setTarget(''); setPercent(0); setAnchor('percent'); }, [mint]);
 
   const tick = ticks[mint.trim()];
-  const current = tick ? (metric === 'marketCap' ? tick.marketCapUsd : tick.priceUsd) : null;
+  const current = tick
+    ? metric === 'marketCap' ? (mcSupply ? tick.priceUsd * mcSupply : tick.marketCapUsd) : tick.priceUsd
+    : null;
 
   // Follow the live value: keep the pinned % (target moves) or the pinned target (% moves).
   useEffect(() => {
@@ -87,7 +91,7 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false }:
     mutationFn: () => onCreate({
       mint: mint.trim(),
       side,
-      trigger: { metric, direction, value: targetValue },
+      trigger: { metric, direction, value: targetValue, supply: metric === 'marketCap' ? mcSupply : null },
       amount: { kind: unit, value: amountValue },
     }),
     onSuccess: () => setAmount(''),

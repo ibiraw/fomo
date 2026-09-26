@@ -15,7 +15,13 @@ export interface Order {
   readonly id: string;
   readonly mint: string;
   readonly side: OrderSide;
-  readonly trigger: { readonly metric: TriggerMetric; readonly direction: TriggerDirection; readonly value: number };
+  readonly trigger: {
+    readonly metric: TriggerMetric;
+    readonly direction: TriggerDirection;
+    readonly value: number;
+    /** Supply for market-cap triggers (fomo's displayed supply); null = the server's on-chain MC. */
+    readonly supply?: number | null;
+  };
   readonly amount: OrderAmount;
   readonly status: OrderStatus;
   readonly attempts: number;

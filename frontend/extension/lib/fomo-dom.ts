@@ -103,6 +103,27 @@ export function submitBlocker(panel: HTMLElement): string | null {
   return text(b) || 'Submit button disabled';
 }
 
+/** Parses fomo's compact numbers: "999.9M" → 999_900_000, "12.5K", "1.02B". */
+export function parseCompact(s: string): number | null {
+  const m = /^([\d,]+(?:\.\d+)?)\s*([KMBT]?)$/i.exec(s.trim());
+  if (!m) return null;
+  const mult = { '': 1, K: 1e3, M: 1e6, B: 1e9, T: 1e12 }[m[2]!.toUpperCase() as '' | 'K' | 'M' | 'B' | 'T'];
+  return Number(m[1]!.replace(/,/g, '')) * mult;
+}
+
+/**
+ * The token supply fomo displays in "About" ("Supply 999.9M"). fomo computes market cap with it, and it can
+ * differ from the on-chain mint supply (e.g. after burns), so MC orders use it to match what the user sees.
+ */
+export function readSupply(doc: Document): number | null {
+  const label = [...doc.querySelectorAll('span')].find((e) => e.childElementCount === 0 && e.textContent?.trim() === 'Supply');
+  const row = label?.parentElement;
+  if (!row) return null;
+  const value = (row.textContent ?? '').trim().replace(/^Supply/, '');
+  const n = parseCompact(value);
+  return n !== null && n > 0 ? n : null;
+}
+
 /** Texts of FOMO's trade notifications currently on screen ("Buying $3.00 X", "Selling 1.2M X", ...). */
 export function notificationTexts(doc: Document): string[] {
   return [...doc.querySelectorAll('div.bg-bg-primary.rounded-xl.outline')].map((el) => text(el).replace(/\n/g, ' '));

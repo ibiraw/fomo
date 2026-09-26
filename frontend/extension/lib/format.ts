@@ -46,6 +46,11 @@ export function amountLabel(o: Pick<Order, 'amount' | 'side'>): string {
   return `${o.amount.value}% of ${o.side === 'buy' ? 'cash' : 'position'}`;
 }
 
+/** Market cap the way this order measures it: with its fomo supply when it has one. */
+export function orderMarketCap(o: Pick<Order, 'trigger'>, tick: { readonly priceUsd: number; readonly marketCapUsd: number }): number {
+  return o.trigger.supply ? tick.priceUsd * o.trigger.supply : tick.marketCapUsd;
+}
+
 /** Plain-language status. */
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   open: 'Waiting',

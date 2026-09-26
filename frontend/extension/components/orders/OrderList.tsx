@@ -14,6 +14,7 @@ import {
   formatUsdCompact,
   isCancellable,
   orderKind,
+  orderMarketCap,
   shortMint,
   shortNote,
   STATUS_LABEL,
@@ -67,7 +68,7 @@ function OrderRow({ order, tick, onCancel, showMint }: { order: Order; tick: Pri
 
       {active && (
         <div className="mt-1.5 flex items-center justify-between gap-2">
-          <span className="text-[11px] text-muted-foreground">{tick ? `Now ${formatUsdCompact(tick.marketCapUsd)}` : ' '}</span>
+          <span className="text-[11px] text-muted-foreground">{tick ? `Now ${formatUsdCompact(orderMarketCap(order, tick))}` : ' '}</span>
           <button
             type="button"
             onClick={() => cancel.mutate()}
