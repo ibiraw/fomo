@@ -26,8 +26,19 @@ function onMintPage(mint: string): boolean {
 export default defineContentScript({
   matches: ['https://fomo.family/*'],
   runAt: 'document_idle',
-  /** Registers the message handler. */
+  /** Registers the message handler (once, even if the background injects the script again). */
   main() {
+    // A previous copy may exist; skip only if it is still alive. After an extension reload the old
+    // copy is orphaned (its runtime.id is gone) and this new copy must take over.
+    const flagged = window as unknown as { __fomoLimitOrdersAlive?: () => boolean };
+    if (flagged.__fomoLimitOrdersAlive?.()) return;
+    flagged.__fomoLimitOrdersAlive = () => {
+      try {
+        return !!browser.runtime?.id;
+      } catch {
+        return false;
+      }
+    };
     browser.runtime.onMessage.addListener((msg: ContentMessage, _sender, sendResponse) => {
       if (msg.type === 'fomo.ping') {
         sendResponse({ onMint: onMintPage(msg.mint) } satisfies PingReply);

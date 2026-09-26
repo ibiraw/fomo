@@ -13,7 +13,7 @@ export default defineConfig({
   manifest: {
     name: 'FOMO Limit Orders',
     description: 'Limit, take-profit and stop-loss orders for fomo.family.',
-    permissions: ['storage', 'tabs', 'alarms'],
+    permissions: ['storage', 'tabs', 'alarms', 'scripting'],
     host_permissions: ['https://fomo.family/*'],
   },
 });

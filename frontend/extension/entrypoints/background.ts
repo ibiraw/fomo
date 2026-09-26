@@ -45,6 +45,10 @@ export default defineBackground({
     };
 
     const tabs = browser.tabs as unknown as TabsApi;
+    /** Adds the FOMO content script to a tab that was open before the extension was installed. */
+    const inject = async (tabId: number): Promise<void> => {
+      await browser.scripting.executeScript({ target: { tabId }, files: ['/content-scripts/fomo.js'] });
+    };
     const conn = new ServerConnection((url) => new WebSocket(url), {
       onStatus: (s) => { status = s; push(); },
       onSnapshot: (list, latest) => {
@@ -55,7 +59,7 @@ export default defineBackground({
       },
       onOrder: (o) => { orders.set(o.id, o); push(); },
       onTick: (t) => { ticks[t.mint] = t; push(); },
-      onExecute: (o) => executeInFomoTab(tabs, o),
+      onExecute: (o) => executeInFomoTab(tabs, inject, o),
     });
 
     /** Loads settings from storage and (re)connects. */

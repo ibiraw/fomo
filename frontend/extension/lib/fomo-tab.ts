@@ -14,6 +14,15 @@ export interface TabsApi {
   sendMessage(id: number, msg: unknown): Promise<unknown>;
 }
 
+/**
+ * Injects the content script into a tab. Chrome only injects manifest content scripts on page load,
+ * so tabs opened before the extension was installed/updated have no script until this runs.
+ */
+export type InjectFn = (tabId: number) => Promise<void>;
+
+/** Chrome's error when no content script is listening in the tab. */
+const NO_RECEIVER_RE = /Receiving end does not exist|Could not establish connection/i;
+
 /** Tuning (ms). */
 export interface TabTimings {
   readonly readyMs: number;
@@ -43,7 +52,7 @@ function timeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
  * Picks a FOMO tab (one already on the token page if possible), navigates it to the token and waits
  * until the content script reports it is on that page. Returns the tab id.
  */
-export async function prepareTab(tabs: TabsApi, mint: string, t: TabTimings = DEFAULT_TAB_TIMINGS): Promise<number> {
+export async function prepareTab(tabs: TabsApi, inject: InjectFn, mint: string, t: TabTimings = DEFAULT_TAB_TIMINGS): Promise<number> {
   const url = tokenUrl(mint);
   const open = await tabs.query({ url: FOMO_MATCH });
   let tab = open.find((x) => x.url === url) ?? open[0];
@@ -53,16 +62,31 @@ export async function prepareTab(tabs: TabsApi, mint: string, t: TabTimings = DE
   if (tab.url !== url) await tabs.update(id, { url });
 
   const deadline = Date.now() + t.readyMs;
+  let injected = false;
+  let injectFailure: string | null = null;
+  let lastProblem = 'page did not finish loading';
   while (Date.now() < deadline) {
     try {
       const reply = (await tabs.sendMessage(id, { type: 'fomo.ping', mint })) as { onMint?: boolean } | undefined;
       if (reply?.onMint) return id;
-    } catch {
-      // content script not injected yet (page loading)
+      lastProblem = 'tab is not showing the token page';
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      lastProblem = msg;
+      // No script in the tab (opened before install): inject once. While a page is still loading the
+      // same error appears, and injecting then is harmless — the script guards against double setup.
+      if (!injected && NO_RECEIVER_RE.test(msg)) {
+        injected = true;
+        try {
+          await inject(id);
+        } catch (injectErr) {
+          injectFailure = `could not add helper script: ${injectErr instanceof Error ? injectErr.message : String(injectErr)}`;
+        }
+      }
     }
     await sleep(t.pollMs);
   }
-  throw new Error(`FOMO tab did not load the token page within ${t.readyMs / 1000}s`);
+  throw new Error(`FOMO tab was not ready within ${t.readyMs / 1000}s (${injectFailure ?? lastProblem})`);
 }
 
 /** Converts an order into the content-script trade request. */
@@ -71,10 +95,10 @@ export function toTradeRequest(order: Order): TradeRequest {
 }
 
 /** Runs `order` in a FOMO tab. Never throws. */
-export async function executeInFomoTab(tabs: TabsApi, order: Order, t: TabTimings = DEFAULT_TAB_TIMINGS): Promise<ExecutionResult> {
+export async function executeInFomoTab(tabs: TabsApi, inject: InjectFn, order: Order, t: TabTimings = DEFAULT_TAB_TIMINGS): Promise<ExecutionResult> {
   let id: number;
   try {
-    id = await prepareTab(tabs, order.mint, t);
+    id = await prepareTab(tabs, inject, order.mint, t);
   } catch (err) {
     // Nothing was clicked yet, so this is a definite failure, not an unknown outcome.
     return { ok: false, kind: 'ui_error', message: err instanceof Error ? err.message : String(err) };
