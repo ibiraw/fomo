@@ -28,7 +28,8 @@ Chrome MV3 extension built with WXT. Connects to the local backend (ws://127.0.0
 
 ## Store (Chrome Web Store, unlisted)
 - `store/LISTING.md` — listing text, permission justifications, privacy answers, screenshot list.
-- `store/assets/` — store icon + promo tile (`node scripts/store-assets.mjs`); toolbar icons from `assets/icon.svg` (`node scripts/icons.mjs`).
+- Logo: the moon (white crescent on #09090b, dashed orbit ring in fomo's Buy-button blue #516af6); wordmark "limit" with blue dots on the i's (`.wm-i` = dotless ı + dot).
+- `store/assets/` — store icon + promo tile (`node scripts/store-assets.mjs`); toolbar icons from `assets/icon.svg` (`node scripts/icons.mjs`). `assets/icon-small.svg` is the 16px variant (solid, thicker ring).
 - `npm run zip` → `.output/limit-<version>-chrome.zip`. Privacy policy: website `/privacy`.
 
 ## Commands

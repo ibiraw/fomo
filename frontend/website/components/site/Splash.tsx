@@ -6,6 +6,8 @@
  * @author Reborn1987
  */
 
+import { LogoWord, MoonMark } from './Logo';
+
 /** Inline script (runs before paint): skip the splash if it was already shown this session. */
 export const SPLASH_SKIP_SCRIPT = `try{if(sessionStorage.getItem('af-splash')){document.documentElement.classList.add('af-no-splash')}else{sessionStorage.setItem('af-splash','1')}}catch(e){}`;
 
@@ -14,8 +16,9 @@ export function Splash() {
   return (
     <div className="af-splash" aria-hidden="true">
       <div className="af-splash-inner">
-        <div className="text-4xl font-bold tracking-tight">
-          lim<span className="text-brand">i</span>t
+        <div className="flex items-center gap-3 text-4xl">
+          <MoonMark size={44} />
+          <LogoWord />
         </div>
         <svg viewBox="0 0 200 60" className="af-splash-chart" role="presentation">
           <line x1="0" x2="200" y1="44" y2="44" stroke="var(--faint)" strokeDasharray="4 4" strokeWidth="1" />

@@ -84,6 +84,20 @@
   }
 }
 
+/* ---------- Logo: "limit" with blue dots — each i is a dotless ı with a round dot placed above it ---------- */
+.wm-i { position: relative; display: inline-block; }
+.wm-i::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: .1em;
+  width: .19em;
+  height: .19em;
+  border-radius: 50%;
+  background: #516af6;
+  transform: translateX(-50%);
+}
+
 /* ---------- First-visit splash (pure CSS; hidden for the rest of the session via .af-no-splash) ---------- */
 .af-splash {
   position: fixed;

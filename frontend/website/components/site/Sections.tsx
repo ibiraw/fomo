@@ -21,12 +21,14 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { LogoWord, MoonMark } from './Logo';
 
 /** Lowercase wordmark. */
 export function Wordmark({ className = '' }: { className?: string }) {
   return (
-    <span className={`font-bold tracking-tight ${className}`}>
-      lim<span className="text-brand">i</span>t
+    <span className={`inline-flex items-center gap-2 ${className}`}>
+      <MoonMark size={26} />
+      <LogoWord />
     </span>
   );
 }

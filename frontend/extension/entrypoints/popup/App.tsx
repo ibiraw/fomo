@@ -60,7 +60,10 @@ export default function App() {
   return (
     <div className="p-4 space-y-4">
       <header className="flex items-center justify-between">
-        <h1 className="text-base font-bold">limit</h1>
+        <h1 className="flex items-center gap-2 text-base font-bold" aria-label="limit">
+          <img src="/icon/48.png" alt="" className="size-6 rounded-md" />
+          <span aria-hidden="true">l<span className="wm-i">ı</span>m<span className="wm-i">ı</span>t</span>
+        </h1>
         <Badge className={cn(state.status === 'connected' ? 'bg-buy/20 text-buy' : 'bg-sell/20 text-sell')}>{STATUS_TEXT[state.status]}</Badge>
       </header>
 

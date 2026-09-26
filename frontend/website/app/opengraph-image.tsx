@@ -17,7 +17,25 @@ export default function OpengraphImage() {
     (
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: '#09090b', color: '#fafafa', padding: 72, fontFamily: 'sans-serif' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: -1 }}>limit</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <svg width="64" height="64" viewBox="0 0 64 64">
+              <rect width="64" height="64" rx="14" fill="#09090b" stroke="#26262c" strokeWidth="2" />
+              <ellipse cx="32" cy="36" rx="25" ry="11" fill="none" stroke="#516af6" strokeWidth="3" strokeDasharray="5 4" transform="rotate(-18 32 36)" />
+              <path d="M40 14 A16 16 0 1 0 50 38 A12 12 0 1 1 40 14 Z" fill="#fafafa" />
+            </svg>
+            <div style={{ display: 'flex', fontSize: 48, fontWeight: 800, letterSpacing: -1 }}>
+              l
+              {[0, 1].map((k) => (
+                <div key={k} style={{ display: 'flex', flexDirection: 'row' }}>
+                  <div style={{ display: 'flex', position: 'relative' }}>
+                    ı
+                    <div style={{ position: 'absolute', left: '50%', top: 16, width: 9, height: 9, marginLeft: -4.5, borderRadius: 9, background: '#516af6' }} />
+                  </div>
+                  {k === 0 ? 'm' : 't'}
+                </div>
+              ))}
+            </div>
+          </div>
           <div style={{ fontSize: 22, color: '#9a9aa3', border: '2px solid #34343c', borderRadius: 999, padding: '6px 18px' }}>Unofficial</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>

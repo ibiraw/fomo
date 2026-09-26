@@ -11,6 +11,6 @@ const sharp = createRequire(import.meta.url)('../../website/node_modules/sharp')
 const big = readFileSync('assets/icon.svg');
 const small = readFileSync('assets/icon-small.svg');
 for (const size of [16, 32, 48, 96, 128]) {
-  await sharp(size <= 16 ? small : big, { density: 72 * Math.max(1, size / 16) }).resize(size, size).png().toFile(`public/icon/${size}.png`);
+  await sharp(size <= 16 ? small : big, { density: 72 * Math.max(1, size / 16) * 4 }).resize(size, size).png().toFile(`public/icon/${size}.png`);
 }
 console.log('icons written to public/icon/');
