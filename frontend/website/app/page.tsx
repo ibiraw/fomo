@@ -5,7 +5,6 @@
  */
 
 import { Faq, Features, Hero, Holders, HowItWorks, SectionHead, SiteFooter, SiteHeader } from '@/components/site/Sections';
-import { Themes } from '@/components/site/Themes';
 import { TryIt } from '@/components/site/TryIt';
 import { Walkthrough } from '@/components/site/Walkthrough';
 
@@ -25,10 +24,6 @@ export default function Home() {
           <TryIt />
         </section>
         <Features />
-        <section id="themes" className="mx-auto max-w-6xl px-5 pb-24">
-          <SectionHead eyebrow="Themes" title="Make fomo yours" sub="Pick a theme in the extension and it recolors fomo.family and your Limit panel — in every open tab, instantly." />
-          <Themes />
-        </section>
         <HowItWorks />
         <Holders />
         <Faq />

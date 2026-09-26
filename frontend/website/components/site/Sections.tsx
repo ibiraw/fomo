@@ -40,7 +40,6 @@ export function SiteHeader() {
         <nav className="hidden gap-6 text-sm text-muted-foreground md:flex">
           <a href="#demo" className="hover:text-foreground">Demo</a>
           <a href="#features" className="hover:text-foreground">Features</a>
-          <a href="#themes" className="hover:text-foreground">Themes</a>
           <a href="#how" className="hover:text-foreground">How it works</a>
           <a href="#holders" className="hover:text-foreground">Holders</a>
           <a href="#faq" className="hover:text-foreground">FAQ</a>
