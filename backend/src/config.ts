@@ -21,6 +21,9 @@ const EnvSchema = z.object({
   EXEC_TIMEOUT_MS: z.coerce.number().int().positive().default(90_000),
   /** The user's FOMO Solana wallet; enables on-chain trade confirmation when set. */
   FOMO_WALLET: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, 'Not a valid Solana address').optional(),
+  /** Optional Jupiter API key; without it the keyless lite endpoint is used. */
+  JUPITER_API_KEY: z.string().min(1).optional(),
+  JUPITER_POLL_MS: z.coerce.number().int().min(1_000).default(1_500),
 });
 
 /** Validated runtime configuration. */
@@ -33,6 +36,7 @@ export interface AppConfig {
   readonly pairingToken: string;
   readonly execTimeoutMs: number;
   readonly fomoWallet: string | null;
+  readonly jupiter: { readonly url: string; readonly apiKey: string | null; readonly pollMs: number };
 }
 
 /** Reads the pairing token from DATA_DIR, generating one on first run. */
@@ -61,5 +65,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     pairingToken: loadOrCreateToken(e.DATA_DIR),
     execTimeoutMs: e.EXEC_TIMEOUT_MS,
     fomoWallet: e.FOMO_WALLET ?? null,
+    jupiter: {
+      url: e.JUPITER_API_KEY ? 'https://api.jup.ag/price/v3' : 'https://lite-api.jup.ag/price/v3',
+      apiKey: e.JUPITER_API_KEY ?? null,
+      pollMs: e.JUPITER_POLL_MS,
+    },
   };
 }

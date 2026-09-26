@@ -11,6 +11,8 @@ import { SqliteOrderStoreAdapter } from './adapters/storage/sqlite-order-store.a
 import { loadConfig } from './config.js';
 import { OrderEngine } from './core/orders/order-engine.js';
 import { WalletTradeConfirmer } from './core/orders/wallet-trade-confirmer.js';
+import { CompositePriceFeed } from './core/pricing/composite-price-feed.js';
+import { JupiterPriceFeed } from './core/pricing/jupiter-price-feed.js';
 import { PumpPriceFeed } from './core/pricing/pump-price-feed.js';
 import { TokenInfoService } from './core/tokens/token-info-service.js';
 
@@ -28,7 +30,13 @@ function logError(ctx: string) {
 async function main(): Promise<void> {
   const cfg = loadConfig();
   const accounts = new KitSolanaAccountsAdapter(cfg.rpcHttp, cfg.rpcWss, logError('rpc'));
-  const feed = new PumpPriceFeed(accounts, logError('price'));
+  const http = new FetchHttpJsonAdapter();
+  const jupiterHttp = new FetchHttpJsonAdapter(cfg.jupiter.apiKey ? { 'x-api-key': cfg.jupiter.apiKey } : {});
+  // Fast on-chain feeds first; Jupiter covers every other token (slower, polled).
+  const feed = new CompositePriceFeed([
+    new PumpPriceFeed(accounts, logError('price')),
+    new JupiterPriceFeed(jupiterHttp, accounts, { url: cfg.jupiter.url, pollMs: cfg.jupiter.pollMs }, logError('jupiter')),
+  ]);
   const store = new SqliteOrderStoreAdapter(cfg.dbPath);
   const gateway = new WsGateway(
     { host: cfg.gatewayHost, port: cfg.gatewayPort, token: cfg.pairingToken, execTimeoutMs: cfg.execTimeoutMs, tickThrottleMs: 250, pingIntervalMs: 20_000 },
@@ -36,7 +44,7 @@ async function main(): Promise<void> {
   );
   const confirmer = cfg.fomoWallet ? new WalletTradeConfirmer(accounts, cfg.fomoWallet, 400, logError('confirm')) : null;
   const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), logError('engine'), confirmer);
-  gateway.attach(engine, new TokenInfoService(accounts, new FetchHttpJsonAdapter()));
+  gateway.attach(engine, new TokenInfoService(accounts, http));
 
   await feed.start();
   await gateway.listen();

@@ -9,8 +9,8 @@ export interface PriceTick {
   readonly mint: string;
   readonly priceUsd: number;
   readonly marketCapUsd: number;
-  /** Which on-chain source produced the tick. */
-  readonly source: 'pump-curve' | 'pump-swap';
+  /** Which source produced the tick. On-chain sources are sub-second; 'jupiter' is a polled fallback (seconds). */
+  readonly source: 'pump-curve' | 'pump-swap' | 'jupiter';
   readonly receivedAt: number;
 }
 

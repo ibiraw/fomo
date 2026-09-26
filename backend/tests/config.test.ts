@@ -31,6 +31,8 @@ describe('loadConfig', () => {
     expect(a).toMatchObject({ gatewayHost: '127.0.0.1', gatewayPort: 8787, execTimeoutMs: 90_000, dbPath: join(DATA_DIR, 'orders.db') });
     expect(a.pairingToken.length).toBeGreaterThan(20);
     expect(loadConfig({ ...base, DATA_DIR }).pairingToken).toBe(a.pairingToken);
+    expect(a.jupiter).toEqual({ url: 'https://lite-api.jup.ag/price/v3', apiKey: null, pollMs: 1500 });
+    expect(loadConfig({ ...base, DATA_DIR, JUPITER_API_KEY: 'k' }).jupiter).toMatchObject({ url: 'https://api.jup.ag/price/v3', apiKey: 'k' });
   });
 
   it('lists every invalid variable', () => {
