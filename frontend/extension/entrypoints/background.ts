@@ -16,9 +16,42 @@ import {
 import { ServerConnection, type ConnectionStatus } from '@/lib/server-connection';
 import { XLatestService } from '@/lib/x-latest';
 import { scrapeLatestPost } from '@/lib/x-scraper';
+import { loadSoundSettings, soundForUpdate, type PlaySoundMessage, type SoundEvent } from '@/lib/sounds';
 import type { Order, PriceTick } from '@/lib/types';
 
 const KEEPALIVE_ALARM = 'fomo-keepalive';
+const OFFSCREEN_PATH = '/offscreen.html';
+
+/** The parts of Chrome's offscreen / contexts APIs used for audio (not in the cross-browser typings). */
+interface ChromeAudioApis {
+  runtime: { getContexts(f: { contextTypes: string[]; documentUrls: string[] }): Promise<unknown[]> };
+  offscreen: { createDocument(p: { url: string; reasons: string[]; justification: string }): Promise<void> };
+}
+
+let offscreenReady: Promise<void> | null = null;
+
+/** Opens the hidden audio page once (service workers can't play audio themselves). */
+function ensureOffscreen(): Promise<void> {
+  offscreenReady ??= (async () => {
+    const api = (globalThis as unknown as { chrome: ChromeAudioApis }).chrome;
+    const existing = await api.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'], documentUrls: [browser.runtime.getURL(OFFSCREEN_PATH)] });
+    if (existing.length === 0) {
+      await api.offscreen.createDocument({ url: OFFSCREEN_PATH, reasons: ['AUDIO_PLAYBACK'], justification: 'Plays a sound when a limit order fills or fails.' });
+    }
+  })().catch((err: unknown) => {
+    offscreenReady = null; // try again next time
+    throw err;
+  });
+  return offscreenReady;
+}
+
+/** Plays an order sound if the user has sounds on. */
+async function playSound(event: SoundEvent): Promise<void> {
+  const settings = await loadSoundSettings();
+  if (!settings.enabled || settings.volume <= 0) return;
+  await ensureOffscreen();
+  await browser.runtime.sendMessage({ type: 'fomo.sound', event, volume: settings.volume } satisfies PlaySoundMessage);
+}
 
 export default defineBackground({
   type: 'module',
@@ -68,7 +101,12 @@ export default defineBackground({
         latest.forEach((t) => (ticks[t.mint] = t));
         push();
       },
-      onOrder: (o) => { orders.set(o.id, o); push(); },
+      onOrder: (o) => {
+        const sound = soundForUpdate(orders.get(o.id), o);
+        orders.set(o.id, o);
+        push();
+        if (sound) void playSound(sound).catch((err: unknown) => console.error('[auto fomo] sound failed', err));
+      },
       onTick: (t) => { ticks[t.mint] = t; push(); },
       onExecute: (o) => executeInFomoTab(tabs, inject, worker, o),
     });

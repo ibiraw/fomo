@@ -13,6 +13,7 @@ import { TokenXCard } from '@/components/panel/TokenXCard';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Segmented } from '@/components/orders/Segmented';
+import { OrderSounds } from '@/components/OrderSounds';
 import { ThemePicker } from '@/components/ThemePicker';
 import { useBackground } from '@/hooks/use-background';
 import { useDefaultTab } from '@/hooks/use-default-tab';
@@ -97,6 +98,7 @@ export default function App() {
               <p className="text-xs text-muted-foreground">Recolors fomo.family and the Limit panel in every open fomo tab.</p>
               <ThemePicker />
             </section>
+            <OrderSounds />
             <PairingForm serverUrl={state.serverUrl} badToken={false} onSave={save} />
           </TabsContent>
         </Tabs>
