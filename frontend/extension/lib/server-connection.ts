@@ -5,14 +5,16 @@
  * @author Reborn1987
  */
 
+import type { AccountView } from './account';
 import type { ExecutionResult, Order, PriceTick } from './types';
 
-export type ConnectionStatus = 'no_token' | 'connecting' | 'connected' | 'disconnected' | 'bad_token';
+/** `bad_token`: the server rejected the account key; `deleted`: the account was deleted from another device. */
+export type ConnectionStatus = 'no_token' | 'connecting' | 'connected' | 'disconnected' | 'bad_token' | 'deleted';
 
 /** Callbacks the connection reports to. */
 export interface ConnectionHandlers {
   onStatus(status: ConnectionStatus): void;
-  onSnapshot(orders: Order[], ticks: PriceTick[]): void;
+  onSnapshot(orders: Order[], ticks: PriceTick[], account: AccountView | null): void;
   onOrder(order: Order): void;
   onTick(tick: PriceTick): void;
   /** Execute a trade and resolve with its result. */
@@ -25,7 +27,7 @@ export type SocketLike = Pick<WebSocket, 'readyState' | 'onopen' | 'onclose' | '
 export type SocketFactory = (url: string) => SocketLike;
 
 type ServerMessage =
-  | { type: 'welcome'; orders: Order[]; ticks: PriceTick[] }
+  | { type: 'welcome'; orders: Order[]; ticks: PriceTick[]; account?: AccountView }
   | { type: 'reply'; reqId: string; ok: true; data: unknown }
   | { type: 'reply'; reqId: string; ok: false; error: string }
   | { type: 'order'; order: Order }
@@ -36,6 +38,7 @@ type ServerMessage =
 
 const OPEN = 1;
 const BAD_TOKEN_CODE = 4001;
+const DELETED_CODE = 4003;
 const MIN_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 15_000;
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -86,9 +89,12 @@ export class ServerConnection {
   }
 
   /** Sends a command and resolves with the server's reply data (rejects with ServerCommandError). */
-  request(type: 'order.create' | 'order.cancel' | 'order.list' | 'token.info' | 'price.watch' | 'wallet.holds', body: Record<string, unknown>): Promise<unknown> {
+  request(
+    type: 'order.create' | 'order.cancel' | 'order.list' | 'token.info' | 'price.watch' | 'wallet.holds' | 'wallets.set' | 'account.info' | 'account.delete',
+    body: Record<string, unknown>,
+  ): Promise<unknown> {
     const s = this.socket;
-    if (!s || this.status !== 'connected') return Promise.reject(new ServerCommandError('Not connected to the FOMO order server'));
+    if (!s || this.status !== 'connected') return Promise.reject(new ServerCommandError('Not connected to the auto fomo server'));
     const reqId = `r${++this.seq}`;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -105,16 +111,17 @@ export class ServerConnection {
     this.setStatus('connecting');
     const s = this.factory(url);
     this.socket = s;
-    s.onopen = () => s.send(JSON.stringify({ type: 'hello', token, executor: true }));
+    // create: the key was made by this extension, so an unknown key is a new account (not a typo).
+    s.onopen = () => s.send(JSON.stringify({ type: 'hello', token, executor: true, create: true }));
     s.onmessage = (ev) => this.onMessage(s, String(ev.data));
     s.onerror = () => undefined; // onclose follows and handles reconnect
     s.onclose = (ev) => {
       if (this.socket !== s) return;
       this.socket = null;
       this.failPending('Connection lost');
-      if (ev.code === BAD_TOKEN_CODE) {
+      if (ev.code === BAD_TOKEN_CODE || ev.code === DELETED_CODE) {
         this.stopped = true;
-        return this.setStatus('bad_token');
+        return this.setStatus(ev.code === DELETED_CODE ? 'deleted' : 'bad_token');
       }
       this.setStatus('disconnected');
       if (!this.stopped) {
@@ -136,7 +143,7 @@ export class ServerConnection {
       case 'welcome':
         this.backoff = MIN_BACKOFF_MS;
         this.setStatus('connected');
-        return this.handlers.onSnapshot(msg.orders, msg.ticks);
+        return this.handlers.onSnapshot(msg.orders, msg.ticks, msg.account ?? null);
       case 'reply': {
         const p = this.pending.get(msg.reqId);
         if (!p) return;

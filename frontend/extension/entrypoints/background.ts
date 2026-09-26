@@ -5,6 +5,7 @@
  * @author Reborn1987
  */
 
+import { generateAccountKey, isAccountKey, walletsUpdate, type AccountView, type Wallets } from '@/lib/account';
 import { executeInFomoTab, type TabsApi, type WorkerTabStore } from '@/lib/fomo-tab';
 import {
   DEFAULT_SERVER_URL,
@@ -12,6 +13,7 @@ import {
   type BackgroundMessage,
   type PopupRequest,
   type PopupState,
+  type WalletsDetectedMessage,
 } from '@/lib/messages';
 import { ServerConnection, type ConnectionStatus } from '@/lib/server-connection';
 import { XLatestService } from '@/lib/x-latest';
@@ -60,6 +62,9 @@ export default defineBackground({
     let status: ConnectionStatus = 'disconnected';
     let serverUrl = DEFAULT_SERVER_URL;
     let token: string | null = null;
+    let account: AccountView | null = null;
+    /** Latest wallets read from a fomo tab (sent to the server once connected). */
+    let detected: Wallets | null = null;
     const orders = new Map<string, Order>();
     const ticks: Record<string, PriceTick> = {};
     const ports = new Set<Browser.runtime.Port>();
@@ -69,6 +74,7 @@ export default defineBackground({
       status,
       serverUrl,
       hasToken: !!token,
+      account,
       orders: [...orders.values()].sort((a, b) => b.createdAt - a.createdAt),
       ticks: { ...ticks },
     });
@@ -95,7 +101,9 @@ export default defineBackground({
     };
     const conn = new ServerConnection((url) => new WebSocket(url), {
       onStatus: (s) => { status = s; push(); },
-      onSnapshot: (list, latest) => {
+      onSnapshot: (list, latest, acc) => {
+        account = acc;
+        void syncWallets();
         orders.clear();
         list.forEach((o) => orders.set(o.id, o));
         latest.forEach((t) => (ticks[t.mint] = t));
@@ -127,13 +135,42 @@ export default defineBackground({
       },
     });
 
-    /** Loads settings from storage and (re)connects. */
+    /**
+     * Loads settings and (re)connects. A new install gets an account key automatically (it is also the backup code);
+     * after the user deletes their account no new one is made until they ask.
+     */
     const connectFromStorage = async (): Promise<void> => {
-      const s = await browser.storage.local.get(['serverUrl', 'token']);
+      const s = await browser.storage.local.get(['serverUrl', 'token', 'accountDeleted']);
       serverUrl = typeof s.serverUrl === 'string' && s.serverUrl ? s.serverUrl : DEFAULT_SERVER_URL;
       token = typeof s.token === 'string' && s.token ? s.token : null;
+      if (!token && s.accountDeleted !== true) {
+        token = generateAccountKey();
+        await browser.storage.local.set({ token });
+      }
+      account = null;
       conn.start(serverUrl, token);
     };
+
+    /** Sends newly detected wallet addresses to the server when they differ from the account's. */
+    const syncWallets = async (): Promise<void> => {
+      if (!account || !detected || conn.getStatus() !== 'connected') return;
+      const next = walletsUpdate(account.wallets, detected);
+      if (!next) return;
+      try {
+        account = (await conn.request('wallets.set', { wallets: next })) as AccountView;
+        push();
+      } catch (err) {
+        console.error('[auto fomo] could not save wallets', err);
+      }
+    };
+
+    // The fomo content script reports the wallets it reads from the page's own storage.
+    browser.runtime.onMessage.addListener((msg: unknown) => {
+      const m = msg as Partial<WalletsDetectedMessage> | undefined;
+      if (m?.type !== 'fomo.wallets' || !m.wallets) return;
+      detected = m.wallets;
+      void syncWallets();
+    });
 
     /** Handles one popup request and replies. */
     const handle = async (port: Browser.runtime.Port, req: PopupRequest): Promise<void> => {
@@ -141,8 +178,32 @@ export default defineBackground({
       try {
         let data: unknown;
         if (req.type === 'settings.save') {
-          await browser.storage.local.set({ serverUrl: req.serverUrl.trim(), token: req.token.trim() });
+          await browser.storage.local.set({ serverUrl: req.serverUrl.trim() });
           await connectFromStorage();
+        } else if (req.type === 'account.key') {
+          data = token;
+        } else if (req.type === 'account.restore') {
+          if (!isAccountKey(req.key)) throw new Error("That doesn't look like a backup code — it's a long string of letters, numbers, - and _.");
+          await browser.storage.local.set({ token: req.key.trim(), accountDeleted: false });
+          await connectFromStorage();
+        } else if (req.type === 'account.new') {
+          await browser.storage.local.remove('token');
+          await browser.storage.local.set({ accountDeleted: false });
+          await connectFromStorage();
+        } else if (req.type === 'account.delete') {
+          data = await conn.request('account.delete', {});
+          conn.stop();
+          token = null;
+          account = null;
+          orders.clear();
+          await browser.storage.local.remove('token');
+          await browser.storage.local.set({ accountDeleted: true });
+          status = 'no_token';
+          push();
+        } else if (req.type === 'wallets.set') {
+          account = (await conn.request('wallets.set', { wallets: req.wallets })) as AccountView;
+          push();
+          data = account;
         } else if (req.type === 'order.create') {
           data = await conn.request('order.create', { order: req.order });
         } else if (req.type === 'order.cancel') {
@@ -155,7 +216,7 @@ export default defineBackground({
           const tick = (await conn.request('price.watch', { mint: req.mint })) as PriceTick | null;
           if (tick) { ticks[tick.mint] = tick; push(); }
           data = tick;
-        } else {
+        } else if (req.type === 'x.latest') {
           data = await xLatest.get(req.url, req.force ?? false);
         }
         reply({ type: 'reply', reqId: req.reqId, ok: true, data });

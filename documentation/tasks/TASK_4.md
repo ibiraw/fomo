@@ -18,6 +18,7 @@ Fallback: read the deposit screen in the extension's hidden background tab; last
 
 ## Status
 - Phase 1 ✅ (listing, icons, promo tile, privacy page, zip). Screenshots still to capture (after phase 3 UI).
+- Phase 3 ✅ extension: automatic account + backup code/restore/delete, silent wallet detection, hosted URL via `WXT_SERVER_URL` — 95 extension tests.
 - Phase 2 ✅ multi-user server — 175 backend tests, 96.7% coverage. Live migration: 43 existing orders → `legacy` account, owner's extension logs in with the old pairing code.
 
 ## Phases

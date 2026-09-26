@@ -1,10 +1,12 @@
 /**
  * @file fomo.content.ts
- * @description Content script on fomo.family. Answers readiness pings and executes trades sent by the
- *              background worker on the current token page.
+ * @description Content script on fomo.family. Answers readiness pings, executes trades sent by the background
+ *              worker on the current token page, and reports the user's wallet addresses read from fomo's storage.
  * @author Reborn1987
  */
 
+import { readFomoWallets } from '@/lib/account';
+import type { WalletsDetectedMessage } from '@/lib/messages';
 import { keyFromPath, tokenPath } from '@/lib/token-key';
 import { executeTrade } from '@/lib/trade';
 import type { ExecutionResult, TradeRequest } from '@/lib/types';
@@ -55,5 +57,18 @@ export default defineContentScript({
       }
       return false;
     });
+    // Wallet addresses: read silently from fomo's own storage (nothing is opened or clicked). fomo fills it in
+    // after login, so check again a little later.
+    for (const delayMs of [0, 5_000, 30_000]) setTimeout(reportWallets, delayMs);
   },
 });
+
+/** Sends the user's fomo wallet addresses to the background when any are found. */
+function reportWallets(): void {
+  try {
+    const wallets = readFomoWallets(localStorage);
+    if (wallets.solana || wallets.evm) void browser.runtime.sendMessage({ type: 'fomo.wallets', wallets } satisfies WalletsDetectedMessage).catch(() => undefined);
+  } catch {
+    // storage blocked or extension reloaded — try again on the next page load
+  }
+}

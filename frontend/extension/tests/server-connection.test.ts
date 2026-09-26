@@ -70,9 +70,9 @@ describe('ServerConnection', () => {
 
   it('sends hello as executor and becomes connected on welcome', () => {
     const s = connectOk();
-    expect(s.sent[0]).toEqual({ type: 'hello', token: 'tok', executor: true });
+    expect(s.sent[0]).toEqual({ type: 'hello', token: 'tok', executor: true, create: true });
     expect(statuses).toEqual(['connecting', 'connected']);
-    expect(handlers.onSnapshot).toHaveBeenCalledWith([ORDER], []);
+    expect(handlers.onSnapshot).toHaveBeenCalledWith([ORDER], [], null);
   });
 
   it('resolves and rejects requests from replies', async () => {
@@ -122,10 +122,22 @@ describe('ServerConnection', () => {
     expect(sockets).toHaveLength(2);
   });
 
-  it('stops on a rejected pairing token', () => {
+  it('stops on a rejected account key', () => {
     const s = connectOk();
     s.drop(4001);
     expect(conn.getStatus()).toBe('bad_token');
+    vi.advanceTimersByTime(60_000);
+    expect(sockets).toHaveLength(1);
+  });
+
+  it('stops when the account was deleted, and passes the account from the welcome', () => {
+    conn.start('ws://x', 'tok');
+    const s = sockets[0]!;
+    s.open();
+    s.recv({ type: 'welcome', orders: [], ticks: [], account: { id: 'a1', wallets: { solana: null, evm: null } } });
+    expect(handlers.onSnapshot).toHaveBeenCalledWith([], [], { id: 'a1', wallets: { solana: null, evm: null } });
+    s.drop(4003);
+    expect(conn.getStatus()).toBe('deleted');
     vi.advanceTimersByTime(60_000);
     expect(sockets).toHaveLength(1);
   });

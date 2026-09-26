@@ -1,6 +1,6 @@
 /**
  * @file App.tsx
- * @description Popup root: connection status, pairing, new order form and order list.
+ * @description Popup root: connection status, new order form, order list and settings (account, theme, sounds).
  * @author Reborn1987
  */
 
@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 
 import { NewOrderForm } from '@/components/orders/NewOrderForm';
 import { OrderList } from '@/components/orders/OrderList';
-import { PairingForm } from '@/components/orders/PairingForm';
+import { AccountSection, NoAccount } from '@/components/AccountSection';
 import { TokenXCard } from '@/components/panel/TokenXCard';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -30,8 +30,9 @@ const STATUS_TEXT: Record<ConnectionStatus, string> = {
   connected: 'Connected',
   connecting: 'Connecting…',
   disconnected: 'Server offline',
-  no_token: 'Not paired',
-  bad_token: 'Pairing rejected',
+  no_token: 'No account',
+  bad_token: 'Key rejected',
+  deleted: 'Account deleted',
 };
 
 /** Popup UI. */
@@ -52,9 +53,8 @@ export default function App() {
 
   if (!state) return <p className="p-4 text-sm text-muted-foreground">Loading…</p>;
 
-  const paired = state.status !== 'no_token' && state.status !== 'bad_token';
+  const hasAccount = state.status !== 'no_token' && state.status !== 'bad_token' && state.status !== 'deleted';
   const active = state.orders.filter((o) => o.status === 'open' || o.status === 'triggered' || o.status === 'executing').length;
-  const save = (serverUrl: string, token: string): Promise<unknown> => send({ type: 'settings.save', serverUrl, token });
 
   return (
     <div className="p-4 space-y-4">
@@ -63,8 +63,8 @@ export default function App() {
         <Badge className={cn(state.status === 'connected' ? 'bg-buy/20 text-buy' : 'bg-sell/20 text-sell')}>{STATUS_TEXT[state.status]}</Badge>
       </header>
 
-      {!paired ? (
-        <PairingForm serverUrl={state.serverUrl} badToken={state.status === 'bad_token'} onSave={save} />
+      {!hasAccount ? (
+        <NoAccount reason={state.status === 'bad_token' ? 'rejected' : 'deleted'} send={send} />
       ) : (
         <Tabs defaultValue="new">
           <TabsList className="w-full">
@@ -74,7 +74,7 @@ export default function App() {
           </TabsList>
           <TabsContent value="new" className="pt-2">
             {state.status === 'disconnected' && (
-              <p className="mb-3 text-sm text-sell">Server offline — start it with <code>npm run dev</code> in <code>backend/</code>.</p>
+              <p className="mb-3 text-sm text-sell">Can't reach the auto fomo server. It reconnects on its own — check your internet connection.</p>
             )}
             {tabMint && state.status === 'connected' && <div className="mb-3"><TokenXCard mint={tabMint} send={send} /></div>}
             {priceError && <p className="mb-3 rounded-md bg-card p-2 text-xs text-yellow">This token can't be priced yet: {priceError}</p>}
@@ -99,7 +99,7 @@ export default function App() {
               <ThemePicker />
             </section>
             <OrderSounds />
-            <PairingForm serverUrl={state.serverUrl} badToken={false} onSave={save} />
+            <AccountSection account={state.account} serverUrl={state.serverUrl} send={send} />
           </TabsContent>
         </Tabs>
       )}

@@ -28,10 +28,11 @@ export interface MintStore {
 }
 
 const OFFLINE_TEXT: Partial<Record<ConnectionStatus, string>> = {
-  no_token: 'Not paired yet — open the auto fomo extension and paste the pairing code.',
-  bad_token: 'Pairing code rejected — re-pair in the extension popup.',
-  disconnected: 'Order server offline — start it with npm run dev in backend/.',
-  connecting: 'Connecting to the order server…',
+  no_token: 'No account yet — open the auto fomo extension to start one.',
+  bad_token: 'Your account key was rejected — open the auto fomo extension.',
+  deleted: 'Your account was deleted — open the auto fomo extension to start a new one.',
+  disconnected: "Can't reach the auto fomo server — it reconnects on its own.",
+  connecting: 'Connecting to the auto fomo server…',
 };
 
 /** Limit-order view for the token shown on the page. */
