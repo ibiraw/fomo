@@ -12,8 +12,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ReactDOM from 'react-dom/client';
 
 import { LimitView, type MintStore } from '@/components/panel/LimitView';
+import { loadDefaultTab, onDefaultTabChange, type DefaultTab } from '@/hooks/use-default-tab';
 import { loadTheme, onThemeChange } from '@/hooks/use-theme';
-import { appendViewAfter, ensureLimitTab, ensurePageStyle, LIMIT_HOST_TAG, setPageTheme, VIEW_ATTR } from '@/lib/fomo-inject';
+import { appendViewAfter, ensureLimitTab, ensurePageStyle, LIMIT_HOST_TAG, setLimitActive, setPageTheme, VIEW_ATTR } from '@/lib/fomo-inject';
 import { applyPanelVars, fomoOverrideCss, type Theme } from '@/lib/themes';
 import { mintFromFomoUrl } from '@/lib/format';
 
@@ -48,6 +49,10 @@ export default defineContentScript({
     };
     applyTheme();
     const offTheme = onThemeChange((t) => { theme = t; applyTheme(); });
+    // Which tab a token page opens on. Applied once per token so switching tabs by hand is respected.
+    let defaultTab: DefaultTab = await loadDefaultTab();
+    let openedTabFor: string | null = null;
+    const offDefaultTab = onDefaultTabChange((t) => { defaultTab = t; });
     const mintStore = createMintStore();
     const queryClient = new QueryClient();
     let ui: Awaited<ReturnType<typeof createShadowRootUi<ReactDOM.Root>>> | null = null;
@@ -63,6 +68,11 @@ export default defineContentScript({
         const found = ensureLimitTab(document);
         const host = mountedIn?.querySelector(`[${VIEW_ATTR}] > ${LIMIT_HOST_TAG}`);
         if (!found) return;
+        const mint = mintStore.get();
+        if (mint && openedTabFor !== mint) {
+          openedTabFor = mint;
+          if (defaultTab === 'limit') setLimitActive(found.panel, true);
+        }
         if (mountedIn === found.panel && host?.isConnected) return;
         ui?.remove();
         mountedIn?.querySelector(`[${VIEW_ATTR}]`)?.remove();
@@ -104,7 +114,7 @@ export default defineContentScript({
     const observer = new MutationObserver(schedule);
     observer.observe(document.body, { childList: true, subtree: true });
     ctx.addEventListener(window, 'wxt:locationchange', schedule);
-    ctx.onInvalidated(() => { observer.disconnect(); offTheme(); ui?.remove(); });
+    ctx.onInvalidated(() => { observer.disconnect(); offTheme(); offDefaultTab(); ui?.remove(); });
     await sync();
   },
 });

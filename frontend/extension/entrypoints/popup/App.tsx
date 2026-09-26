@@ -12,8 +12,10 @@ import { PairingForm } from '@/components/orders/PairingForm';
 import { TokenXCard } from '@/components/panel/TokenXCard';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Segmented } from '@/components/orders/Segmented';
 import { ThemePicker } from '@/components/ThemePicker';
 import { useBackground } from '@/hooks/use-background';
+import { useDefaultTab } from '@/hooks/use-default-tab';
 import { useHolds } from '@/hooks/use-holds';
 import { useTheme } from '@/hooks/use-theme';
 import { useTokenSymbols } from '@/hooks/use-token-symbols';
@@ -36,6 +38,7 @@ export default function App() {
   const { state, send } = useBackground();
   const [tabMint, setTabMint] = useState<string | null>(null);
   const [theme] = useTheme();
+  const [defaultTab, setDefaultTab] = useDefaultTab();
   const holds = useHolds(tabMint, state?.status === 'connected', send, state?.orders ?? []);
   const labels = useTokenSymbols((state?.orders ?? []).map((o) => o.mint), send, state?.status === 'connected');
   useEffect(() => applyPanelVars(document.documentElement, theme), [theme]);
@@ -80,6 +83,15 @@ export default function App() {
             <OrderList orders={state.orders} ticks={state.ticks} showMint labels={labels} onCancel={(id) => send({ type: 'order.cancel', id })} />
           </TabsContent>
           <TabsContent value="settings" className="space-y-5 pt-2">
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold">When I open a token</h2>
+              <p className="text-xs text-muted-foreground">Which tab fomo's trade panel starts on.</p>
+              <Segmented
+                value={defaultTab}
+                onChange={(t) => void setDefaultTab(t)}
+                options={[{ value: 'buy', label: "fomo's Buy tab" }, { value: 'limit', label: 'Limit tab' }]}
+              />
+            </section>
             <section className="space-y-2">
               <h2 className="text-sm font-semibold">Theme</h2>
               <p className="text-xs text-muted-foreground">Recolors fomo.family and the Limit panel in every open fomo tab.</p>
