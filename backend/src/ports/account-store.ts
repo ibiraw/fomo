@@ -31,6 +31,9 @@ export abstract class AccountStorePort {
   /** Replaces the account's wallets; returns the updated account (null if it doesn't exist). */
   abstract setWallets(id: string, wallets: UserWallets): Account | null;
 
+  /** Most recently active account using this Solana or EVM (lowercase) address, or null. */
+  abstract findByWallet(kind: 'solana' | 'evm', address: string): Account | null;
+
   /** Records activity. */
   abstract touch(id: string): void;
 

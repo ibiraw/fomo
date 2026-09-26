@@ -6,6 +6,7 @@
  */
 
 import type { AccountView } from './account';
+import type { BillingStatus } from './billing';
 import type { ExecutionResult, Order, PriceTick } from './types';
 
 /** `bad_token`: the server rejected the account key; `deleted`: the account was deleted from another device. */
@@ -17,6 +18,8 @@ export interface ConnectionHandlers {
   onSnapshot(orders: Order[], ticks: PriceTick[], account: AccountView | null): void;
   onOrder(order: Order): void;
   onTick(tick: PriceTick): void;
+  /** Unlock status (null when the server has no paywall); sent on login and whenever it changes. */
+  onBilling(status: BillingStatus | null): void;
   /** Execute a trade and resolve with its result. */
   onExecute(order: Order): Promise<ExecutionResult>;
 }
@@ -27,7 +30,8 @@ export type SocketLike = Pick<WebSocket, 'readyState' | 'onopen' | 'onclose' | '
 export type SocketFactory = (url: string) => SocketLike;
 
 type ServerMessage =
-  | { type: 'welcome'; orders: Order[]; ticks: PriceTick[]; account?: AccountView }
+  | { type: 'welcome'; orders: Order[]; ticks: PriceTick[]; account?: AccountView; billing?: BillingStatus | null }
+  | { type: 'billing'; status: BillingStatus }
   | { type: 'reply'; reqId: string; ok: true; data: unknown }
   | { type: 'reply'; reqId: string; ok: false; error: string }
   | { type: 'order'; order: Order }
@@ -90,7 +94,7 @@ export class ServerConnection {
 
   /** Sends a command and resolves with the server's reply data (rejects with ServerCommandError). */
   request(
-    type: 'order.create' | 'order.cancel' | 'order.list' | 'token.info' | 'price.watch' | 'wallet.holds' | 'wallets.set' | 'account.info' | 'account.delete',
+    type: 'order.create' | 'order.cancel' | 'order.list' | 'token.info' | 'price.watch' | 'wallet.holds' | 'wallets.set' | 'account.info' | 'account.delete' | 'billing.quote',
     body: Record<string, unknown>,
   ): Promise<unknown> {
     const s = this.socket;
@@ -143,7 +147,10 @@ export class ServerConnection {
       case 'welcome':
         this.backoff = MIN_BACKOFF_MS;
         this.setStatus('connected');
+        this.handlers.onBilling(msg.billing ?? null);
         return this.handlers.onSnapshot(msg.orders, msg.ticks, msg.account ?? null);
+      case 'billing':
+        return this.handlers.onBilling(msg.status);
       case 'reply': {
         const p = this.pending.get(msg.reqId);
         if (!p) return;

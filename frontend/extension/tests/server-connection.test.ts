@@ -41,6 +41,7 @@ beforeEach(() => {
     onSnapshot: vi.fn(),
     onOrder: vi.fn(),
     onTick: vi.fn(),
+    onBilling: vi.fn(),
     onExecute: vi.fn(async (): Promise<ExecutionResult> => ({ ok: true, detail: 'done' })),
   };
   conn = new ServerConnection((url) => {
@@ -136,6 +137,9 @@ describe('ServerConnection', () => {
     s.open();
     s.recv({ type: 'welcome', orders: [], ticks: [], account: { id: 'a1', wallets: { solana: null, evm: null } } });
     expect(handlers.onSnapshot).toHaveBeenCalledWith([], [], { id: 'a1', wallets: { solana: null, evm: null } });
+    expect(handlers.onBilling).toHaveBeenLastCalledWith(null);
+    s.recv({ type: 'billing', status: { unlocked: true, freeOrdersLeft: 0, creditUsd: 50, priceUsd: 50, tokenPriceUsd: 35 } });
+    expect(handlers.onBilling).toHaveBeenLastCalledWith(expect.objectContaining({ unlocked: true }));
     s.drop(4003);
     expect(conn.getStatus()).toBe('deleted');
     vi.advanceTimersByTime(60_000);

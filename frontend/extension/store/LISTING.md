@@ -33,6 +33,10 @@ Everything to paste into the Chrome Web Store developer dashboard. Visibility: *
 > • Themes that recolor fomo and the Limit panel.
 > • Optional sounds when an order fills or fails.
 >
+> Pricing
+> • Your first 3 orders are free.
+> • Then a one-time payment of $50 in USDC (on Solana, Ethereum, Base, BNB Chain or Arc; USDG on Robinhood Chain) unlocks it for good. Paying from your fomo wallet is matched automatically.
+>
 > Keep Chrome open with fomo.family logged in for orders to run.
 >
 > auto fomo is an independent, unofficial tool. It is not affiliated with, endorsed by or connected to fomo.family or Fomo Labs. Nothing here is financial advice; automated orders can fail or fill at unexpected prices. Use at your own risk.
@@ -62,7 +66,7 @@ Everything to paste into the Chrome Web Store developer dashboard. Visibility: *
 **Remote code:** No, I am not using remote code. *(All code ships in the package; the server only sends data such as prices and trade requests.)*
 
 **Data usage — collected:**
-- ☑ Financial and payment information — public wallet addresses and the user's orders (token, target, amount).
+- ☑ Financial and payment information — public wallet addresses, the user's orders (token, target, amount) and on-chain unlock payments (amount, sender address, transaction id).
 - ☑ Website content — market cap and balance read from fomo.family to place and confirm orders.
 - ☐ Everything else (personally identifiable info, health, authentication info, personal communications, location, web history, user activity) — not collected.
 
@@ -73,7 +77,7 @@ Everything to paste into the Chrome Web Store developer dashboard. Visibility: *
 ## Account tab (developer dashboard)
 - Use a new Google account and a separate contact email for this (keeps it anonymous).
 - $5 one-time registration fee; 2-step verification required.
-- Trader declaration: **non-trader** (not selling it commercially yet) — owner is in Canada.
+- Trader declaration: charging for the unlock makes this a **trader** listing (EU Digital Services Act). Traders must show a public address, phone and email to EU users. Options: declare trader with a business/virtual address and number, or leave the EU out of the listing's distribution regions. Owner is in Canada — decide before submitting.
 - Contact email is shown on the listing.
 
 ## Screenshots to capture (1280×800)

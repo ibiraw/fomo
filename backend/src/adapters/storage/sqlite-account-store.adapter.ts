@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   created_at INTEGER NOT NULL,
   last_seen_at INTEGER NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_accounts_solana ON accounts(solana_wallet);
+CREATE INDEX IF NOT EXISTS idx_accounts_evm ON accounts(evm_wallet);
 `;
 
 /** Maps a row to the domain Account. */
@@ -76,6 +78,13 @@ export class SqliteAccountStoreAdapter extends AccountStorePort {
   setWallets(id: string, wallets: UserWallets): Account | null {
     const res = this.db.prepare('UPDATE accounts SET solana_wallet = ?, evm_wallet = ? WHERE id = ?').run(wallets.solana, wallets.evm, id);
     return res.changes === 1 ? this.get(id) : null;
+  }
+
+  /** Most recently seen account with this wallet. */
+  findByWallet(kind: 'solana' | 'evm', address: string): Account | null {
+    const col = kind === 'solana' ? 'solana_wallet' : 'evm_wallet';
+    const row = this.db.prepare(`SELECT * FROM accounts WHERE ${col} = ? ORDER BY last_seen_at DESC LIMIT 1`).get(address) as AccountRow | undefined;
+    return row ? toAccount(row) : null;
   }
 
   /** Updates last_seen_at. */

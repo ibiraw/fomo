@@ -6,7 +6,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/index.ts', 'src/evm-chain.ts', 'src/adapters/solana/**', 'src/adapters/evm/**'],
+      exclude: ['src/index.ts', 'src/evm-chain.ts', 'src/billing-setup.ts', 'src/adapters/solana/**', 'src/adapters/evm/**'],
       thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
     },
   },

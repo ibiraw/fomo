@@ -6,6 +6,7 @@
  */
 
 import { generateAccountKey, isAccountKey, walletsUpdate, type AccountView, type Wallets } from '@/lib/account';
+import type { BillingStatus } from '@/lib/billing';
 import { executeInFomoTab, type TabsApi, type WorkerTabStore } from '@/lib/fomo-tab';
 import {
   DEFAULT_SERVER_URL,
@@ -63,6 +64,7 @@ export default defineBackground({
     let serverUrl = DEFAULT_SERVER_URL;
     let token: string | null = null;
     let account: AccountView | null = null;
+    let billing: BillingStatus | null = null;
     /** Latest wallets read from a fomo tab (sent to the server once connected). */
     let detected: Wallets | null = null;
     const orders = new Map<string, Order>();
@@ -75,6 +77,7 @@ export default defineBackground({
       serverUrl,
       hasToken: !!token,
       account,
+      billing,
       orders: [...orders.values()].sort((a, b) => b.createdAt - a.createdAt),
       ticks: { ...ticks },
     });
@@ -116,6 +119,7 @@ export default defineBackground({
         if (sound) void playSound(sound).catch((err: unknown) => console.error('[auto fomo] sound failed', err));
       },
       onTick: (t) => { ticks[t.mint] = t; push(); },
+      onBilling: (b) => { billing = b; push(); },
       onExecute: (o) => executeInFomoTab(tabs, inject, worker, o),
     });
 
@@ -216,6 +220,8 @@ export default defineBackground({
           const tick = (await conn.request('price.watch', { mint: req.mint })) as PriceTick | null;
           if (tick) { ticks[tick.mint] = tick; push(); }
           data = tick;
+        } else if (req.type === 'billing.quote') {
+          data = await conn.request('billing.quote', {});
         } else if (req.type === 'x.latest') {
           data = await xLatest.get(req.url, req.force ?? false);
         }

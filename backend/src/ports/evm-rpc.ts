@@ -15,6 +15,8 @@ export interface EvmLog {
   readonly data: Hex;
   readonly blockNumber: bigint;
   readonly logIndex: number;
+  /** Transaction that emitted the log (empty when the node did not say). */
+  readonly transactionHash: Hex;
 }
 
 /** Log filter: contract address(es) and positional topics (null = any). */
@@ -35,6 +37,12 @@ export abstract class EvmRpcPort {
 
   /** eth_call against the latest block; returns the raw return data. */
   abstract call(to: Hex, data: Hex): Promise<Hex>;
+
+  /** Latest block number. */
+  abstract blockNumber(): Promise<bigint>;
+
+  /** Historical logs in [fromBlock, toBlock] (callers keep ranges within the provider's limit). */
+  abstract getLogs(filter: LogFilter, fromBlock: bigint, toBlock: bigint): Promise<EvmLog[]>;
 
   /** Streams matching logs as blocks arrive (reconnecting on socket loss). */
   abstract subscribeLogs(filter: LogFilter, listener: (log: EvmLog) => void): LogSubscription;

@@ -15,6 +15,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 
 import type { AccountService } from '../../core/accounts/account-service.js';
 import type { WalletConfirmers } from '../../core/accounts/wallet-confirmers.js';
+import type { BillingService } from '../../core/billing/billing-service.js';
 import { AuthError, FomoError } from '../../core/errors.js';
 import type { Order } from '../../core/orders/order.js';
 import type { EngineEvent, OrderEngine } from '../../core/orders/order-engine.js';
@@ -81,6 +82,7 @@ export class WsGateway extends TradeExecutorPort {
   private tokenInfo: TokenInfoService | null = null;
   private accounts: AccountService | null = null;
   private confirmers: WalletConfirmers | null = null;
+  private billing: BillingService | null = null;
   private readonly clients = new Set<Client>();
   /** Newest executor connection per account. */
   private readonly executors = new Map<string, Client>();
@@ -100,12 +102,23 @@ export class WsGateway extends TradeExecutorPort {
     this.limits = opts.limits ?? DEFAULT_LIMITS;
   }
 
-  /** Wires the core services (they and the gateway depend on each other; set after all exist). */
-  attach(engine: OrderEngine, accounts: AccountService, confirmers: WalletConfirmers, tokenInfo: TokenInfoService | null = null): void {
+  /**
+   * Wires the core services (they and the gateway depend on each other; set after all exist).
+   * Without `billing` the server runs without a paywall.
+   */
+  attach(engine: OrderEngine, accounts: AccountService, confirmers: WalletConfirmers, tokenInfo: TokenInfoService | null = null, billing: BillingService | null = null): void {
     this.engine = engine;
     this.accounts = accounts;
     this.confirmers = confirmers;
     this.tokenInfo = tokenInfo;
+    this.billing = billing;
+  }
+
+  /** Billing sink: sends the account's new unlock status to its open connections. */
+  pushBilling(userId: string): void {
+    if (!this.billing) return;
+    const status = this.billing.status(userId);
+    for (const c of this.clients) if (c.userId === userId) this.send(c, { type: 'billing', status });
   }
 
   /** Starts listening. Resolves once the port is bound. */
@@ -145,6 +158,7 @@ export class WsGateway extends TradeExecutorPort {
     if (e.type === 'order') {
       this.refreshOrderMints(e.order.userId);
       for (const c of this.clients) if (c.userId === e.order.userId) this.send(c, { type: 'order', order: e.order });
+      this.pushBilling(e.order.userId); // free orders left may have changed
       return;
     }
     const last = this.lastTickSent.get(e.tick.mint) ?? 0;
@@ -259,7 +273,8 @@ export class WsGateway extends TradeExecutorPort {
     if (executor) this.setExecutor(client, account.id);
     const orders = this.requireEngine().listOrders(account.id);
     const ticks = this.requireEngine().latestTicks().filter((t) => this.wants(client, t.mint));
-    this.send(client, { type: 'welcome', account: accountView(account), orders, ticks });
+    const billing = this.billing?.status(account.id) ?? null;
+    this.send(client, { type: 'welcome', account: accountView(account), orders, ticks, billing });
   }
 
   /** True when `ip` is still under its hourly account-creation limit. */
@@ -313,9 +328,17 @@ export class WsGateway extends TradeExecutorPort {
           const wallets = this.requireAccounts().wallets(userId);
           return { id: userId, wallets };
         });
+      case 'billing.status':
+        return this.reply(client, msg.reqId, async () => this.billing?.status(userId) ?? null);
+      case 'billing.quote':
+        return this.reply(client, msg.reqId, async () => {
+          if (!this.billing) throw new FomoError('This server has no paywall');
+          return this.billing.quote(userId);
+        });
       case 'account.delete':
         await this.reply(client, msg.reqId, async () => {
           const orders = engine.deleteUserOrders(userId);
+          this.billing?.forget(userId);
           this.requireAccounts().delete(userId);
           this.confirmers?.invalidate(userId);
           this.log(`account ${userId.slice(0, 8)} deleted (${orders} orders)`);

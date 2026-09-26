@@ -54,3 +54,20 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...base, DATA_DIR: tempDir(), FOMO_EVM_WALLET: '0x12' })).toThrow(/Not a valid EVM address/);
   });
 });
+
+describe('loadConfig paywall', () => {
+  const pay = { PAY_SOLANA_TREASURY: 'JDY8BeQUPmcRZnYJGVBiU7x71SMbdUECW6NMUdGGKQDg', PAY_EVM_TREASURY: '0x59a1b6CC4Cfc711ce0fa70f48Fef4e4b7Dd2B103' };
+  it('is off by default and needs both treasury wallets when on', () => {
+    expect(loadConfig({ ...base, DATA_DIR: tempDir() }).paywall).toBeNull();
+    expect(() => loadConfig({ ...base, DATA_DIR: tempDir(), PAYWALL_ENABLED: 'true' })).toThrow(/PAY_SOLANA_TREASURY and PAY_EVM_TREASURY/);
+    expect(loadConfig({ ...base, ...pay, DATA_DIR: tempDir(), PAYWALL_ENABLED: 'true' }).paywall).toEqual({
+      treasury: { solana: pay.PAY_SOLANA_TREASURY, evm: pay.PAY_EVM_TREASURY.toLowerCase() }, token: null, priceUsd: 50, tokenPriceUsd: 35, freeOrders: 3,
+    });
+  });
+
+  it('takes the token as a token key', () => {
+    const cfg = loadConfig({ ...base, ...pay, DATA_DIR: tempDir(), PAYWALL_ENABLED: 'true', PAY_TOKEN: 'base:0x9500AF4F2936AAFFBC72860CE19E8D5ED2E8DB07', FREE_ORDERS: '1' });
+    expect(cfg.paywall).toMatchObject({ token: 'base:0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07', freeOrders: 1 });
+    expect(() => loadConfig({ ...base, ...pay, DATA_DIR: tempDir(), PAYWALL_ENABLED: 'true', PAY_TOKEN: 'nope' })).toThrow(/PAY_TOKEN/);
+  });
+});

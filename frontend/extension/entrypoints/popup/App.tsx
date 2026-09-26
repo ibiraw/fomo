@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { NewOrderForm } from '@/components/orders/NewOrderForm';
 import { OrderList } from '@/components/orders/OrderList';
 import { AccountSection, NoAccount } from '@/components/AccountSection';
+import { UnlockBanner, UnlockSection } from '@/components/UnlockSection';
 import { TokenXCard } from '@/components/panel/TokenXCard';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -73,6 +74,7 @@ export default function App() {
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
           <TabsContent value="new" className="pt-2">
+            <div className="mb-3 empty:hidden"><UnlockBanner status={state.billing} where="popup" /></div>
             {state.status === 'disconnected' && (
               <p className="mb-3 text-sm text-sell">Can't reach the auto fomo server. It reconnects on its own — check your internet connection.</p>
             )}
@@ -84,6 +86,7 @@ export default function App() {
             <OrderList orders={state.orders} ticks={state.ticks} showMint labels={labels} onCancel={(id) => send({ type: 'order.cancel', id })} />
           </TabsContent>
           <TabsContent value="settings" className="space-y-5 pt-2">
+            <UnlockSection status={state.billing} send={send} />
             <section className="space-y-2">
               <h2 className="text-sm font-semibold">When I open a token</h2>
               <p className="text-xs text-muted-foreground">Which tab fomo's trade panel starts on.</p>

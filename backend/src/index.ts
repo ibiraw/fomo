@@ -9,6 +9,7 @@ import { FetchHttpJsonAdapter } from './adapters/http/fetch-http-json.adapter.js
 import { KitSolanaAccountsAdapter } from './adapters/solana/kit-solana-accounts.adapter.js';
 import { SqliteAccountStoreAdapter } from './adapters/storage/sqlite-account-store.adapter.js';
 import { SqliteOrderStoreAdapter } from './adapters/storage/sqlite-order-store.adapter.js';
+import { buildBilling } from './billing-setup.js';
 import { loadConfig } from './config.js';
 import { AccountService } from './core/accounts/account-service.js';
 import { WalletConfirmers } from './core/accounts/wallet-confirmers.js';
@@ -95,6 +96,17 @@ async function main(): Promise<void> {
     return byChain.size > 0 ? new ChainRouterConfirmer(byChain) : null;
   });
   const confirmerFor = (userId: string) => walletConfirmers.for(userId);
+  // Orders that count toward the free trial: anything placed that wasn't cancelled or failed.
+  const usedOrders = (userId: string): number => store.list(['open', 'triggered', 'executing', 'filled'], userId).length;
+  const billing = cfg.paywall
+    ? await buildBilling({
+      cfg, paywall: cfg.paywall, accounts: accountStore, solana: accounts,
+      evm: new Map([...evm].map(([c, p]) => [c, { rpc: p.rpc, erc20: p.erc20 }] as const)),
+      feed, usedOrders, onChange: (userId) => gateway.pushBilling(userId), log, logError,
+    })
+    : null;
+  // The owner never pays.
+  if (billing && billing.service.status(LEGACY_ACCOUNT_ID).unlocked === false) billing.service.grant(LEGACY_ACCOUNT_ID);
   let guard: HoldingsGuard | null = null;
   const engine = new OrderEngine(store, feed, gateway, (e) => {
     gateway.handleEngineEvent(e);
@@ -102,16 +114,18 @@ async function main(): Promise<void> {
       guard?.onOrderChanged(e.order);
       log(`order ${e.order.id.slice(0, 8)} ${e.order.userId.slice(0, 8)} ${e.order.side} ${e.order.status}${e.order.lastError ? ` — ${e.order.lastError}` : ''}`);
     }
-  }, logError('engine'), confirmerFor, 20_000, Date.now, cfg.maxActiveOrdersPerUser);
+  }, logError('engine'), confirmerFor, 20_000, Date.now, cfg.maxActiveOrdersPerUser, (userId) => billing?.service.assertCanPlaceOrder(userId));
   // Open sells are cancelled once their account no longer holds the token.
   guard = new HoldingsGuard(engine, confirmerFor, 20_000, logError('holdings'));
-  gateway.attach(engine, accountService, walletConfirmers, new TokenInfoService(accounts, http, Date.now, erc20ByChain));
+  gateway.attach(engine, accountService, walletConfirmers, new TokenInfoService(accounts, http, Date.now, erc20ByChain), billing?.service ?? null);
 
   await quotes.start();
   await feed.start();
   await gateway.listen();
   await engine.start();
   guard.start();
+  await billing?.start();
+  if (!billing) log('paywall off (PAYWALL_ENABLED is not true)');
   log(`auto fomo server on ws://${cfg.gatewayHost}:${gateway.port()}${cfg.trustProxy ? ' (behind Cloudflare)' : ''}`);
   log(`Owner account key (old pairing code): ${cfg.pairingToken}`);
   log(evm.size ? `EVM chains: ${[...evm.keys()].join(', ')}` : 'No EVM chains configured');
@@ -119,6 +133,7 @@ async function main(): Promise<void> {
   const shutdown = async (): Promise<void> => {
     log('shutting down');
     guard?.stop();
+    billing?.stop();
     engine.stop();
     accountStore.close();
     await gateway.close();

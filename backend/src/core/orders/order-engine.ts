@@ -36,6 +36,9 @@ export const DEFAULT_MAX_ACTIVE_PER_USER = 25;
 /** The on-chain confirmer for an account's wallets (null when the account has none set). */
 export type ConfirmerLookup = (userId: string) => TradeConfirmerPort | null;
 
+/** Throws when an account may not place another order (e.g. free orders used and not unlocked). */
+export type AccessGate = (userId: string) => void;
+
 export class OrderEngine {
   private readonly watches = new Map<string, PriceWatch>();
   private readonly pendingWatches = new Map<string, Promise<PriceWatch>>();
@@ -54,6 +57,7 @@ export class OrderEngine {
    * @param confirmerFor on-chain confirmation for an account's wallets
    * @param chainGraceMs extra wait for on-chain evidence after the UI reports unknown/timeout
    * @param maxActivePerUser cap on open + triggered orders per account
+   * @param accessGate paywall check run before an order is accepted
    */
   constructor(
     private readonly store: OrderStorePort,
@@ -65,6 +69,7 @@ export class OrderEngine {
     private readonly chainGraceMs = 20_000,
     private readonly now: () => number = Date.now,
     private readonly maxActivePerUser = DEFAULT_MAX_ACTIVE_PER_USER,
+    private readonly accessGate: AccessGate = () => undefined,
   ) {
     executor.onReady((userId) => void this.pump(userId));
   }
@@ -116,6 +121,7 @@ export class OrderEngine {
     if (!parsed.success) {
       throw new ValidationError(parsed.error.issues.map((i) => `${i.path.join('.') || 'order'}: ${i.message}`).join('; '));
     }
+    this.accessGate(userId);
     if (this.store.list([...ACTIVE], userId).length >= this.maxActivePerUser) {
       throw new LimitError(`You can have up to ${this.maxActivePerUser} open orders. Cancel one to add another.`);
     }

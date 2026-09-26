@@ -19,6 +19,8 @@ import { cn } from '@/lib/utils';
 import { useWatchPrice } from '@/hooks/use-watch-price';
 import type { ConnectionStatus } from '@/lib/server-connection';
 
+import { UnlockBanner } from '@/components/UnlockSection';
+
 import { TokenXCard } from './TokenXCard';
 
 /** External store for the current page's mint (updated on FOMO's client-side navigation). */
@@ -58,6 +60,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
     <div className="space-y-4 p-1 pt-2">
       {notice && <p className="rounded-md bg-sell/15 p-2 text-xs text-sell">{notice}</p>}
       {state.status === 'connected' && <TokenXCard key={`x:${mint}`} mint={mint} send={send} />}
+      <UnlockBanner status={state.billing} where="panel" />
       {priceError ? (
         <div className="space-y-1.5 rounded-lg border bg-card p-3">
           <p className="text-sm font-semibold text-yellow">Limit orders aren't available for this token yet</p>

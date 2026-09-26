@@ -41,9 +41,16 @@ Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), 
 - Orders, wallets, executor and trade queue are per account; accounts trade in parallel, one trade at a time each. Cap: `MAX_ACTIVE_ORDERS_PER_USER` (default 25).
 - **Legacy owner:** orders from before accounts belong to account id `legacy`, whose key is the old pairing code (`data/pairing-token.txt`) and whose wallets were seeded from `FOMO_WALLET` / `FOMO_EVM_WALLET` on first start.
 
+## Paywall (`src/core/billing/`, `src/billing-setup.ts`)
+- Off unless `PAYWALL_ENABLED=true` (needs `PAY_SOLANA_TREASURY`, `PAY_EVM_TREASURY`). `FREE_ORDERS` (3) orders free — counted as open/triggered/executing/filled — then `UNLOCK_PRICE_USD` (50) once. The owner (`legacy`) is unlocked at start.
+- Accepted: official USDC on Solana/Ethereum/Base/BNB (18 dec)/Arc, USDG on Robinhood (it has no real USDC; look-alike "USDC" tokens there are ignored) — exact addresses in `payment-assets.ts`. Arc logs one USDC transfer twice (0x3600… 6 dec + system 0xff…fe 18 dec); payment id `<chain>:<tx>:<sender>` credits it once.
+- Platform token later: `PAY_TOKEN=<key>`; priced live via the feeds; `UNLOCK_TOKEN_PRICE_USD` (35) of token counts as the full price (credit × 50/35); price locked in the quote for 24 h.
+- Matching: sender = an account's fomo wallet → that account; else the payment code in the last digits (USDC: 50.00xxxx, token: N.xxxx); else unmatched (review `payments WHERE user_id IS NULL`). Credits add up; unlock at 98% of the price.
+- Watchers poll every 15 s from stored cursors (EVM: Transfer logs to the treasury in 2k-block chunks, 2 confirmations; Solana: treasury token-account signatures → parsed balance changes). Verified live on Base and Solana.
+
 ## Gateway protocol (JSON over WS)
-Client: `hello{token,executor,create?}`, `order.create{reqId,order}`, `order.cancel{reqId,id}`, `order.list{reqId}`, `token.info{reqId,mint}`, `price.watch{reqId,mint}` (viewer interest, 5 min TTL; newest `viewedTokens` per connection), `wallet.holds{reqId,mint}` → `{holds: boolean|null}`, `wallets.set{reqId,wallets:{solana,evm}}`, `account.info{reqId}`, `account.delete{reqId}`, `exec.result{execId,result}`, `pong`.
-Server: `welcome{account,orders,ticks}`, `reply{reqId,ok,data|error}`, `order{order}` (owner only), `tick{tick}` (≤4/s per mint, only to clients viewing it or with orders on it), `exec.request{execId,order}` (owner's executor), `ping`, `error`.
+Client: `hello{token,executor,create?}`, `order.create{reqId,order}`, `order.cancel{reqId,id}`, `order.list{reqId}`, `token.info{reqId,mint}`, `price.watch{reqId,mint}` (viewer interest, 5 min TTL; newest `viewedTokens` per connection), `wallet.holds{reqId,mint}` → `{holds: boolean|null}`, `wallets.set{reqId,wallets:{solana,evm}}`, `account.info{reqId}`, `account.delete{reqId}`, `billing.status{reqId}`, `billing.quote{reqId}`, `exec.result{execId,result}`, `pong`.
+Server: `welcome{account,orders,ticks,billing}`, `billing{status}` (on change), `reply{reqId,ok,data|error}`, `order{order}` (owner only), `tick{tick}` (≤4/s per mint, only to clients viewing it or with orders on it), `exec.request{execId,order}` (owner's executor), `ping`, `error`.
 Close codes: 4001 bad/unknown key or account limit, 4003 account deleted, 4008 too many messages. Only `chrome-extension://` origins or non-browser clients.
 
 ## Notes

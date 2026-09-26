@@ -17,7 +17,20 @@ interface RawLog {
   data: Hex;
   blockNumber: Hex;
   logIndex: Hex;
+  transactionHash?: Hex;
   removed?: boolean;
+}
+
+/** Converts a node log to EvmLog. */
+function toLog(raw: RawLog): EvmLog {
+  return {
+    address: raw.address.toLowerCase() as Hex,
+    topics: raw.topics,
+    data: raw.data,
+    blockNumber: BigInt(raw.blockNumber),
+    logIndex: Number(raw.logIndex),
+    transactionHash: (raw.transactionHash ?? '0x') as Hex,
+  };
 }
 
 const RETRY_MIN_MS = 1_000;
@@ -50,6 +63,20 @@ export class ViemEvmRpcAdapter extends EvmRpcPort {
     return res.data ?? '0x';
   }
 
+  /** Latest block number. */
+  blockNumber(): Promise<bigint> {
+    return this.httpClient.getBlockNumber({ cacheTime: 0 });
+  }
+
+  /** eth_getLogs over a block range (removed logs dropped). */
+  async getLogs(filter: LogFilter, fromBlock: bigint, toBlock: bigint): Promise<EvmLog[]> {
+    const raw = (await this.httpClient.request({
+      method: 'eth_getLogs',
+      params: [{ address: filter.address, ...(filter.topics ? { topics: filter.topics } : {}), fromBlock: `0x${fromBlock.toString(16)}`, toBlock: `0x${toBlock.toString(16)}` }],
+    } as never)) as RawLog[];
+    return raw.filter((l) => !l.removed).map(toLog);
+  }
+
   /** Subscribes to logs; on socket errors it re-subscribes with exponential backoff until stop(). */
   subscribeLogs(filter: LogFilter, listener: (log: EvmLog) => void): LogSubscription {
     let stopped = false;
@@ -80,7 +107,7 @@ export class ViemEvmRpcAdapter extends EvmRpcPort {
             const raw = data.result;
             if (!raw || raw.removed) return;
             retryMs = RETRY_MIN_MS;
-            listener({ address: raw.address.toLowerCase() as Hex, topics: raw.topics, data: raw.data, blockNumber: BigInt(raw.blockNumber), logIndex: Number(raw.logIndex) });
+            listener(toLog(raw));
           },
           onError: resubscribeLater,
         })

@@ -32,6 +32,8 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('wallets.set'), reqId: z.string(), wallets: z.unknown() }),
   z.object({ type: z.literal('account.info'), reqId: z.string() }),
   z.object({ type: z.literal('account.delete'), reqId: z.string() }),
+  z.object({ type: z.literal('billing.status'), reqId: z.string() }),
+  z.object({ type: z.literal('billing.quote'), reqId: z.string() }),
   z.object({ type: z.literal('exec.result'), execId: z.string(), result: ExecutionResultSchema }),
   z.object({ type: z.literal('pong') }),
 ]);

@@ -22,6 +22,10 @@ export class FakeEvmRpc extends EvmRpcPort {
   readonly subs: { filter: LogFilter; listener: (l: EvmLog) => void; stopped: boolean }[] = [];
   calls = 0;
   closed = false;
+  head = 100n;
+  /** Logs returned by getLogs (filtered by address and block range). */
+  history: EvmLog[] = [];
+  getLogsCalls: [bigint, bigint][] = [];
 
   /** @param chain chain slug */
   constructor(readonly chain: EvmChain = 'base') {
@@ -54,6 +58,18 @@ export class FakeEvmRpc extends EvmRpcPort {
     return typeof a === 'function' ? a(data) : a;
   }
 
+  /** Current head block. */
+  async blockNumber(): Promise<bigint> {
+    return this.head;
+  }
+
+  /** Returns history logs matching the address list and range. */
+  async getLogs(filter: LogFilter, fromBlock: bigint, toBlock: bigint): Promise<EvmLog[]> {
+    this.getLogsCalls.push([fromBlock, toBlock]);
+    const addrs = ((Array.isArray(filter.address) ? filter.address : [filter.address]) as string[]).map((a) => a.toLowerCase());
+    return this.history.filter((l) => addrs.includes(l.address) && l.blockNumber >= fromBlock && l.blockNumber <= toBlock);
+  }
+
   /** Records the subscription. */
   subscribeLogs(filter: LogFilter, listener: (log: EvmLog) => void): LogSubscription {
     const sub = { filter, listener, stopped: false };
@@ -67,8 +83,8 @@ export class FakeEvmRpc extends EvmRpcPort {
   }
 
   /** Delivers a log to every live subscription whose address matches. */
-  emit(log: { address: string; topics: readonly Hex[]; data: Hex; blockNumber?: bigint; logIndex?: number }): void {
-    const full: EvmLog = { blockNumber: log.blockNumber ?? 1n, logIndex: log.logIndex ?? 0, topics: log.topics, data: log.data, address: log.address.toLowerCase() as Hex };
+  emit(log: { address: string; topics: readonly Hex[]; data: Hex; blockNumber?: bigint; logIndex?: number; transactionHash?: Hex }): void {
+    const full: EvmLog = { blockNumber: log.blockNumber ?? 1n, logIndex: log.logIndex ?? 0, topics: log.topics, data: log.data, address: log.address.toLowerCase() as Hex, transactionHash: log.transactionHash ?? '0x' };
     for (const s of this.subs) {
       if (s.stopped) continue;
       const addrs = (Array.isArray(s.filter.address) ? s.filter.address : [s.filter.address]) as string[];

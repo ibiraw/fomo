@@ -5,6 +5,7 @@
  */
 
 import type { AccountView, Wallets } from './account';
+import type { BillingStatus } from './billing';
 import type { ConnectionStatus } from './server-connection';
 import type { NewOrder, Order, PriceTick } from './types';
 
@@ -29,6 +30,8 @@ export interface PopupState {
   readonly hasToken: boolean;
   /** The logged-in account (null until the server welcomes us). */
   readonly account: AccountView | null;
+  /** Unlock status; null when the server has no paywall. */
+  readonly billing: BillingStatus | null;
   readonly orders: Order[];
   readonly ticks: Record<string, PriceTick>;
 }
@@ -40,6 +43,7 @@ export type PopupRequest =
   | { readonly type: 'account.new'; readonly reqId: string }
   | { readonly type: 'account.delete'; readonly reqId: string }
   | { readonly type: 'wallets.set'; readonly reqId: string; readonly wallets: Wallets }
+  | { readonly type: 'billing.quote'; readonly reqId: string }
   | { readonly type: 'order.create'; readonly reqId: string; readonly order: NewOrder }
   | { readonly type: 'order.cancel'; readonly reqId: string; readonly id: string }
   | { readonly type: 'token.info'; readonly reqId: string; readonly mint: string }

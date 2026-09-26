@@ -12,6 +12,9 @@ import { SqliteAccountStoreAdapter } from '../../src/adapters/storage/sqlite-acc
 import { SqliteOrderStoreAdapter } from '../../src/adapters/storage/sqlite-order-store.adapter.js';
 import { AccountService } from '../../src/core/accounts/account-service.js';
 import { WalletConfirmers } from '../../src/core/accounts/wallet-confirmers.js';
+import { BillingService } from '../../src/core/billing/billing-service.js';
+import { STABLE_ASSETS } from '../../src/core/billing/payment-assets.js';
+import { SqliteBillingStoreAdapter } from '../../src/adapters/storage/sqlite-billing-store.adapter.js';
 import { OrderEngine } from '../../src/core/orders/order-engine.js';
 import { FakePriceFeed } from '../helpers/fakes.js';
 
@@ -295,5 +298,49 @@ describe('WsGateway accounts', () => {
     const again = await connect();
     again.send({ type: 'hello', token: TOKEN, executor: false });
     await vi.waitFor(() => expect(again.closeCode).toBe(4001));
+  });
+});
+
+describe('WsGateway paywall', () => {
+  it('reports billing in the welcome, quotes, pushes changes and blocks orders after the free ones', async () => {
+    sockets.splice(0).forEach((x) => x.terminate());
+    await gateway.close();
+    feed = new FakePriceFeed();
+    store = new SqliteOrderStoreAdapter(':memory:');
+    const accountStore = new SqliteAccountStoreAdapter(':memory:');
+    accounts = new AccountService(accountStore);
+    confirmers = new WalletConfirmers((id) => accounts.wallets(id), () => null);
+    gateway = new WsGateway({ host: '127.0.0.1', port: 0, execTimeoutMs: 300, tickThrottleMs: 250, pingIntervalMs: 50 }, () => undefined);
+    const billing = new BillingService(
+      new SqliteBillingStoreAdapter(':memory:'), accountStore, { priceUsd: 50, tokenPriceUsd: 35, freeOrders: 1 },
+      { solana: 'JDY8BeQUPmcRZnYJGVBiU7x71SMbdUECW6NMUdGGKQDg', evm: '0x' + 'a'.repeat(40) }, STABLE_ASSETS, null, () => null,
+      (id) => store.list(['open', 'triggered', 'executing', 'filled'], id).length, (id) => gateway.pushBilling(id),
+    );
+    const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), () => undefined, () => null, 20_000, Date.now, 25, (id) => billing.assertCanPlaceOrder(id));
+    gateway.attach(engine, accounts, confirmers, null, billing);
+    await gateway.listen();
+    await engine.start();
+
+    const c = await authed(false);
+    expect(c.msgs.find((m) => m.type === 'welcome')!.billing).toMatchObject({ unlocked: false, freeOrdersLeft: 1 });
+    c.send({ type: 'order.create', reqId: 'a', order: ORDER });
+    expect((await c.next((m) => m.reqId === 'a')).ok).toBe(true);
+    await c.next((m) => m.type === 'billing' && (m.status as { freeOrdersLeft: number }).freeOrdersLeft === 0);
+    c.send({ type: 'order.create', reqId: 'b', order: ORDER });
+    expect((await c.next((m) => m.reqId === 'b')).error).toMatch(/free orders/);
+    c.send({ type: 'billing.quote', reqId: 'q' });
+    expect(((await c.next((m) => m.reqId === 'q')).data as { methods: unknown[] }).methods).toHaveLength(6);
+    billing.grant(c.userId);
+    await c.next((m) => m.type === 'billing' && (m.status as { unlocked: boolean }).unlocked);
+    c.send({ type: 'billing.status', reqId: 's' });
+    expect((await c.next((m) => m.reqId === 's')).data).toMatchObject({ unlocked: true });
+  });
+
+  it('answers billing.quote with an explanation when there is no paywall', async () => {
+    const c = await authed(false);
+    c.send({ type: 'billing.quote', reqId: 'q' });
+    expect((await c.next((m) => m.reqId === 'q')).error).toMatch(/no paywall/);
+    c.send({ type: 'billing.status', reqId: 's' });
+    expect((await c.next((m) => m.reqId === 's')).data).toBeNull();
   });
 });
