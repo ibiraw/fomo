@@ -187,7 +187,7 @@ export function Holders() {
           <Badge className="bg-brand/15 text-brand">Coming soon</Badge>
           <h2 className="mt-4 text-3xl font-bold tracking-tight md:text-4xl">Early access for token holders</h2>
           <p className="mt-3 text-muted-foreground">
-            <Wordmark /> opens to token holders first. Connect your wallet and holding the token unlocks the download.
+            Limit opens to token holders first. Connect your wallet and holding the token unlocks the download.
           </p>
           <div className="mt-6 rounded-xl border border-sell/40 bg-sell/10 p-4 text-sm">
             <p className="font-semibold text-sell">No token has launched yet.</p>
