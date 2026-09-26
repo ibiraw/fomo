@@ -12,7 +12,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ReactDOM from 'react-dom/client';
 
 import { LimitView, type MintStore } from '@/components/panel/LimitView';
-import { ensureLimitTab, ensurePageStyle, LIMIT_HOST_TAG } from '@/lib/fomo-inject';
+import { appendViewAfter, ensureLimitTab, ensurePageStyle, LIMIT_HOST_TAG, VIEW_ATTR } from '@/lib/fomo-inject';
 import { mintFromFomoUrl } from '@/lib/format';
 
 /** Tiny external store holding the current page's mint. */
@@ -50,19 +50,21 @@ export default defineContentScript({
       try {
         mintStore.refresh();
         const found = ensureLimitTab(document);
-        const host = mountedIn?.querySelector(LIMIT_HOST_TAG);
+        const host = mountedIn?.querySelector(`[${VIEW_ATTR}] > ${LIMIT_HOST_TAG}`);
         if (!found) return;
         if (mountedIn === found.panel && host?.isConnected) return;
         ui?.remove();
+        mountedIn?.querySelector(`[${VIEW_ATTR}]`)?.remove();
         ui = await createShadowRootUi(ctx, {
           name: LIMIT_HOST_TAG,
           position: 'inline',
           anchor: found.tabRow,
-          append: 'after',
+          append: appendViewAfter,
           onMount: (container) => {
             const app = document.createElement('div');
-            app.className = 'dark text-foreground';
-            app.style.fontFamily = 'inherit';
+            app.className = 'text-foreground';
+            // The shadow root resets inherited fonts; reuse FOMO's own font stack (Aeonik).
+            app.style.fontFamily = getComputedStyle(document.body).fontFamily;
             container.append(app);
             const root = ReactDOM.createRoot(app);
             root.render(

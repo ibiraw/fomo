@@ -7,7 +7,12 @@ Chrome MV3 extension built with WXT. Connects to the local backend (ws://127.0.0
 |------|---------|
 | `entrypoints/background.ts` | Service worker: server connection, popup state, runs trades in the FOMO tab, keepalive alarm |
 | `entrypoints/fomo.content.ts` | Content script on fomo.family: `fomo.ping`, `fomo.trade` |
-| `entrypoints/popup/` | React popup: `App.tsx`, `components/` (PairingForm, NewOrderForm, OrderList), `use-background.ts` |
+| `entrypoints/fomo-panel.content/` | Injects the native-looking **Limit** tab next to Buy/Sell and mounts `components/panel/LimitView` (shadow root) |
+| `lib/fomo-inject.ts` | Limit tab + show/hide CSS (visibility is on our wrapper `[data-fomo-limit-view]`, since `:host !important` beats page CSS) |
+| `entrypoints/popup/` | React popup (`App.tsx`) |
+| `components/orders/` | Shared UI: PairingForm, NewOrderForm, OrderList, Segmented (no dropdowns: portals escape the shadow root) |
+| `hooks/use-background.ts` | Popup/panel ⇄ background port |
+| `assets/theme.css` | Shared theme (vars on `:root, :host`) |
 | `lib/fomo-dom.ts` | **All FOMO page-structure knowledge** (selectors, balance reading). Update here if FOMO redesigns |
 | `lib/trade.ts` | Trade steps: tab → amount → wait quote → submit → confirm by balance drop / failure notice |
 | `lib/fomo-tab.ts` | Find/open/navigate the FOMO tab, send trade to content script |

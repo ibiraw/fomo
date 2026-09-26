@@ -9,6 +9,9 @@ import { findPanel, findTab } from './fomo-dom';
 
 export const LIMIT_TAB_ID = 'fomo-limit-tab';
 export const LIMIT_HOST_TAG = 'fomo-limit-orders';
+/** Our wrapper around the shadow host. The host's own :host !important styles beat page CSS, so
+ * visibility is controlled on this plain wrapper instead. */
+export const VIEW_ATTR = 'data-fomo-limit-view';
 /** Attribute set on FOMO's panel while the Limit view is active. */
 export const ACTIVE_ATTR = 'data-fomo-limit';
 const STYLE_ID = 'fomo-limit-style';
@@ -23,8 +26,8 @@ const TAB_ACTIVE = 'bg-bg-tertiary text-text-primary';
  * FOMO's Buy/Sell tabs as inactive so only "Limit" looks selected.
  */
 const PAGE_CSS = `
-[${ACTIVE_ATTR}] > :not([data-fomo-limit-keep]):not(${LIMIT_HOST_TAG}) { display: none !important; }
-:not([${ACTIVE_ATTR}]) > ${LIMIT_HOST_TAG} { display: none !important; }
+[${ACTIVE_ATTR}] > :not([data-fomo-limit-keep]):not([${VIEW_ATTR}]) { display: none !important; }
+:not([${ACTIVE_ATTR}]) > [${VIEW_ATTR}] { display: none !important; }
 [${ACTIVE_ATTR}] [data-fomo-limit-keep] > button:not(#${LIMIT_TAB_ID}) {
   background: var(--color-bg-secondary, rgba(255,255,255,0.06)) !important;
   color: var(--color-text-secondary, rgba(255,255,255,0.6)) !important;
@@ -87,4 +90,12 @@ export function ensureLimitTab(doc: Document): { panel: HTMLElement; tabRow: HTM
     else tabRow.appendChild(tab);
   }
   return { panel, tabRow };
+}
+
+/** Inserts the shadow host inside our wrapper, right after FOMO's tab row. */
+export function appendViewAfter(tabRow: Element, host: Element): void {
+  const wrapper = tabRow.ownerDocument.createElement('div');
+  wrapper.setAttribute(VIEW_ATTR, '');
+  wrapper.append(host);
+  tabRow.after(wrapper);
 }

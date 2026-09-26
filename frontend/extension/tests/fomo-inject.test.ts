@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   ACTIVE_ATTR,
+  appendViewAfter,
   ensureLimitTab,
   ensurePageStyle,
   isLimitActive,
@@ -63,6 +64,15 @@ describe('fomo-inject', () => {
     document.getElementById(LIMIT_TAB_ID)!.remove();
     ensureLimitTab(document);
     expect(document.getElementById(LIMIT_TAB_ID)!.className).toContain('bg-bg-tertiary');
+  });
+
+  it('wraps the view host so page CSS can hide it', () => {
+    mountWithTabRow();
+    const { tabRow } = ensureLimitTab(document)!;
+    const host = document.createElement('fomo-limit-orders');
+    appendViewAfter(tabRow, host);
+    expect(tabRow.nextElementSibling?.hasAttribute('data-fomo-limit-view')).toBe(true);
+    expect(host.parentElement).toBe(tabRow.nextElementSibling);
   });
 
   it('returns null without a panel or tab row, and adds the page style once', () => {
