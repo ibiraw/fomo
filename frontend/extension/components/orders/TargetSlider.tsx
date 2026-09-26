@@ -1,6 +1,7 @@
 /**
  * @file TargetSlider.tsx
- * @description −100%…+100% slider (relative to the current market cap/price) plus a % box.
+ * @description −100%…+100% slider (relative to the current market cap/price) plus a % box. The box accepts any
+ *              rise (e.g. +400% for a 5x take profit); beyond +100% the slider thumb simply rests at the end.
  * @author Reborn1987
  */
 
@@ -15,13 +16,21 @@ interface Props {
 
 /** Lowest allowed change: −100% would mean a target of 0. */
 export const MIN_PERCENT = -99;
-export const MAX_PERCENT = 100;
+/** Right end of the slider. */
+export const SLIDER_MAX_PERCENT = 100;
+/** Largest change the % box accepts (a 1,000x target). */
+export const MAX_PERCENT = 99_900;
 const TICKS = [-100, -50, 0, 50, 100];
 
-/** Clamps and rounds a percent to the slider range. */
+/** Rounds a typed/chosen percent and keeps it between −99% and the largest accepted rise. */
 export function clampPercent(v: number): number {
   if (!Number.isFinite(v)) return 0;
   return Math.max(MIN_PERCENT, Math.min(MAX_PERCENT, Math.round(v)));
+}
+
+/** Where the slider thumb sits for a percent (targets above +100% rest at the right end). */
+export function sliderPercent(v: number): number {
+  return Math.min(SLIDER_MAX_PERCENT, clampPercent(v));
 }
 
 /** Slider with tick labels and an editable % box. */
@@ -31,9 +40,9 @@ export function TargetSlider({ percent, onChange }: Props) {
       <div className="space-y-1.5 pt-1">
         <Slider
           min={MIN_PERCENT}
-          max={MAX_PERCENT}
+          max={SLIDER_MAX_PERCENT}
           step={1}
-          value={[clampPercent(percent)]}
+          value={[sliderPercent(percent)]}
           onValueChange={([v]) => onChange(v ?? 0)}
           className="[&_[data-slot=slider-range]]:bg-transparent [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-buy [&_[data-slot=slider-track]]:bg-accent"
         />

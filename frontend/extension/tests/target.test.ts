@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { clampPercent } from '../components/orders/TargetSlider';
+import { clampPercent, sliderPercent } from '../components/orders/TargetSlider';
 import { DEFAULT_PRESETS, presetKey, sanitizePresets } from '../hooks/use-presets';
 import { formatTargetInput, inferDirection, percentFromTarget, syncWithLive, targetFromPercent } from '../lib/target';
 
@@ -35,7 +35,10 @@ describe('target math', () => {
 
   it('clamps slider percents', () => {
     expect(clampPercent(-150)).toBe(-99);
-    expect(clampPercent(250)).toBe(100);
+    expect(clampPercent(400)).toBe(400); // 5x take profit
+    expect(clampPercent(250_000)).toBe(99_900);
+    expect(sliderPercent(400)).toBe(100);
+    expect(sliderPercent(-150)).toBe(-99);
     expect(clampPercent(12.6)).toBe(13);
     expect(clampPercent(Number.NaN)).toBe(0);
   });
