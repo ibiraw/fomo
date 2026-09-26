@@ -1,6 +1,6 @@
 /**
  * @file page.tsx
- * @description auto fomo landing page.
+ * @description limit landing page.
  * @author Reborn1987
  */
 

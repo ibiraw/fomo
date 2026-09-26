@@ -60,7 +60,7 @@ export default function App() {
   return (
     <div className="p-4 space-y-4">
       <header className="flex items-center justify-between">
-        <h1 className="text-base font-bold">auto fomo</h1>
+        <h1 className="text-base font-bold">limit</h1>
         <Badge className={cn(state.status === 'connected' ? 'bg-buy/20 text-buy' : 'bg-sell/20 text-sell')}>{STATUS_TEXT[state.status]}</Badge>
       </header>
 
@@ -76,7 +76,7 @@ export default function App() {
           <TabsContent value="new" className="pt-2">
             <div className="mb-3 empty:hidden"><UnlockBanner status={state.billing} where="popup" /></div>
             {state.status === 'disconnected' && (
-              <p className="mb-3 text-sm text-sell">Can't reach the auto fomo server. It reconnects on its own — check your internet connection.</p>
+              <p className="mb-3 text-sm text-sell">Can't reach the limit server. It reconnects on its own — check your internet connection.</p>
             )}
             {tabMint && state.status === 'connected' && <div className="mb-3"><TokenXCard mint={tabMint} send={send} /></div>}
             {priceError && <p className="mb-3 rounded-md bg-card p-2 text-xs text-yellow">This token can't be priced yet: {priceError}</p>}

@@ -7,7 +7,7 @@
 import { ImageResponse } from 'next/og';
 
 export const dynamic = 'force-static';
-export const alt = 'auto fomo — limit orders for fomo (unofficial)';
+export const alt = 'limit — automated orders for fomo (unofficial)';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -17,7 +17,7 @@ export default function OpengraphImage() {
     (
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: '#09090b', color: '#fafafa', padding: 72, fontFamily: 'sans-serif' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: -1 }}>auto fomo</div>
+          <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: -1 }}>limit</div>
           <div style={{ fontSize: 22, color: '#9a9aa3', border: '2px solid #34343c', borderRadius: 999, padding: '6px 18px' }}>Unofficial</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>

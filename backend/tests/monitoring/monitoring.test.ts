@@ -34,11 +34,11 @@ function setup() {
 describe('ActivityRelay', () => {
   it('delivers logged entries in one message and marks them sent', async () => {
     const { store, notifier, relay } = setup();
-    relay.record('account', 'new account AF-222222');
-    relay.record('order', 'AF-222222 placed Limit buy $5\n· x'); // newlines flattened
+    relay.record('account', 'new account LM-222222');
+    relay.record('order', 'LM-222222 placed Limit buy $5\n· x'); // newlines flattened
     await relay.deliver();
     expect(notifier.sent).toHaveLength(1);
-    expect(notifier.sent[0]).toBe('👤 00:00:00 new account AF-222222\n📈 00:00:00 AF-222222 placed Limit buy $5 · x');
+    expect(notifier.sent[0]).toBe('👤 00:00:00 new account LM-222222\n📈 00:00:00 LM-222222 placed Limit buy $5 · x');
     expect(store.pending(10)).toEqual([]);
     await relay.deliver(); // nothing left
     expect(notifier.sent).toHaveLength(1);
@@ -119,17 +119,17 @@ describe('describeOrder', () => {
     status: 'open', attempts: 0, maxAttempts: 3, lastError: null, triggeredAtValue: null, createdAt: 1, updatedAt: 1,
   } as unknown as Order;
   it('describes placements and outcomes, and skips intermediate states', () => {
-    expect(describeOrder(base, 'AF-2')).toBe('AF-2 placed Take profit 50% · base:0x9500…db07 · MC ≥ $120.0K');
-    expect(describeOrder({ ...base, attempts: 1, lastError: 'slippage: x' }, 'AF-2')).toMatch(/re-armed after slippage/);
-    expect(describeOrder({ ...base, status: 'filled', triggeredAtValue: 121_000 }, 'AF-2')).toBe('AF-2 FILLED Take profit 50% · base:0x9500…db07 at $121.0K');
-    expect(describeOrder({ ...base, status: 'failed', lastError: 'ui_error: y' }, 'AF-2')).toMatch(/FAILED .*ui_error: y/);
-    expect(describeOrder({ ...base, status: 'unknown' }, 'AF-2')).toMatch(/outcome unknown/);
-    expect(describeOrder({ ...base, status: 'cancelled', lastError: 'auto_cancelled: gone' }, 'AF-2')).toMatch(/cancelled .*\(auto_cancelled: gone\)/);
-    expect(describeOrder({ ...base, status: 'triggered' }, 'AF-2')).toBeNull();
+    expect(describeOrder(base, 'LM-2')).toBe('LM-2 placed Take profit 50% · base:0x9500…db07 · MC ≥ $120.0K');
+    expect(describeOrder({ ...base, attempts: 1, lastError: 'slippage: x' }, 'LM-2')).toMatch(/re-armed after slippage/);
+    expect(describeOrder({ ...base, status: 'filled', triggeredAtValue: 121_000 }, 'LM-2')).toBe('LM-2 FILLED Take profit 50% · base:0x9500…db07 at $121.0K');
+    expect(describeOrder({ ...base, status: 'failed', lastError: 'ui_error: y' }, 'LM-2')).toMatch(/FAILED .*ui_error: y/);
+    expect(describeOrder({ ...base, status: 'unknown' }, 'LM-2')).toMatch(/outcome unknown/);
+    expect(describeOrder({ ...base, status: 'cancelled', lastError: 'auto_cancelled: gone' }, 'LM-2')).toMatch(/cancelled .*\(auto_cancelled: gone\)/);
+    expect(describeOrder({ ...base, status: 'triggered' }, 'LM-2')).toBeNull();
     const buy = { ...base, side: 'buy', trigger: { ...base.trigger, metric: 'price', direction: 'below', value: 0.00042 }, amount: { kind: 'usd', value: 25 } } as unknown as Order;
-    expect(describeOrder(buy, 'AF-2')).toBe('AF-2 placed Limit buy $25 · base:0x9500…db07 · price ≤ $0.000420');
-    expect(describeOrder({ ...buy, trigger: { ...buy.trigger, direction: 'above' } }, 'AF-2')).toMatch(/Breakout buy/);
-    expect(describeOrder({ ...base, trigger: { ...base.trigger, direction: 'below' } }, 'AF-2')).toMatch(/Stop loss/);
+    expect(describeOrder(buy, 'LM-2')).toBe('LM-2 placed Limit buy $25 · base:0x9500…db07 · price ≤ $0.000420');
+    expect(describeOrder({ ...buy, trigger: { ...buy.trigger, direction: 'above' } }, 'LM-2')).toMatch(/Breakout buy/);
+    expect(describeOrder({ ...base, trigger: { ...base.trigger, direction: 'below' } }, 'LM-2')).toMatch(/Stop loss/);
   });
   it('formats amounts and tokens compactly', () => {
     expect([usdCompact(2.5e9), usdCompact(3.456e6), usdCompact(12.3)]).toEqual(['$2.50B', '$3.46M', '$12.30']);

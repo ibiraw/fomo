@@ -15,7 +15,7 @@ export function Splash() {
     <div className="af-splash" aria-hidden="true">
       <div className="af-splash-inner">
         <div className="text-4xl font-bold tracking-tight">
-          auto <span className="text-brand">fomo</span>
+          lim<span className="text-brand">i</span>t
         </div>
         <svg viewBox="0 0 200 60" className="af-splash-chart" role="presentation">
           <line x1="0" x2="200" y1="44" y2="44" stroke="var(--faint)" strokeDasharray="4 4" strokeWidth="1" />

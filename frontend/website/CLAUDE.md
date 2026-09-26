@@ -2,7 +2,7 @@
 
 # frontend/website/
 
-auto fomo showcase site (Mono theme). Next.js 16 static export.
+limit showcase site (Mono theme). Next.js 16 static export.
 
 | Path | Purpose |
 |------|---------|
@@ -13,5 +13,5 @@ auto fomo showcase site (Mono theme). Next.js 16 static export.
 
 ## Builds
 - `npm run build` → `out/` (static site for Cloudflare Pages / Netlify). Set `NEXT_PUBLIC_SITE_URL` so link previews use absolute URLs.
-- `npm run build:artifact` → `dist-artifact/autofomo.html`, published at https://claude.ai/artifact/XrG5aLS3R9aYvhtwuQ1FJ7
+- `npm run build:artifact` → `dist-artifact/limit.html`, published at https://claude.ai/artifact/XrG5aLS3R9aYvhtwuQ1FJ7
 - Next's runtime only hydrates at the site root, which is why the artifact uses the Vite single-file build instead.

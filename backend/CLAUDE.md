@@ -49,7 +49,7 @@ Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), 
 - Watchers poll every 15 s from stored cursors (EVM: Transfer logs to the treasury in 2k-block chunks, 2 confirmations; Solana: treasury token-account signatures → parsed balance changes). Verified live on Base and Solana.
 
 ## Monitoring (`src/core/monitoring/`)
-- Every account (`AF-XXXXXX` short id), order placement/outcome, payment, claim, subscription change, server start and error (≤ 1 per source per 5 min) is written to the `activity` table (permanent log) and relayed to Telegram by `ActivityRelay` (batched, marks sent, backs off, honours 429 `retry_after`). Set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`; without them it only logs to the DB.
+- Every account (`LM-XXXXXX` short id), order placement/outcome, payment, claim, subscription change, server start and error (≤ 1 per source per 5 min) is written to the `activity` table (permanent log) and relayed to Telegram by `ActivityRelay` (batched, marks sent, backs off, honours 429 `retry_after`). Set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`; without them it only logs to the DB.
 - Account deletion cancels open orders but keeps order history.
 
 ## Gateway protocol (JSON over WS)

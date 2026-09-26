@@ -151,7 +151,7 @@ async function main(): Promise<void> {
   relay.record('server', `server started · ${[...evm.keys()].length + 1} chains · paywall ${cfg.paywall ? `$${cfg.paywall.priceUsd}/${cfg.paywall.periodDays}d` : 'off'}`);
   if (!cfg.telegram) log('Telegram monitoring off (set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID); activity is still logged to the database');
   if (!billing) log('paywall off (PAYWALL_ENABLED is not true)');
-  log(`auto fomo server on ws://${cfg.gatewayHost}:${gateway.port()}${cfg.trustProxy ? ' (behind Cloudflare)' : ''}`);
+  log(`limit server on ws://${cfg.gatewayHost}:${gateway.port()}${cfg.trustProxy ? ' (behind Cloudflare)' : ''}`);
   log(`Owner account key (old pairing code): ${cfg.pairingToken}`);
   log(evm.size ? `EVM chains: ${[...evm.keys()].join(', ')}` : 'No EVM chains configured');
 

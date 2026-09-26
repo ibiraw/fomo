@@ -1,4 +1,4 @@
-# auto fomo — server + Cloudflare Tunnel (Reborn1987)
+# limit — server + Cloudflare Tunnel (Reborn1987)
 # Usage (on the VPS, in this folder): docker compose up -d --build
 # No ports are published: the tunnel connects out to Cloudflare, so the server's IP stays hidden.
 services:

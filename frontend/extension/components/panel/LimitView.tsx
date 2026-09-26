@@ -30,11 +30,11 @@ export interface MintStore {
 }
 
 const OFFLINE_TEXT: Partial<Record<ConnectionStatus, string>> = {
-  no_token: 'No account yet — open the auto fomo extension to start one.',
-  bad_token: 'Your account key was rejected — open the auto fomo extension.',
-  deleted: 'Your account was deleted — open the auto fomo extension to start a new one.',
-  disconnected: "Can't reach the auto fomo server — it reconnects on its own.",
-  connecting: 'Connecting to the auto fomo server…',
+  no_token: 'No account yet — open the limit extension to start one.',
+  bad_token: 'Your account key was rejected — open the limit extension.',
+  deleted: 'Your account was deleted — open the limit extension to start a new one.',
+  disconnected: "Can't reach the limit server — it reconnects on its own.",
+  connecting: 'Connecting to the limit server…',
 };
 
 /** Limit-order view for the token shown on the page. */
@@ -64,7 +64,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
       {priceError ? (
         <div className="space-y-1.5 rounded-lg border bg-card p-3">
           <p className="text-sm font-semibold text-yellow">Limit orders aren't available for this token yet</p>
-          <p className="text-xs text-muted-foreground">It trades on a pool auto fomo can't read prices from yet, so orders couldn't trigger.</p>
+          <p className="text-xs text-muted-foreground">It trades on a pool limit can't read prices from yet, so orders couldn't trigger.</p>
           <details className="text-[11px] text-faint">
             <summary className="select-none text-muted-foreground underline underline-offset-2 hover:text-foreground">Technical details</summary>
             <p className="mt-1 break-all">{priceError}</p>

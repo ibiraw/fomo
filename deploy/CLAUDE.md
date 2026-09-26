@@ -1,6 +1,6 @@
 # deploy/
 
-Hosting for the shared auto fomo server. Full steps: `documentation/DEPLOY.md`.
+Hosting for the shared limit server. Full steps: `documentation/DEPLOY.md`.
 
 | File | Purpose |
 |------|---------|

@@ -98,7 +98,7 @@ export class ServerConnection {
     body: Record<string, unknown>,
   ): Promise<unknown> {
     const s = this.socket;
-    if (!s || this.status !== 'connected') return Promise.reject(new ServerCommandError('Not connected to the auto fomo server'));
+    if (!s || this.status !== 'connected') return Promise.reject(new ServerCommandError('Not connected to the limit server'));
     const reqId = `r${++this.seq}`;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {

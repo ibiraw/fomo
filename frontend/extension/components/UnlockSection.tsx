@@ -182,18 +182,18 @@ export function UnlockSection({ status, send }: { status: BillingStatus | null; 
 /** One-line notice for the order forms: free orders left, renewal soon, or that a payment is needed. */
 export function UnlockBanner({ status, where }: { status: BillingStatus | null; where: 'popup' | 'panel' }) {
   if (!status || status.permanent) return null;
-  const hint = where === 'popup' ? 'Settings → Subscription' : 'open auto fomo extension → Settings';
+  const hint = where === 'popup' ? 'Settings → Subscription' : 'open limit extension → Settings';
   const locked = mustUnlock(status);
   let text: string | null = null;
   if (locked) {
     text = status.everPaid
-      ? `Your auto fomo month ended — renew for $${status.priceUsd} USDC in ${hint}.`
+      ? `Your limit month ended — renew for $${status.priceUsd} USDC in ${hint}.`
       : `Free orders used — subscribe for $${status.priceUsd} USDC a month in ${hint}.`;
   } else if (!status.unlocked) {
     text = `${status.freeOrdersLeft} free ${status.freeOrdersLeft === 1 ? 'order' : 'orders'} left${status.freeOrdersWaiting > 0 ? ` (${status.freeOrdersWaiting} waiting to fill)` : ''}, then $${status.priceUsd} USDC a month (${hint}).`;
   } else if (renewSoon(status)) {
     const left = daysLeft(status);
-    text = `auto fomo ends in ${left} ${left === 1 ? 'day' : 'days'} — renew in ${hint}.`;
+    text = `limit ends in ${left} ${left === 1 ? 'day' : 'days'} — renew in ${hint}.`;
   }
   if (!text) return null;
   return (

@@ -1,26 +1,26 @@
-# Chrome Web Store listing — auto fomo
+# Chrome Web Store listing — limit
 
 Author: Reborn1987
 
 Everything to paste into the Chrome Web Store developer dashboard. Visibility: **Unlisted** (only people with the link can install).
 
 ## Package
-- Upload: `frontend/extension/.output/auto-fomo-<version>-chrome.zip` (build with `npm run zip`).
+- Upload: `frontend/extension/.output/limit-<version>-chrome.zip` (build with `npm run zip`).
 - Before zipping a store build, set the hosted server URL (see `documentation/DEPLOY.md`).
 
 ## Store listing tab
-**Name:** auto fomo *(final name not decided — change here, in `wxt.config.ts`, the popup title and the website)*
+**Name:** limit
 
 **Summary** (max 132 characters):
-> Limit, take-profit and stop-loss orders for fomo.family. Set a market-cap target; auto fomo clicks Buy or Sell when it hits.
+> Limit, take-profit and stop-loss orders for fomo.family. Set a market-cap target; limit clicks Buy or Sell when it hits.
 
 **Description:**
-> auto fomo adds the orders fomo.family doesn't have: limit buys, breakout buys, take profits and stop losses — on Solana, Ethereum, Base, BNB Chain, Robinhood Chain and Arc.
+> limit adds the orders fomo.family doesn't have: limit buys, breakout buys, take profits and stop losses — on Solana, Ethereum, Base, BNB Chain, Robinhood Chain and Arc.
 >
 > How it works
 > • A Limit tab appears next to fomo's Buy and Sell buttons.
 > • Drag to a market-cap or price target, choose an amount in dollars or a percentage of your position, and place the order.
-> • auto fomo watches the price live on-chain. When your target is hit, it clicks fomo's own Buy or Sell button in a background tab — the same thing you would do by hand — and confirms the trade on-chain.
+> • limit watches the price live on-chain. When your target is hit, it clicks fomo's own Buy or Sell button in a background tab — the same thing you would do by hand — and confirms the trade on-chain.
 >
 > What it never does
 > • It never asks for your private keys, seed phrase or fomo password. Trades happen through your own logged-in fomo session.
@@ -41,7 +41,7 @@ Everything to paste into the Chrome Web Store developer dashboard. Visibility: *
 >
 > Keep Chrome open with fomo.family logged in for orders to run.
 >
-> auto fomo is an independent, unofficial tool. It is not affiliated with, endorsed by or connected to fomo.family or Fomo Labs. Nothing here is financial advice; automated orders can fail or fill at unexpected prices. Use at your own risk.
+> limit is an independent, unofficial tool. It is not affiliated with, endorsed by or connected to fomo.family or Fomo Labs. Nothing here is financial advice; automated orders can fail or fill at unexpected prices. Use at your own risk.
 
 **Category:** Tools  **Language:** English
 

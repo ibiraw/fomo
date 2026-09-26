@@ -1,4 +1,4 @@
-# auto fomo order server — multi-stage build (Reborn1987)
+# limit order server — multi-stage build (Reborn1987)
 # Build: TypeScript → dist/. Run: production dependencies only, as the unprivileged "node" user.
 FROM node:22-slim AS build
 WORKDIR /app

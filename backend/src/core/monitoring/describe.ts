@@ -1,6 +1,6 @@
 /**
  * @file describe.ts
- * @description One-line monitoring texts for order events ("AF-7K3Q2P placed Take profit 50% · base:0x9500…db07 ·
+ * @description One-line monitoring texts for order events ("LM-7K3Q2P placed Take profit 50% · base:0x9500…db07 ·
  *              MC ≥ $120K"). Intermediate states (triggered, executing) return null — only placements and outcomes
  *              are worth a message.
  * @author Reborn1987

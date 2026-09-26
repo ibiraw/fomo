@@ -1,6 +1,6 @@
 /**
  * @file Sections.tsx
- * @description Static sections of the auto fomo site: header, hero, features, architecture, holder
+ * @description Static sections of the limit site: header, hero, features, architecture, holder
  *              access (coming soon), FAQ and footer. No personal information anywhere.
  * @author Reborn1987
  */
@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button';
 export function Wordmark({ className = '' }: { className?: string }) {
   return (
     <span className={`font-bold tracking-tight ${className}`}>
-      auto <span className="text-brand">fomo</span>
+      lim<span className="text-brand">i</span>t
     </span>
   );
 }
@@ -36,7 +36,7 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5">
-        <a href="#top" aria-label="auto fomo home"><Wordmark className="text-lg" /></a>
+        <a href="#top" aria-label="limit home"><Wordmark className="text-lg" /></a>
         <nav className="hidden gap-6 text-sm text-muted-foreground md:flex">
           <a href="#demo" className="hover:text-foreground">Demo</a>
           <a href="#features" className="hover:text-foreground">Features</a>
@@ -189,7 +189,7 @@ export function Holders() {
           </p>
           <div className="mt-6 rounded-xl border border-sell/40 bg-sell/10 p-4 text-sm">
             <p className="font-semibold text-sell">No token has launched yet.</p>
-            <p className="mt-1 text-muted-foreground">There is no contract address. Anything claiming to be the auto fomo token right now is fake.</p>
+            <p className="mt-1 text-muted-foreground">There is no contract address. Anything claiming to be the limit token right now is fake.</p>
           </div>
           <Button disabled size="lg" className="mt-6 rounded-xl">
             <Wallet className="size-4" aria-hidden /> Connect wallet — available at launch
@@ -201,12 +201,12 @@ export function Holders() {
 }
 
 const FAQ = [
-  ['Is this made by fomo?', 'No. auto fomo is an independent, unofficial tool. It is not affiliated with, endorsed by or connected to fomo.family or Fomo Labs.'],
-  ['Do you need my private keys or seed phrase?', 'Never. auto fomo clicks the Buy and Sell buttons in your own logged-in fomo tab, exactly like you would. It only reads public blockchain data.'],
+  ['Is this made by fomo?', 'No. limit is an independent, unofficial tool. It is not affiliated with, endorsed by or connected to fomo.family or Fomo Labs.'],
+  ['Do you need my private keys or seed phrase?', 'Never. limit clicks the Buy and Sell buttons in your own logged-in fomo tab, exactly like you would. It only reads public blockchain data.'],
   ['Which tokens work?', 'Solana tokens on pump.fun (curve and PumpSwap), bonk.fun / Raydium LaunchLab curves and Raydium CPMM pools are priced live on-chain. Other tokens use Jupiter prices, a few seconds behind — the app tells you when that happens.'],
   ['What do I need to run it?', 'Chrome with the extension, the order engine running on your computer, and a Solana RPC endpoint. Chrome must stay open with a logged-in fomo tab for orders to fire.'],
   ['Is automating fomo allowed?', "fomo's terms don't allow automated access, so using a tool like this could get your fomo account flagged. Use it knowing that risk."],
-  ['Can orders fail?', 'Yes — for example on high slippage. Slippage failures are retried; anything auto fomo cannot confirm is marked "Check fomo" instead of guessing.'],
+  ['Can orders fail?', 'Yes — for example on high slippage. Slippage failures are retried; anything limit cannot confirm is marked "Check fomo" instead of guessing.'],
 ] as const;
 
 /** FAQ accordion. */
@@ -232,7 +232,7 @@ export function SiteFooter() {
     <footer className="border-t">
       <div className="mx-auto max-w-6xl space-y-3 px-5 py-10 text-xs text-muted-foreground">
         <Wordmark className="text-base text-foreground" />
-        <p>auto fomo is an independent, unofficial tool and is not affiliated with, endorsed by or connected to fomo.family or Fomo Labs. &quot;fomo&quot; is used only to describe the platform this tool works with.</p>
+        <p>limit is an independent, unofficial tool and is not affiliated with, endorsed by or connected to fomo.family or Fomo Labs. &quot;fomo&quot; is used only to describe the platform this tool works with.</p>
         <p>Nothing here is financial advice. Crypto trading is risky; memecoins especially. Automated orders can fail, fill at unexpected prices, or break if fomo changes its site. Use at your own risk.</p>
         <p><a href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy policy</a></p>
       </div>

@@ -6,7 +6,7 @@ Author: Reborn1987
 - One shared server on a cheap VPS (Docker), Cloudflare in front (hides the server IP, provides TLS).
 - Accounts are automatic: the extension creates a random secret on install; a backup code in Settings restores it.
 - Wallet addresses are read silently from the user's logged-in fomo page — never by opening the deposit screen in front of them.
-- Name stays "auto fomo" for now (final name undecided). Listing starts **Unlisted**.
+- Name stays "limit" for now (final name undecided). Listing starts **Unlisted**.
 - Owner is in Canada; no domain yet (buy one on the anonymous Cloudflare account when the name is settled).
 
 ## Where fomo keeps the wallet addresses (verified 2026-09-26, read-only)
@@ -28,7 +28,7 @@ Fallback: read the deposit screen in the extension's hidden background tab; last
 - Needed from the owner: the fresh treasury wallets (one Solana, one EVM) → `PAY_SOLANA_TREASURY`, `PAY_EVM_TREASURY`, `PAYWALL_ENABLED=true`.
 
 ## Phases
-1. **Store package** — "auto fomo" name/version, real icons, privacy policy page on the website, listing copy + permission
+1. **Store package** — "limit" name/version, real icons, privacy policy page on the website, listing copy + permission
    justifications, screenshots (1280×800), `npm run zip`.
 2. **Multi-user server** — accounts (hashed secret), per-user orders/wallets/executor connection, wallet sync from the
    extension, per-user limits (open orders, request rate), shared price feeds; tests.

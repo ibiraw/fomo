@@ -58,6 +58,8 @@ export class SqliteAccountStoreAdapter extends AccountStorePort {
     const cols = (this.db.prepare('PRAGMA table_info(accounts)').all() as { name: string }[]).map((c) => c.name);
     if (!cols.includes('short_id')) this.db.exec('ALTER TABLE accounts ADD COLUMN short_id TEXT');
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_short_id ON accounts(short_id)');
+    // v1.2.0: product renamed (auto fomo → limit): "AF-" ids become "LM-".
+    this.db.exec("UPDATE accounts SET short_id = 'LM-' || substr(short_id, 4) WHERE short_id LIKE 'AF-%'");
     for (const { id } of this.db.prepare('SELECT id FROM accounts WHERE short_id IS NULL').all() as { id: string }[]) {
       this.insertWithShortId((shortId) => this.db.prepare('UPDATE accounts SET short_id = ? WHERE id = ?').run(shortId, id));
     }

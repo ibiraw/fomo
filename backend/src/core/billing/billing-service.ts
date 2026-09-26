@@ -156,7 +156,7 @@ export class BillingService {
     if (this.isActive(userId, now)) return;
     const paid = this.store.access(userId);
     if (paid && paid.spentUsd > 0) {
-      throw new PaymentRequiredError(`Your auto fomo month ended on ${new Date(paid.paidUntil).toDateString()}. Renew in Settings to keep placing orders.`);
+      throw new PaymentRequiredError(`Your limit month ended on ${new Date(paid.paidUntil).toDateString()}. Renew in Settings to keep placing orders.`);
     }
     const { filled, waiting } = this.orderCounts(userId);
     if (filled + waiting < this.plan.freeOrders) return;

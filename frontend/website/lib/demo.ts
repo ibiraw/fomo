@@ -19,7 +19,7 @@ export const STEPS = [
   { at: 2_000, title: 'Drag to your target', body: '−30% from the live market cap. The order type is worked out for you.' },
   { at: 4_600, title: 'Place it and walk away', body: 'The order waits on your own PC, watching the price on-chain.' },
   { at: 6_000, title: 'Price hits the target', body: 'Market cap drops to $29.4K — the order triggers the same second.' },
-  { at: 10_800, title: 'auto fomo clicks Buy', body: "It uses fomo's own Buy button, in your own logged-in tab." },
+  { at: 10_800, title: 'limit clicks Buy', body: "It uses fomo's own Buy button, in your own logged-in tab." },
   { at: 12_800, title: 'Confirmed on-chain', body: 'Your wallet balance changed — filled in about 2.6 seconds.' },
 ] as const;
 

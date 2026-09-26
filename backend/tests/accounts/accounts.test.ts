@@ -65,8 +65,8 @@ describe('AccountService', () => {
   });
 
   it('makes short ids from an alphabet without look-alikes', () => {
-    expect(newShortId(() => 0)).toBe('AF-222222');
-    expect(newShortId(() => 0.999)).toBe('AF-ZZZZZZ');
+    expect(newShortId(() => 0)).toBe('LM-222222');
+    expect(newShortId(() => 0.999)).toBe('LM-ZZZZZZ');
     expect(newShortId()).toMatch(SHORT_ID_RE);
   });
 

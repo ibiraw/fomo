@@ -14,15 +14,15 @@ import './globals.css';
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
 
-const TITLE = 'auto fomo — limit orders for fomo (unofficial)';
-const DESCRIPTION = 'Set a market-cap target and auto fomo clicks Buy or Sell in your fomo tab when it hits. Dip buys, take profits and stop losses. Unofficial, no private keys.';
+const TITLE = 'limit — automated orders for fomo (unofficial)';
+const DESCRIPTION = 'Set a market-cap target and limit clicks Buy or Sell in your fomo tab when it hits. Dip buys, take profits and stop losses. Unofficial, no private keys.';
 
 export const metadata: Metadata = {
   // Absolute preview URLs need the public address; set NEXT_PUBLIC_SITE_URL when building for a host.
   metadataBase: process.env.NEXT_PUBLIC_SITE_URL ? new URL(process.env.NEXT_PUBLIC_SITE_URL) : undefined,
   title: TITLE,
   description: DESCRIPTION,
-  openGraph: { title: TITLE, description: DESCRIPTION, type: 'website', siteName: 'auto fomo' },
+  openGraph: { title: TITLE, description: DESCRIPTION, type: 'website', siteName: 'limit' },
   twitter: { card: 'summary_large_image', title: TITLE, description: DESCRIPTION },
 };
 

@@ -19,5 +19,5 @@ export function orderExplainer(side: Side, percent: number, targetLabel: string)
   const kind = orderKind(side, percent);
   const verb = side === 'buy' ? 'buys' : 'sells';
   const when = percent < 0 ? `drops to ${targetLabel}` : percent > 0 ? `rises to ${targetLabel}` : `is at ${targetLabel}`;
-  return `${kind}: auto fomo ${verb} the moment the market cap ${when}.`;
+  return `${kind}: limit ${verb} the moment the market cap ${when}.`;
 }

@@ -1,6 +1,6 @@
 /**
  * @file page.tsx
- * @description Privacy policy for the auto fomo extension and server (linked from the Chrome Web Store listing).
+ * @description Privacy policy for the limit extension and server (linked from the Chrome Web Store listing).
  * @author Reborn1987
  */
 
@@ -9,8 +9,8 @@ import type { Metadata } from 'next';
 import { SiteFooter, SiteHeader } from '@/components/site/Sections';
 
 export const metadata: Metadata = {
-  title: 'Privacy — auto fomo',
-  description: 'What the auto fomo extension and its order server collect, why, and how to delete it.',
+  title: 'Privacy — limit',
+  description: 'What the limit extension and its order server collect, why, and how to delete it.',
 };
 
 const UPDATED = 'September 26, 2026';
@@ -33,8 +33,8 @@ export default function Privacy() {
       <main className="mx-auto max-w-2xl space-y-10 px-5 py-16 text-[15px] leading-relaxed text-muted-foreground">
         <header className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-widest text-brand">Privacy policy</p>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground text-balance">What auto fomo knows about you</h1>
-          <p>Last updated {UPDATED}. This covers the auto fomo Chrome extension and the auto fomo order server it connects to.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground text-balance">What limit knows about you</h1>
+          <p>Last updated {UPDATED}. This covers the limit Chrome extension and the limit order server it connects to.</p>
         </header>
 
         <Block title="The short version">
@@ -52,7 +52,7 @@ export default function Privacy() {
             <li><b className="text-foreground">Public wallet addresses.</b> Your fomo Solana and EVM addresses, read from your logged-in fomo tab. These are public on the blockchain anyway; we use them to confirm your trades on-chain and to stop sell orders once you no longer hold a token.</li>
             <li><b className="text-foreground">Your orders.</b> Token, trigger (price or market cap), amount, status and timestamps, so the server can watch prices and tell the extension when to trade.</li>
             <li><b className="text-foreground">Subscription payments.</b> For the monthly subscription we record payments received by our wallets: chain, coin, amount, the sending wallet address and the transaction id — all public on the blockchain — which account they paid for, and until when.</li>
-            <li><b className="text-foreground">Activity log.</b> A record of account, order and payment events (with your short user ID, e.g. AF-7K3Q2P) that we use to monitor the service and answer support requests; the operator receives these events as private notifications.</li>
+            <li><b className="text-foreground">Activity log.</b> A record of account, order and payment events (with your short user ID, e.g. LM-7K3Q2P) that we use to monitor the service and answer support requests; the operator receives these events as private notifications.</li>
             <li><b className="text-foreground">Technical logs.</b> Short-lived server logs (errors, order status changes). Our network provider (Cloudflare) processes IP addresses to deliver and protect the service.</li>
           </ul>
         </Block>
@@ -74,11 +74,11 @@ export default function Privacy() {
         </Block>
 
         <Block title="Chrome Web Store user data policy">
-          <p>auto fomo&apos;s use of information received from Chrome APIs adheres to the Chrome Web Store User Data Policy, including the Limited Use requirements. Data is used only to provide the extension&apos;s single purpose — automated limit, take-profit and stop-loss orders on fomo.family — and is never used for advertising, credit decisions, or sold.</p>
+          <p>limit&apos;s use of information received from Chrome APIs adheres to the Chrome Web Store User Data Policy, including the Limited Use requirements. Data is used only to provide the extension&apos;s single purpose — automated limit, take-profit and stop-loss orders on fomo.family — and is never used for advertising, credit decisions, or sold.</p>
         </Block>
 
         <Block title="Contact">
-          <p>Questions or deletion requests: use the contact email on the auto fomo Chrome Web Store listing.</p>
+          <p>Questions or deletion requests: use the contact email on the limit Chrome Web Store listing.</p>
         </Block>
       </main>
       <SiteFooter />

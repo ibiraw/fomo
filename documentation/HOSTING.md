@@ -1,4 +1,4 @@
-# Hosting the auto fomo site (Cloudflare Pages)
+# Hosting the limit site (Cloudflare Pages)
 
 Author: Reborn1987
 
@@ -11,13 +11,13 @@ Goal: a public link that doesn't trace back to you.
 ## 2. Build
 ```bash
 cd frontend/website
-NEXT_PUBLIC_SITE_URL=https://autofomo.pages.dev npm run build   # use the project name you pick in step 3
+NEXT_PUBLIC_SITE_URL=https://limit.pages.dev npm run build   # use the project name you pick in step 3
 ```
 This creates the `out/` folder (the whole site).
 
 ## 3. Upload (no Git needed)
 1. Cloudflare dashboard → **Workers & Pages** → **Create** → **Pages** → **Upload assets**.
-2. Project name: e.g. `autofomo` → your site will be `https://autofomo.pages.dev`.
+2. Project name: e.g. `limit` → your site will be `https://limit.pages.dev`.
 3. Drag the **contents of `out/`** into the upload box → **Deploy**.
 
 ## 4. Updating later

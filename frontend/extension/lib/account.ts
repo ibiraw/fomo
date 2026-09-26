@@ -15,7 +15,7 @@ export interface Wallets {
 /** What the server says about the logged-in account. */
 export interface AccountView {
   readonly id: string;
-  /** Short readable id ("AF-7K3Q2P") to quote to support. */
+  /** Short readable id ("LM-7K3Q2P") to quote to support. */
   readonly shortId: string;
   readonly wallets: Wallets;
 }

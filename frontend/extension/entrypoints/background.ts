@@ -116,7 +116,7 @@ export default defineBackground({
         const sound = soundForUpdate(orders.get(o.id), o);
         orders.set(o.id, o);
         push();
-        if (sound) void playSound(sound).catch((err: unknown) => console.error('[auto fomo] sound failed', err));
+        if (sound) void playSound(sound).catch((err: unknown) => console.error('[limit] sound failed', err));
       },
       onTick: (t) => { ticks[t.mint] = t; push(); },
       onBilling: (b) => { billing = b; push(); },
@@ -164,7 +164,7 @@ export default defineBackground({
         account = (await conn.request('wallets.set', { wallets: next })) as AccountView;
         push();
       } catch (err) {
-        console.error('[auto fomo] could not save wallets', err);
+        console.error('[limit] could not save wallets', err);
       }
     };
 
