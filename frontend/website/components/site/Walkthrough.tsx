@@ -144,33 +144,37 @@ function Panel({ t }: { t: number }) {
         </div>
       </div>
 
-      <AnimatePresence>
-        {status !== 'none' && (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="mt-3 flex items-center gap-2 rounded-lg bg-secondary px-2.5 py-2 text-xs"
-          >
-            <span className="font-bold text-buy">Limit buy</span>
-            <span className="flex-1 truncate">MC ≤ {usdK(TARGET_MC)} · $25</span>
-            <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold', STATUS_LABEL[status].cls)}>{STATUS_LABEL[status].text}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {status === 'filled' && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            className="mt-2 rounded-lg border border-buy/40 bg-buy/10 px-3 py-2 text-xs text-buy"
-          >
-            Bought $25 of $DEMO · confirmed on-chain in 2.6s
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Fixed-height slots: content fades in/out without changing the panel's height (no layout shift). */}
+      <div className="mt-3 h-9">
+        <AnimatePresence>
+          {status !== 'none' && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="flex h-9 items-center gap-2 rounded-lg bg-secondary px-2.5 text-xs"
+            >
+              <span className="font-bold text-buy">Limit buy</span>
+              <span className="flex-1 truncate">MC ≤ {usdK(TARGET_MC)} · $25</span>
+              <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold', STATUS_LABEL[status].cls)}>{STATUS_LABEL[status].text}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+      <div className="mt-2 h-9">
+        <AnimatePresence>
+          {status === 'filled' && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex h-9 items-center rounded-lg border border-buy/40 bg-buy/10 px-3 text-xs text-buy"
+            >
+              Bought $25 of $DEMO · confirmed on-chain in 2.6s
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
@@ -201,15 +205,18 @@ export function Walkthrough() {
                 </span>
                 <span className={cn('font-semibold', i === step ? 'text-foreground' : 'text-muted-foreground')}>{s.title}</span>
               </div>
-              {i === step && <p className="mt-1 pl-9 text-sm text-muted-foreground">{s.body}</p>}
-              {i === step && !reduced && (
-                <div className="ml-9 mt-2 h-0.5 overflow-hidden rounded bg-accent">
+              {/* Description + progress always take their space; only visibility changes (no layout shift). */}
+              <p className={cn('mt-1 min-h-10 pl-9 text-sm text-muted-foreground transition-opacity', i === step ? 'opacity-100' : 'opacity-0')} aria-hidden={i !== step}>
+                {s.body}
+              </p>
+              <div className={cn('ml-9 mt-1 h-0.5 overflow-hidden rounded', i === step && !reduced ? 'bg-accent' : 'bg-transparent')}>
+                {i === step && !reduced && (
                   <div
                     className="h-full bg-yellow"
                     style={{ width: `${Math.min(100, ((t - s.at) / ((STEPS[i + 1]?.at ?? LOOP_MS) - s.at)) * 100)}%` }}
                   />
-                </div>
-              )}
+                )}
+              </div>
             </button>
           </li>
         ))}
