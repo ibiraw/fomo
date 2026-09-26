@@ -43,8 +43,8 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
   return (
     <div className="space-y-4 p-1 pt-2">
       {notice && <p className="rounded-md bg-sell/15 p-2 text-xs text-sell">{notice}</p>}
-      {state.status === 'connected' && <TokenXCard key={mint} mint={mint} send={send} />}
-      <NewOrderForm key={mint} ticks={state.ticks} initialMint={mint} lockMint onCreate={(order) => send({ type: 'order.create', order })} />
+      {state.status === 'connected' && <TokenXCard key={`x:${mint}`} mint={mint} send={send} />}
+      <NewOrderForm key={`form:${mint}`} ticks={state.ticks} initialMint={mint} lockMint onCreate={(order) => send({ type: 'order.create', order })} />
       <div className="space-y-2">
         <p className="text-xs font-semibold text-muted-foreground">Orders on this token</p>
         <OrderList orders={orders} ticks={state.ticks} height={260} emptyText="No orders on this token yet." onCancel={(id) => send({ type: 'order.cancel', id })} />
