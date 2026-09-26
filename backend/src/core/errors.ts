@@ -22,5 +22,11 @@ export class UnsupportedPoolError extends FomoError {}
 /** A required on-chain account does not exist. */
 export class AccountNotFoundError extends FomoError {}
 
+/** Client input failed validation. */
+export class ValidationError extends FomoError {}
+
+/** The requested order does not exist or cannot change from its current status. */
+export class OrderStateError extends FomoError {}
+
 /** Invalid or missing configuration. */
 export class ConfigError extends FomoError {}

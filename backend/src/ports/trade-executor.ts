@@ -1,0 +1,33 @@
+/**
+ * @file trade-executor.ts
+ * @description TradeExecutorPort — something that can place a trade on FOMO (the Chrome extension).
+ * @author Reborn1987
+ */
+
+import type { Order } from '../core/orders/order.js';
+
+/** Why a trade failed. `slippage` is retryable; `unknown` means the outcome could not be confirmed. */
+export type ExecutionErrorKind =
+  | 'slippage'
+  | 'not_logged_in'
+  | 'insufficient_funds'
+  | 'ui_error'
+  | 'timeout'
+  | 'unknown';
+
+/** Result of one execution attempt (Service Result pattern). */
+export type ExecutionResult =
+  | { readonly ok: true; readonly detail: string }
+  | { readonly ok: false; readonly kind: ExecutionErrorKind; readonly message: string };
+
+/** Abstract trade executor. Adapter: WsGateway (drives the Chrome extension). */
+export abstract class TradeExecutorPort {
+  /** True when an executor is connected and able to trade right now. */
+  abstract isReady(): boolean;
+
+  /** Places the trade for `order`. Must resolve (never reject) with a typed result. */
+  abstract execute(order: Order): Promise<ExecutionResult>;
+
+  /** Registers a callback fired whenever readiness changes to true. */
+  abstract onReady(cb: () => void): void;
+}

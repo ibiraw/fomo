@@ -6,8 +6,9 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/index.ts', 'src/adapters/**'],
+      exclude: ['src/index.ts', 'src/adapters/solana/**'],
       thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
     },
   },
 });
+

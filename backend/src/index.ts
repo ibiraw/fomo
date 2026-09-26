@@ -1,0 +1,58 @@
+/**
+ * @file index.ts
+ * @description Composition root: wires adapters into the core and starts the local server.
+ * @author Reborn1987
+ */
+
+import { WsGateway } from './adapters/gateway/ws-gateway.js';
+import { KitSolanaAccountsAdapter } from './adapters/solana/kit-solana-accounts.adapter.js';
+import { SqliteOrderStoreAdapter } from './adapters/storage/sqlite-order-store.adapter.js';
+import { loadConfig } from './config.js';
+import { OrderEngine } from './core/orders/order-engine.js';
+import { PumpPriceFeed } from './core/pricing/pump-price-feed.js';
+
+/** Timestamped console logger. */
+function log(msg: string): void {
+  console.log(`${new Date().toISOString()} ${msg}`);
+}
+
+/** Logs an error with context. */
+function logError(ctx: string) {
+  return (err: unknown): void => console.error(`${new Date().toISOString()} [${ctx}]`, err);
+}
+
+/** Builds and starts every component; shuts down cleanly on Ctrl+C. */
+async function main(): Promise<void> {
+  const cfg = loadConfig();
+  const accounts = new KitSolanaAccountsAdapter(cfg.rpcHttp, cfg.rpcWss, logError('rpc'));
+  const feed = new PumpPriceFeed(accounts, logError('price'));
+  const store = new SqliteOrderStoreAdapter(cfg.dbPath);
+  const gateway = new WsGateway(
+    { host: cfg.gatewayHost, port: cfg.gatewayPort, token: cfg.pairingToken, execTimeoutMs: cfg.execTimeoutMs, tickThrottleMs: 250, pingIntervalMs: 20_000 },
+    log,
+  );
+  const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), logError('engine'));
+  gateway.attach(engine);
+
+  await feed.start();
+  await gateway.listen();
+  await engine.start();
+  log(`FOMO limit-order server on ws://${cfg.gatewayHost}:${gateway.port()}`);
+  log(`Pairing code for the extension: ${cfg.pairingToken}`);
+
+  const shutdown = async (): Promise<void> => {
+    log('shutting down');
+    engine.stop();
+    await gateway.close();
+    await feed.close();
+    store.close();
+    process.exit(0);
+  };
+  process.on('SIGINT', () => void shutdown());
+  process.on('SIGTERM', () => void shutdown());
+}
+
+main().catch((err: unknown) => {
+  logError('startup')(err);
+  process.exit(1);
+});
