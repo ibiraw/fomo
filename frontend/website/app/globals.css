@@ -106,33 +106,29 @@
   display: grid;
   place-items: center;
   background: var(--background);
-  animation: af-splash-out 0.45s ease 1.6s forwards;
+  animation: af-splash-out 0.45s ease 1.9s forwards;
 }
 .af-no-splash .af-splash { display: none; }
-.af-splash-inner { display: grid; justify-items: center; gap: 14px; }
-.af-splash-chart { width: 200px; height: 60px; overflow: visible; }
-.af-splash-line {
-  stroke: var(--sell);
-  stroke-dasharray: 260;
-  stroke-dashoffset: 260;
-  animation: af-draw 1s ease-out 0.15s forwards, af-turn-green 0.2s ease 1.15s forwards;
-}
-.af-splash-dot { fill: var(--foreground); opacity: 0; animation: af-pop 0.25s ease 1.15s forwards; transform-origin: 200px 44px; }
-.af-splash-caption {
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
+.af-splash-inner { display: grid; justify-items: center; gap: 20px; }
+.af-splash-mark { opacity: 0; animation: af-land 0.45s cubic-bezier(.2,.9,.3,1.2) forwards; }
+.af-splash-ring {
   opacity: 0;
-  animation: af-fade-in 0.3s ease 1.2s forwards;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: af-ring-in 0.6s ease-out 0.2s forwards, af-orbit 1.2s linear 0.2s infinite;
 }
-@keyframes af-draw { to { stroke-dashoffset: 0; } }
-@keyframes af-turn-green { to { stroke: var(--buy); } }
-@keyframes af-pop { from { opacity: 0; transform: scale(0.2); } to { opacity: 1; transform: scale(1); } }
-@keyframes af-fade-in { to { opacity: 1; } }
+.af-splash-moon { opacity: 0; animation: af-rise 0.45s ease-out 0.45s forwards; }
+.af-splash-word { opacity: 0; animation: af-fade-up 0.4s ease-out 0.8s forwards; }
+.af-splash-word .wm-i::after { opacity: 0; animation: af-dot-drop 0.3s cubic-bezier(.3,1.6,.5,1) 1.15s forwards; }
+.af-splash-word .wm-i:nth-of-type(2)::after { animation-delay: 1.3s; }
+@keyframes af-land { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+@keyframes af-ring-in { from { opacity: 0; transform: scale(0.6) rotate(-90deg); } to { opacity: 1; transform: none; } }
+@keyframes af-orbit { to { stroke-dashoffset: -18; } }
+@keyframes af-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes af-fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes af-dot-drop { from { opacity: 0; transform: translate(-50%, -0.5em); } to { opacity: 1; transform: translateX(-50%); } }
 @keyframes af-splash-out { to { opacity: 0; visibility: hidden; pointer-events: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .af-splash { animation: af-splash-out 0.2s linear 0.6s forwards; }
-  .af-splash-line { animation: none; stroke-dashoffset: 0; stroke: var(--buy); }
-  .af-splash-dot, .af-splash-caption { animation: none; opacity: 1; }
+  .af-splash { animation: af-splash-out 0.2s linear 0.8s forwards; }
+  .af-splash-mark, .af-splash-ring, .af-splash-moon, .af-splash-word, .af-splash-word .wm-i::after { animation: none; opacity: 1; }
 }
