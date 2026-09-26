@@ -6,7 +6,8 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { ArcadePlayer, parseSoundSettings, scheduleArcade, SOUND_EVENTS, soundForUpdate } from '../lib/sounds';
+import { SOUND_PACKS, soundPack } from '../lib/sound-packs';
+import { parseSoundSettings, SOUND_EVENTS, soundForUpdate, SoundPlayer } from '../lib/sounds';
 import type { Order } from '../lib/types';
 
 const order = (o: Partial<Order> & { direction?: 'above' | 'below' }): Order =>
@@ -27,48 +28,60 @@ describe('soundForUpdate', () => {
 
 describe('parseSoundSettings', () => {
   it('defaults, keeps valid values and clamps volume', () => {
-    expect(parseSoundSettings(undefined)).toEqual({ enabled: true, volume: 0.6 });
-    expect(parseSoundSettings({ enabled: false, volume: 0.25 })).toEqual({ enabled: false, volume: 0.25 });
-    expect(parseSoundSettings({ enabled: 'yes', volume: 7 })).toEqual({ enabled: true, volume: 1 });
+    expect(parseSoundSettings(undefined)).toEqual({ enabled: true, pack: 'arcade', volume: 0.6 });
+    expect(parseSoundSettings({ enabled: false, pack: 'sonar', volume: 0.25 })).toEqual({ enabled: false, pack: 'sonar', volume: 0.25 });
+    expect(parseSoundSettings({ enabled: 'yes', pack: 'polka', volume: 7 })).toEqual({ enabled: true, pack: 'arcade', volume: 1 });
     expect(parseSoundSettings({ volume: -1 }).volume).toBe(0);
     expect(parseSoundSettings({ volume: Number.NaN }).volume).toBe(0.6);
   });
 });
 
-/** Minimal Web Audio stand-in that records oscillator frequencies. */
-function fakeAudio(state: 'running' | 'suspended' = 'suspended') {
-  const freqs: number[] = [];
-  const param = () => ({ value: 0, setValueAtTime: vi.fn((v: number) => freqs.push(v)), exponentialRampToValueAtTime: vi.fn() });
-  const node = (): Record<string, unknown> => {
-    const n: Record<string, unknown> = { connect: vi.fn(() => node()), start: vi.fn(), stop: vi.fn(), frequency: param(), gain: param(), type: '' };
-    return n;
-  };
+/** Minimal Web Audio stand-in that records every scheduled frequency / gain start. */
+function fakeAudio(state: 'running' | 'suspended' = 'suspended', resumes = true) {
+  const starts: number[] = [];
+  const param = () => ({ value: 0, setValueAtTime: vi.fn((v: number) => starts.push(v)), exponentialRampToValueAtTime: vi.fn() });
+  const node = (): Record<string, unknown> => ({
+    connect: vi.fn(() => node()), start: vi.fn(), stop: vi.fn(), type: '', buffer: null,
+    frequency: param(), gain: param(), detune: param(), Q: param(), delayTime: param(),
+  });
   const ctx = {
-    state, currentTime: 1, destination: node(),
+    state, currentTime: 1, sampleRate: 8000, destination: node(),
     createOscillator: vi.fn(node), createGain: vi.fn(node), createDynamicsCompressor: vi.fn(node),
-    resume: vi.fn(async () => { ctx.state = 'running'; }),
+    createBiquadFilter: vi.fn(node), createBufferSource: vi.fn(node), createDelay: vi.fn(node),
+    createBuffer: vi.fn((_c: number, len: number) => ({ getChannelData: () => new Float32Array(len) })),
+    resume: vi.fn(async () => { if (resumes) ctx.state = 'running'; }),
   };
-  return { ctx, freqs };
+  return { ctx, starts };
 }
 
-describe('Arcade sounds', () => {
-  it('schedules notes for every event', () => {
-    for (const { id } of SOUND_EVENTS) {
-      const { ctx, freqs } = fakeAudio();
-      scheduleArcade(ctx as unknown as BaseAudioContext, ctx.destination as unknown as AudioNode, id, 0);
-      expect(freqs.length, id).toBeGreaterThan(0);
+describe('sound packs', () => {
+  it('every pack schedules audio for every event', () => {
+    expect(SOUND_PACKS.map((p) => p.id)).toEqual(['arcade', 'chime', 'register', 'pop', 'degen', 'sonar']);
+    for (const pack of SOUND_PACKS) {
+      for (const { id } of SOUND_EVENTS) {
+        const { ctx, starts } = fakeAudio();
+        pack.sounds[id](ctx as unknown as BaseAudioContext, ctx.destination as unknown as AudioNode, 0);
+        expect(starts.length, `${pack.id}/${id}`).toBeGreaterThan(0);
+        expect(pack.length[id]).toBeGreaterThan(0);
+      }
     }
+    expect(soundPack('nope').id).toBe('arcade');
   });
 
-  it('creates one context, resumes it when suspended and applies the volume', async () => {
+  it('plays through one context, resuming it and clamping volume', async () => {
     const { ctx } = fakeAudio();
     const create = vi.fn(() => ctx as unknown as AudioContext);
-    const player = new ArcadePlayer(create);
-    await player.play('buy', 0.4);
-    await player.play('tp', 2);
+    const player = new SoundPlayer(create);
+    expect(await player.play('chime', 'tp', 0.4)).toBe(1.1);
+    await player.play('degen', 'sl', 2);
     expect(create).toHaveBeenCalledTimes(1);
     expect(ctx.resume).toHaveBeenCalledTimes(1);
     const master = ctx.createGain.mock.results[0]!.value as { gain: { value: number } };
     expect(master.gain.value).toBe(1);
+  });
+
+  it('reports blocked audio instead of failing silently', async () => {
+    const { ctx } = fakeAudio('suspended', false);
+    await expect(new SoundPlayer(() => ctx as unknown as AudioContext).play('arcade', 'buy', 0.5)).rejects.toThrow(/blocking sound/);
   });
 });

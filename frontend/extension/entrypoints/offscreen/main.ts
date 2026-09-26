@@ -5,13 +5,13 @@
  * @author Reborn1987
  */
 
-import { ArcadePlayer, type PlaySoundMessage } from '@/lib/sounds';
+import { SoundPlayer, type PlaySoundMessage } from '@/lib/sounds';
 
-const player = new ArcadePlayer();
+const player = new SoundPlayer();
 
 browser.runtime.onMessage.addListener((msg: unknown) => {
   const m = msg as Partial<PlaySoundMessage> | undefined;
-  if (m?.type === 'fomo.sound' && m.event && typeof m.volume === 'number') {
-    void player.play(m.event, m.volume).catch((err: unknown) => console.error('[auto fomo] sound failed', err));
+  if (m?.type === 'fomo.sound' && m.pack && m.event && typeof m.volume === 'number') {
+    void player.play(m.pack, m.event, m.volume).catch((err: unknown) => console.error('[auto fomo] sound failed', err));
   }
 });

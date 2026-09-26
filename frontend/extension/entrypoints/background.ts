@@ -50,7 +50,7 @@ async function playSound(event: SoundEvent): Promise<void> {
   const settings = await loadSoundSettings();
   if (!settings.enabled || settings.volume <= 0) return;
   await ensureOffscreen();
-  await browser.runtime.sendMessage({ type: 'fomo.sound', event, volume: settings.volume } satisfies PlaySoundMessage);
+  await browser.runtime.sendMessage({ type: 'fomo.sound', pack: settings.pack, event, volume: settings.volume } satisfies PlaySoundMessage);
 }
 
 export default defineBackground({
