@@ -1,8 +1,8 @@
 /**
  * @file UnlockSection.tsx
- * @description The unlock (paywall): free orders left, progress toward the price, and how to pay — pick a chain, send
- *              USDC (USDG on Robinhood) or, once launched, the platform token at a discount. Also a compact banner for
- *              the order forms. Renders nothing when the server has no paywall.
+ * @description Monthly access (paywall): free orders for new accounts, days left, progress toward the next month, and
+ *              how to pay — pick a chain, send USDC (USDG on Robinhood) or, once launched, the platform token at a
+ *              discount. Also a compact banner for the order forms. Renders nothing when the server has no paywall.
  * @author Reborn1987
  */
 
@@ -12,7 +12,7 @@ import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import type { SendFn } from '@/hooks/use-background';
-import { chainName, mustUnlock, remainingUsd, type BillingQuote, type BillingStatus, type PaymentMethod } from '@/lib/billing';
+import { chainName, daysLeft, mustUnlock, remainingUsd, renewSoon, type BillingQuote, type BillingStatus, type PaymentMethod } from '@/lib/billing';
 import { cn } from '@/lib/utils';
 
 /** Text with a copy button (falls back to selectable text when the clipboard is refused). */
@@ -53,7 +53,7 @@ function Progress({ status }: { status: BillingStatus }) {
       <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
         <div className="h-full rounded-full bg-buy transition-[width]" style={{ width: `${pct}%` }} />
       </div>
-      <p className="text-[11px] text-muted-foreground">Received ${status.creditUsd.toFixed(2)} of ${status.priceUsd} — ${remainingUsd(status).toFixed(2)} to go.</p>
+      <p className="text-[11px] text-muted-foreground">Received ${status.creditUsd.toFixed(2)} of ${status.priceUsd} for the next month — ${remainingUsd(status).toFixed(2)} to go.</p>
     </div>
   );
 }
@@ -79,20 +79,32 @@ function MethodDetails({ method, status }: { method: PaymentMethod; status: Bill
   );
 }
 
-/** Settings → Unlock. */
+/** Date like "Oct 26". */
+const shortDate = (ms: number): string => new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+/** Settings → Subscription. */
 export function UnlockSection({ status, send }: { status: BillingStatus | null; send: SendFn }) {
   const [chain, setChain] = useState<string | null>(null);
   const quote = useMutation({ mutationFn: async () => (await send({ type: 'billing.quote' })) as BillingQuote });
   if (!status) return null;
 
-  if (status.unlocked) {
+  if (status.permanent) {
     return (
       <section className="space-y-1">
-        <h2 className="text-sm font-semibold">Unlock</h2>
-        <p className="flex items-center gap-1.5 text-xs text-buy"><Check className="size-3.5" aria-hidden /> Unlocked for good — thanks for supporting auto fomo.</p>
+        <h2 className="text-sm font-semibold">Subscription</h2>
+        <p className="flex items-center gap-1.5 text-xs text-buy"><Check className="size-3.5" aria-hidden /> Unlocked for good.</p>
       </section>
     );
   }
+
+  const left = daysLeft(status);
+  const headline = status.unlocked
+    ? `Active until ${shortDate(status.paidUntil ?? 0)} — ${left} ${left === 1 ? 'day' : 'days'} left.`
+    : status.everPaid
+      ? `Your month ended on ${shortDate(status.paidUntil ?? 0)}. Renew to keep placing orders.`
+      : status.freeOrdersLeft > 0
+        ? `${status.freeOrdersLeft} free ${status.freeOrdersLeft === 1 ? 'order' : 'orders'} left.`
+        : 'Your free orders are used.';
 
   const q = quote.data;
   const methods = q?.methods ?? [];
@@ -102,16 +114,16 @@ export function UnlockSection({ status, send }: { status: BillingStatus | null; 
   return (
     <section className="space-y-2.5">
       <div className="space-y-1">
-        <h2 className="text-sm font-semibold">Unlock auto fomo</h2>
+        <h2 className="text-sm font-semibold">Subscription</h2>
+        <p className={cn('text-xs', status.unlocked ? 'text-buy' : 'text-foreground')}>{headline}</p>
         <p className="text-xs text-muted-foreground">
-          {status.freeOrdersLeft > 0 ? `${status.freeOrdersLeft} free ${status.freeOrdersLeft === 1 ? 'order' : 'orders'} left. ` : 'Your free orders are used. '}
-          One payment of ${status.priceUsd} in USDC unlocks it forever{hasToken ? ` — or $${status.tokenPriceUsd} in the token` : ''}.
+          ${status.priceUsd} in USDC per {status.periodDays} days{hasToken ? ` — or $${status.tokenPriceUsd} in the token` : ''}. Paying early adds to the end of your current month.
         </p>
       </div>
       {status.creditUsd > 0 && <Progress status={status} />}
       {!q ? (
         <Button size="sm" className="w-full" onClick={() => quote.mutate()} disabled={quote.isPending}>
-          {quote.isPending ? 'Loading…' : 'Show how to pay'}
+          {quote.isPending ? 'Loading…' : status.unlocked ? 'Add another month' : status.everPaid ? 'Renew' : 'Subscribe'}
         </Button>
       ) : (
         <div className="space-y-2.5">
@@ -146,11 +158,23 @@ export function UnlockSection({ status, send }: { status: BillingStatus | null; 
   );
 }
 
-/** One-line notice for the order forms: free orders left, or that an unlock is needed. */
+/** One-line notice for the order forms: free orders left, renewal soon, or that a payment is needed. */
 export function UnlockBanner({ status, where }: { status: BillingStatus | null; where: 'popup' | 'panel' }) {
-  if (!status || status.unlocked) return null;
+  if (!status || status.permanent) return null;
+  const hint = where === 'popup' ? 'Settings → Subscription' : 'open auto fomo extension → Settings';
   const locked = mustUnlock(status);
-  const hint = where === 'popup' ? 'Settings → Unlock' : 'open auto fomo extension → Settings';
+  let text: string | null = null;
+  if (locked) {
+    text = status.everPaid
+      ? `Your auto fomo month ended — renew for $${status.priceUsd} USDC in ${hint}.`
+      : `Free orders used — subscribe for $${status.priceUsd} USDC a month in ${hint}.`;
+  } else if (!status.unlocked) {
+    text = `${status.freeOrdersLeft} free ${status.freeOrdersLeft === 1 ? 'order' : 'orders'} left${status.freeOrdersWaiting > 0 ? ` (${status.freeOrdersWaiting} waiting to fill)` : ''}, then $${status.priceUsd} USDC a month (${hint}).`;
+  } else if (renewSoon(status)) {
+    const left = daysLeft(status);
+    text = `auto fomo ends in ${left} ${left === 1 ? 'day' : 'days'} — renew in ${hint}.`;
+  }
+  if (!text) return null;
   return (
     <p
       role="status"
@@ -159,9 +183,7 @@ export function UnlockBanner({ status, where }: { status: BillingStatus | null; 
         locked ? 'bg-yellow text-black' : 'border border-yellow/60 bg-yellow/15 text-yellow',
       )}
     >
-      {locked
-        ? `Free orders used — unlock for $${status.priceUsd} USDC in ${hint}.`
-        : `${status.freeOrdersLeft} free ${status.freeOrdersLeft === 1 ? 'order' : 'orders'} left${status.freeOrdersWaiting > 0 ? ` (${status.freeOrdersWaiting} waiting to fill)` : ''}, then $${status.priceUsd} USDC once (${hint}).`}
+      {text}
     </p>
   );
 }

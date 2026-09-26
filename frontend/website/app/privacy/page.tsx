@@ -51,7 +51,7 @@ export default function Privacy() {
             <li><b className="text-foreground">Anonymous account ID.</b> The extension creates a random secret when you install it. The server keeps only a hash of it. There is no name, email or phone number.</li>
             <li><b className="text-foreground">Public wallet addresses.</b> Your fomo Solana and EVM addresses, read from your logged-in fomo tab. These are public on the blockchain anyway; we use them to confirm your trades on-chain and to stop sell orders once you no longer hold a token.</li>
             <li><b className="text-foreground">Your orders.</b> Token, trigger (price or market cap), amount, status and timestamps, so the server can watch prices and tell the extension when to trade.</li>
-            <li><b className="text-foreground">Unlock payments.</b> For the one-time unlock we record payments received by our wallets: chain, coin, amount, the sending wallet address and the transaction id — all public on the blockchain — and which account they unlocked.</li>
+            <li><b className="text-foreground">Subscription payments.</b> For the monthly subscription we record payments received by our wallets: chain, coin, amount, the sending wallet address and the transaction id — all public on the blockchain — which account they paid for, and until when.</li>
             <li><b className="text-foreground">Technical logs.</b> Short-lived server logs (errors, order status changes). Our network provider (Cloudflare) processes IP addresses to deliver and protect the service.</li>
           </ul>
         </Block>

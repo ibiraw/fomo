@@ -63,7 +63,7 @@ export async function buildBilling(d: Deps): Promise<BillingParts> {
   const service = new BillingService(
     store,
     d.accounts,
-    { priceUsd: d.paywall.priceUsd, tokenPriceUsd: d.paywall.tokenPriceUsd, freeOrders: d.paywall.freeOrders },
+    { priceUsd: d.paywall.priceUsd, tokenPriceUsd: d.paywall.tokenPriceUsd, freeOrders: d.paywall.freeOrders, periodDays: d.paywall.periodDays },
     d.paywall.treasury,
     STABLE_ASSETS.filter((a) => a.chain === 'solana' || d.evm.has(a.chain as EvmChain)),
     token,
@@ -87,9 +87,10 @@ export async function buildBilling(d: Deps): Promise<BillingParts> {
     service,
     store,
     async start() {
+      service.settleAll(); // payments recorded before a restart or a price change
       if (d.paywall.token) tokenWatch = await d.feed.watch(d.paywall.token, (tick) => { tokenPrice = tick.priceUsd; });
       for (const w of watchers) w.start();
-      d.log(`paywall on: $${d.paywall.priceUsd} USDC or $${d.paywall.tokenPriceUsd} in ${token ? token.symbol : '(token not launched)'}, ${d.paywall.freeOrders} free orders`);
+      d.log(`paywall on: $${d.paywall.priceUsd} USDC or $${d.paywall.tokenPriceUsd} in ${token ? token.symbol : '(token not launched)'} per ${d.paywall.periodDays} days, ${d.paywall.freeOrders} free orders`);
     },
     stop() {
       for (const w of watchers) w.stop();

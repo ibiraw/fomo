@@ -42,10 +42,10 @@ Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), 
 - **Legacy owner:** orders from before accounts belong to account id `legacy`, whose key is the old pairing code (`data/pairing-token.txt`) and whose wallets were seeded from `FOMO_WALLET` / `FOMO_EVM_WALLET` on first start.
 
 ## Paywall (`src/core/billing/`, `src/billing-setup.ts`)
-- Off unless `PAYWALL_ENABLED=true` (needs `PAY_SOLANA_TREASURY`, `PAY_EVM_TREASURY`). `FREE_ORDERS` (3) free: only fills use one up; each waiting order holds one (so the trial never fills more than 3). Then `UNLOCK_PRICE_USD` (50) once. The owner (`legacy`) is unlocked at start.
+- Off unless `PAYWALL_ENABLED=true` (needs `PAY_SOLANA_TREASURY`, `PAY_EVM_TREASURY`). `FREE_ORDERS` (3) free: only fills use one up; each waiting order holds one (so the trial never fills more than 3). Then **monthly**: each `UNLOCK_PRICE_USD` (50) of credit adds `ACCESS_PERIOD_DAYS` (30) after the later of now and the current paid-up date (`paid_access` table; settled on each payment and at startup). Lapsed accounts get no new free orders; their waiting orders still run. `unlocks` = permanent grants (the owner, `legacy`, at start).
 - Accepted: official USDC on Solana/Ethereum/Base/BNB (18 dec)/Arc, USDG on Robinhood (it has no real USDC; look-alike "USDC" tokens there are ignored) — exact addresses in `payment-assets.ts`. Arc logs one USDC transfer twice (0x3600… 6 dec + system 0xff…fe 18 dec); payment id `<chain>:<tx>:<sender>` credits it once.
 - Platform token later: `PAY_TOKEN=<key>`; priced live via the feeds; `UNLOCK_TOKEN_PRICE_USD` (35) of token counts as the full price (credit × 50/35); price locked in the quote for 24 h.
-- Matching: sender = an account's fomo wallet → that account; else the payment code in the last digits (USDC: 50.00xxxx, token: N.xxxx); else unmatched (review `payments WHERE user_id IS NULL`). Credits add up; unlock at 98% of the price.
+- Matching: sender = an account's fomo wallet → that account; else the payment code in the last digits (USDC: 50.00xxxx, token: N.xxxx); else unmatched (review `payments WHERE user_id IS NULL`). Credits add up; a period is bought at 98% of the price.
 - Watchers poll every 15 s from stored cursors (EVM: Transfer logs to the treasury in 2k-block chunks, 2 confirmations; Solana: treasury token-account signatures → parsed balance changes). Verified live on Base and Solana.
 
 ## Gateway protocol (JSON over WS)

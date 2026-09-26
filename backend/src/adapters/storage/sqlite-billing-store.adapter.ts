@@ -7,7 +7,7 @@
 
 import { DatabaseSync } from 'node:sqlite';
 
-import { BillingStorePort, type Invoice, type PaymentRecord } from '../../ports/billing-store.js';
+import { BillingStorePort, type Invoice, type PaidAccess, type PaymentRecord } from '../../ports/billing-store.js';
 
 const SCHEMA = `
 -- v1.0.0
@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS invoices (
   expires_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_invoices_code ON invoices(code, expires_at);
+CREATE TABLE IF NOT EXISTS paid_access (
+  user_id TEXT PRIMARY KEY,
+  paid_until INTEGER NOT NULL,
+  spent_usd REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS payment_cursors (
   chain TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -103,6 +108,24 @@ export class SqliteBillingStoreAdapter extends BillingStorePort {
     this.db.prepare('INSERT OR IGNORE INTO unlocks (user_id, unlocked_at) VALUES (?, ?)').run(userId, at);
   }
 
+  /** Paid access or null. */
+  access(userId: string): PaidAccess | null {
+    const row = this.db.prepare('SELECT paid_until, spent_usd FROM paid_access WHERE user_id = ?').get(userId) as { paid_until: number; spent_usd: number } | undefined;
+    return row ? { paidUntil: row.paid_until, spentUsd: row.spent_usd } : null;
+  }
+
+  /** Upserts paid access. */
+  setAccess(userId: string, a: PaidAccess): void {
+    this.db
+      .prepare('INSERT INTO paid_access (user_id, paid_until, spent_usd) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET paid_until = excluded.paid_until, spent_usd = excluded.spent_usd')
+      .run(userId, a.paidUntil, a.spentUsd);
+  }
+
+  /** Accounts with credited payments. */
+  usersWithPayments(): string[] {
+    return (this.db.prepare('SELECT DISTINCT user_id FROM payments WHERE user_id IS NOT NULL').all() as { user_id: string }[]).map((r) => r.user_id);
+  }
+
   /** Valid invoice of an account. */
   activeInvoice(userId: string, now: number): Invoice | null {
     const row = this.db.prepare('SELECT * FROM invoices WHERE user_id = ? AND expires_at > ?').get(userId, now) as InvoiceRow | undefined;
@@ -142,6 +165,7 @@ export class SqliteBillingStoreAdapter extends BillingStorePort {
   forgetUser(userId: string): void {
     this.db.prepare('DELETE FROM unlocks WHERE user_id = ?').run(userId);
     this.db.prepare('DELETE FROM invoices WHERE user_id = ?').run(userId);
+    this.db.prepare('DELETE FROM paid_access WHERE user_id = ?').run(userId);
     this.db.prepare('UPDATE payments SET user_id = NULL WHERE user_id = ?').run(userId);
   }
 

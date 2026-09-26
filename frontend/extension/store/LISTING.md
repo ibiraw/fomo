@@ -34,8 +34,8 @@ Everything to paste into the Chrome Web Store developer dashboard. Visibility: *
 > • Optional sounds when an order fills or fails.
 >
 > Pricing
-> • Your first 3 orders are free.
-> • Then a one-time payment of $50 in USDC (on Solana, Ethereum, Base, BNB Chain or Arc; USDG on Robinhood Chain) unlocks it for good. Paying from your fomo wallet is matched automatically.
+> • Your first 3 filled orders are free.
+> • Then $50 per month in USDC (on Solana, Ethereum, Base, BNB Chain or Arc; USDG on Robinhood Chain). Each payment adds 30 days; paying early adds to the end of your month. Paying from your fomo wallet is matched automatically.
 >
 > Keep Chrome open with fomo.family logged in for orders to run.
 >

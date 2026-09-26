@@ -25,7 +25,8 @@ const USER_EVM = '0x59a1b6cc4cfc711ce0fa70f48fef4e4b7dd2b103';
 const STRANGER = '0x' + '9'.repeat(40);
 const asset = (chain: string, symbol = 'USDC') => STABLE_ASSETS.find((a) => a.chain === chain && a.symbol === symbol)!;
 const TOKEN: PaymentAsset = { chain: 'base', address: '0x' + '7'.repeat(40), symbol: 'AUTO', decimals: 18, kind: 'token' };
-const PLAN = { priceUsd: 50, tokenPriceUsd: 35, freeOrders: 3 };
+const PLAN = { priceUsd: 50, tokenPriceUsd: 35, freeOrders: 3, periodDays: 30 };
+const DAY = 86_400_000;
 
 /** USD amount → raw units. */
 const raw = (amount: number, decimals: number): bigint => BigInt(Math.round(amount * 1e6)) * 10n ** BigInt(decimals) / 1_000_000n;
@@ -51,7 +52,10 @@ function setup(opts: { token?: boolean; tokenPrice?: number | null } = {}) {
 describe('BillingService trial', () => {
   it('uses a free order per fill, holds one per waiting order, then asks for payment; unlocked accounts are never blocked', () => {
     const { svc, used, alice } = setup();
-    expect(svc.status(alice.id)).toEqual({ unlocked: false, freeOrdersLeft: 3, freeOrdersWaiting: 0, creditUsd: 0, priceUsd: 50, tokenPriceUsd: 35 });
+    expect(svc.status(alice.id)).toEqual({
+      unlocked: false, permanent: false, paidUntil: null, everPaid: false, periodDays: 30,
+      freeOrdersLeft: 3, freeOrdersWaiting: 0, creditUsd: 0, priceUsd: 50, tokenPriceUsd: 35,
+    });
     used.set(alice.id, { filled: 1, waiting: 1 });
     expect(svc.status(alice.id)).toMatchObject({ freeOrdersLeft: 2, freeOrdersWaiting: 1 });
     expect(() => svc.assertCanPlaceOrder(alice.id)).not.toThrow();
@@ -64,7 +68,43 @@ describe('BillingService trial', () => {
     expect(() => svc.assertCanPlaceOrder(alice.id)).toThrow(/used your 3 free orders/);
     svc.grant(alice.id);
     expect(() => svc.assertCanPlaceOrder(alice.id)).not.toThrow();
-    expect(svc.status(alice.id)).toMatchObject({ unlocked: true, freeOrdersLeft: 0 });
+    expect(svc.status(alice.id)).toMatchObject({ unlocked: true, permanent: true, paidUntil: null, freeOrdersLeft: 0 });
+  });
+});
+
+describe('BillingService monthly access', () => {
+  it('buys one period per price, stacks early renewals, lapses, and then asks to renew (no second trial)', () => {
+    const { svc, pay, alice, advance, used } = setup();
+    pay({ asset: asset('solana'), amount: 50, from: USER_SOL });
+    const first = svc.status(alice.id);
+    expect(first).toMatchObject({ unlocked: true, permanent: false, everPaid: true, creditUsd: 0, freeOrdersLeft: 0 });
+    expect(first.paidUntil).toBe(1_000 + 30 * DAY);
+    advance(20 * DAY);
+    pay({ asset: asset('base'), amount: 50, from: USER_EVM }); // renew early: adds after the current end
+    expect(svc.status(alice.id).paidUntil).toBe(1_000 + 60 * DAY);
+    advance(41 * DAY);
+    expect(svc.status(alice.id)).toMatchObject({ unlocked: false, everPaid: true, freeOrdersLeft: 0 });
+    used.set(alice.id, { filled: 0, waiting: 0 });
+    expect(() => svc.assertCanPlaceOrder(alice.id)).toThrow(/month ended/);
+    pay({ asset: asset('solana'), amount: 30, from: USER_SOL });
+    expect(svc.status(alice.id)).toMatchObject({ unlocked: false, creditUsd: 30 }); // partial: adds up
+    pay({ asset: asset('solana'), amount: 19.5, from: USER_SOL }); // within 2%
+    const renewed = svc.status(alice.id);
+    expect(renewed.unlocked).toBe(true);
+    expect(renewed.paidUntil).toBe(1_000 + 61 * DAY + 30 * DAY);
+  });
+
+  it('pays for several periods at once and settles payments recorded before a restart', () => {
+    const { svc, store, pay, alice, changed } = setup();
+    pay({ asset: asset('solana'), amount: 100, from: USER_SOL });
+    expect(svc.status(alice.id).paidUntil).toBe(1_000 + 60 * DAY);
+    store.setAccess(alice.id, { paidUntil: 0, spentUsd: 0 }); // as if the credit had never been settled
+    changed.length = 0;
+    svc.settleAll();
+    expect(changed).toEqual([alice.id]);
+    expect(svc.status(alice.id).paidUntil).toBe(1_000 + 60 * DAY);
+    svc.settleAll(); // nothing new
+    expect(changed).toEqual([alice.id]);
   });
 });
 
@@ -136,11 +176,12 @@ describe('BillingService payments', () => {
   });
 
   it('counts token payments with the discount, at the price locked in the quote', () => {
-    const { svc, pay, bob, setPrice } = setup({ token: true, tokenPrice: 0.01 });
+    const { svc, store, pay, bob, setPrice } = setup({ token: true, tokenPrice: 0.01 });
     const { code } = svc.quote(bob.id);
     setPrice(0.008); // price dropped after the quote: the quoted price still applies
     expect(pay({ asset: TOKEN, amount: 3500 + code / 1e4 })).toBe(bob.id);
-    expect(svc.status(bob.id).creditUsd).toBeCloseTo(50, 1); // $35 of token counts as $50
+    expect(store.creditUsd(bob.id)).toBeCloseTo(50, 1); // $35 of token counts as $50
+    expect(svc.status(bob.id).creditUsd).toBeCloseTo(0, 1); // all of it bought the month
     expect(svc.status(bob.id).unlocked).toBe(true);
   });
 

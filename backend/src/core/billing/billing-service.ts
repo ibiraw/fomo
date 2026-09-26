@@ -1,20 +1,21 @@
 /**
  * @file billing-service.ts
- * @description The unlock: a one-time payment in USDC (USDG on Robinhood) on any supported chain, or — once it exists —
- *              the platform token at a discount. New accounts get a few free orders first.
+ * @description Monthly access: each payment of the price in USDC (USDG on Robinhood) on any supported chain — or,
+ *              once it exists, the platform token at a discount — adds one period (30 days) after the current paid-up
+ *              date. New accounts get a few free orders first; the owner has permanent access.
  *
  *              Matching a payment to an account:
  *              1. Sent from a wallet an account uses on fomo (read from the user's fomo login) → that account.
  *              2. Otherwise the amount's last digits carry the account's payment code (e.g. 50.004137 USDC → code 4137,
  *                 or 1,234.4137 tokens → code 4137).
  *              3. Otherwise it is kept as unmatched for manual review.
- *              Payments add up; the account unlocks once its credit reaches the price.
+ *              Payments add up; every full price of credit becomes one more period.
  * @author Reborn1987
  */
 
 import { FomoError } from '../errors.js';
 import type { AccountStorePort } from '../../ports/account-store.js';
-import type { BillingStorePort, Invoice } from '../../ports/billing-store.js';
+import type { BillingStorePort, Invoice, PaidAccess } from '../../ports/billing-store.js';
 import type { PaymentAsset } from './payment-assets.js';
 
 /** Prices and trial. */
@@ -23,8 +24,10 @@ export interface Plan {
   readonly priceUsd: number;
   /** Unlock price when paying in the platform token (USD value at its live price). */
   readonly tokenPriceUsd: number;
-  /** Orders an account may place before unlocking. */
+  /** Orders an account may fill before paying (new accounts only). */
   readonly freeOrders: number;
+  /** Days of access one payment buys. */
+  readonly periodDays: number;
 }
 
 /** Where payments go. */
@@ -61,11 +64,20 @@ export interface OrderCounts {
 }
 
 export interface BillingStatus {
+  /** Access is active right now (paid up, or permanent). */
   readonly unlocked: boolean;
+  /** Owner / tester access that never expires. */
+  readonly permanent: boolean;
+  /** Paid up until (ms); null when never paid or permanent. */
+  readonly paidUntil: number | null;
+  /** The account has paid before (so the free trial no longer applies). */
+  readonly everPaid: boolean;
+  readonly periodDays: number;
   /** Free orders not yet used by a fill. */
   readonly freeOrdersLeft: number;
   /** Of those, how many are taken by orders still waiting to fill. */
   readonly freeOrdersWaiting: number;
+  /** Credit toward the next period. */
   readonly creditUsd: number;
   readonly priceUsd: number;
   readonly tokenPriceUsd: number;
@@ -77,15 +89,16 @@ export interface BillingQuote extends BillingStatus {
   readonly methods: readonly PaymentMethod[];
 }
 
-/** Thrown when an account has used its free orders and hasn't unlocked. */
+/** Thrown when an account has no free orders left and no paid-up access. */
 export class PaymentRequiredError extends FomoError {}
 
 /** Codes run 1..9999 (the last 4 digits after the price). */
 const MAX_CODE = 9_999;
 /** A payment code stays valid this long after it was last shown. */
 export const INVOICE_TTL_MS = 24 * 60 * 60_000;
-/** Credit within 2% of the price unlocks (token prices move while the transfer confirms). */
+/** Credit within 2% of the price buys a period (token prices move while the transfer confirms). */
 const UNLOCK_TOLERANCE = 0.98;
+const DAY_MS = 86_400_000;
 
 /** Amount in whole units (float) from raw units. */
 function units(raw: bigint, decimals: number): number {
@@ -124,28 +137,42 @@ export class BillingService {
    * waiting orders reserve one each, so the trial can never fill more than its free orders.
    */
   assertCanPlaceOrder(userId: string): void {
-    if (this.store.unlockedAt(userId) !== null) return;
+    const now = this.now();
+    if (this.isActive(userId, now)) return;
+    const paid = this.store.access(userId);
+    if (paid && paid.spentUsd > 0) {
+      throw new PaymentRequiredError(`Your auto fomo month ended on ${new Date(paid.paidUntil).toDateString()}. Renew in Settings to keep placing orders.`);
+    }
     const { filled, waiting } = this.orderCounts(userId);
     if (filled + waiting < this.plan.freeOrders) return;
     if (filled >= this.plan.freeOrders) {
-      throw new PaymentRequiredError(`You've used your ${this.plan.freeOrders} free orders. Unlock auto fomo in Settings to keep placing orders.`);
+      throw new PaymentRequiredError(`You've used your ${this.plan.freeOrders} free orders. Subscribe in Settings to keep placing orders.`);
     }
     const left = this.plan.freeOrders - filled;
     throw new PaymentRequiredError(
-      `Your ${left} free ${left === 1 ? 'order is' : 'orders are'} waiting to fill. Cancel one or unlock auto fomo in Settings to place more.`,
+      `Your ${left} free ${left === 1 ? 'order is' : 'orders are'} waiting to fill. Cancel one or subscribe in Settings to place more.`,
     );
   }
 
-  /** Unlock state and credit. */
+  /** Access state, free orders and credit toward the next period. */
   status(userId: string): BillingStatus {
-    const unlocked = this.store.unlockedAt(userId) !== null;
-    const { filled, waiting } = unlocked ? { filled: 0, waiting: 0 } : this.orderCounts(userId);
-    const left = unlocked ? 0 : Math.max(0, this.plan.freeOrders - filled);
+    const now = this.now();
+    const permanent = this.store.unlockedAt(userId) !== null;
+    const paid = this.store.access(userId);
+    const everPaid = !!paid && paid.spentUsd > 0;
+    const unlocked = this.isActive(userId, now);
+    const trial = !unlocked && !everPaid;
+    const { filled, waiting } = trial ? this.orderCounts(userId) : { filled: 0, waiting: 0 };
+    const left = trial ? Math.max(0, this.plan.freeOrders - filled) : 0;
     return {
       unlocked,
+      permanent,
+      paidUntil: permanent || !paid ? null : paid.paidUntil,
+      everPaid,
+      periodDays: this.plan.periodDays,
       freeOrdersLeft: left,
       freeOrdersWaiting: Math.min(left, waiting),
-      creditUsd: this.store.creditUsd(userId),
+      creditUsd: Math.max(0, this.store.creditUsd(userId) - (paid?.spentUsd ?? 0)),
       priceUsd: this.plan.priceUsd,
       tokenPriceUsd: this.plan.tokenPriceUsd,
     };
@@ -198,14 +225,33 @@ export class BillingService {
       receivedAt: now,
     });
     if (!stored || !userId || creditUsd === null) return null;
-    if (this.store.unlockedAt(userId) === null && this.store.creditUsd(userId) >= this.plan.priceUsd * UNLOCK_TOLERANCE) {
-      this.store.unlock(userId, now);
-    }
+    this.settle(userId, now);
     this.onChange(userId);
     return userId;
   }
 
-  /** Unlocks an account without payment (the owner, testers, manual review). */
+  /**
+   * Turns unused credit into periods: each full price (within 2%) extends access by one period after the later of now
+   * and the current paid-up date. Returns true when access was extended.
+   */
+  settle(userId: string, now: number = this.now()): boolean {
+    let access: PaidAccess = this.store.access(userId) ?? { paidUntil: 0, spentUsd: 0 };
+    const credit = this.store.creditUsd(userId);
+    let extended = false;
+    while (credit - access.spentUsd >= this.plan.priceUsd * UNLOCK_TOLERANCE) {
+      access = { spentUsd: access.spentUsd + this.plan.priceUsd, paidUntil: Math.max(now, access.paidUntil) + this.plan.periodDays * DAY_MS };
+      extended = true;
+    }
+    if (extended) this.store.setAccess(userId, access);
+    return extended;
+  }
+
+  /** Settles every paying account (at startup), notifying those whose access was extended. */
+  settleAll(): void {
+    for (const userId of this.store.usersWithPayments()) if (this.settle(userId)) this.onChange(userId);
+  }
+
+  /** Grants permanent access without payment (the owner, testers). */
   grant(userId: string): void {
     this.store.unlock(userId, this.now());
     this.onChange(userId);
@@ -226,8 +272,14 @@ export class BillingService {
     const byCode = code === null ? null : this.store.invoiceByCode(code, now);
     if (byCode) return byCode.userId;
     const candidates = this.accounts.findByWallet(t.chain === 'solana' ? 'solana' : 'evm', t.chain === 'solana' ? t.from : t.from.toLowerCase());
-    const locked = candidates.filter((a) => this.store.unlockedAt(a.id) === null);
+    const locked = candidates.filter((a) => !this.isActive(a.id, now));
     return (locked.find((a) => this.store.activeInvoice(a.id, now) !== null) ?? locked[0] ?? candidates[0])?.id ?? null;
+  }
+
+  /** Permanent, or paid up past `now`. */
+  private isActive(userId: string, now: number): boolean {
+    if (this.store.unlockedAt(userId) !== null) return true;
+    return (this.store.access(userId)?.paidUntil ?? 0) > now;
   }
 
   /** Payment code carried by the amount, or null. */

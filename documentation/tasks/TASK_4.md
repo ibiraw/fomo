@@ -23,7 +23,7 @@ Fallback: read the deposit screen in the extension's hidden background tab; last
 - Phase 2 ✅ multi-user server — 175 backend tests, 96.7% coverage. Live migration: 43 existing orders → `legacy` account, owner's extension logs in with the old pairing code.
 
 ## Paywall (added 2026-09-26)
-- 3 free orders, then $50 once in USDC on every chain (USDG on Robinhood). Later: the platform token at $35 worth; token payments stay in the treasury.
+- 3 free filled orders, then $50 **per month** (30 days per payment, stacking) in USDC on every chain (USDG on Robinhood). Later: the platform token at $35 worth; token payments stay in the treasury.
 - Built: server billing (matching by fomo wallet or payment code, credits, unlock, watchers — verified live on Base and Solana), extension unlock UI. 193 server tests / 96 extension tests.
 - Needed from the owner: the fresh treasury wallets (one Solana, one EVM) → `PAY_SOLANA_TREASURY`, `PAY_EVM_TREASURY`, `PAYWALL_ENABLED=true`.
 

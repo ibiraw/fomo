@@ -1,6 +1,7 @@
 /**
  * @file billing-store.ts
- * @description BillingStorePort — payments received, per-account unlocks, payment codes (invoices) and chain cursors.
+ * @description BillingStorePort — payments received, paid-up periods, permanent grants, payment codes (invoices)
+ *              and chain cursors.
  * @author Reborn1987
  */
 
@@ -12,10 +13,17 @@ export interface PaymentRecord {
   readonly asset: string;
   readonly from: string;
   readonly amount: number;
-  /** Credit toward the unlock, in USD at the USDC price (token payments include their discount). */
+  /** Credit toward access, in USD at the USDC price (token payments include their discount). */
   readonly creditUsd: number;
   readonly userId: string | null;
   readonly receivedAt: number;
+}
+
+/** Paid access of an account. */
+export interface PaidAccess {
+  readonly paidUntil: number;
+  /** Credit already turned into months. */
+  readonly spentUsd: number;
 }
 
 /** A payment code handed to an account: amounts ending in this code identify it. */
@@ -37,11 +45,20 @@ export abstract class BillingStorePort {
   /** Payments nobody could be matched to (for manual review). */
   abstract unmatched(): PaymentRecord[];
 
-  /** When the account was unlocked, or null. */
+  /** When the account was granted permanent access (owner, testers), or null. */
   abstract unlockedAt(userId: string): number | null;
 
-  /** Marks the account unlocked (no-op when already unlocked). */
+  /** Grants permanent access (no-op when already granted). */
   abstract unlock(userId: string, at: number): void;
+
+  /** Paid access of an account: paid up until when, and how much credit months have used. Null when never paid. */
+  abstract access(userId: string): PaidAccess | null;
+
+  /** Saves the account's paid access. */
+  abstract setAccess(userId: string, access: PaidAccess): void;
+
+  /** Accounts that have credited payments (for re-settling after a restart or price change). */
+  abstract usersWithPayments(): string[];
 
   /** The account's invoice that is still valid at `now`, or null. */
   abstract activeInvoice(userId: string, now: number): Invoice | null;
