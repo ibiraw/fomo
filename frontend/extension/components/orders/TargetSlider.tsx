@@ -5,6 +5,7 @@
  */
 
 import { Slider } from '@/components/ui/slider';
+import { cn } from '@/lib/utils';
 
 interface Props {
   /** Percent change from the current value. */
@@ -36,8 +37,21 @@ export function TargetSlider({ percent, onChange }: Props) {
           onValueChange={([v]) => onChange(v ?? 0)}
           className="[&_[data-slot=slider-range]]:bg-transparent [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-buy [&_[data-slot=slider-track]]:bg-accent"
         />
-        <div className="flex justify-between text-[10px] text-muted-foreground">
-          {TICKS.map((t) => <span key={t}>{t > 0 ? `+${t}` : t}%</span>)}
+        <div className="flex justify-between">
+          {TICKS.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => onChange(clampPercent(t))}
+              title={t === -100 ? 'Sets −99% (a target of $0 is not possible)' : `Set ${t > 0 ? '+' : ''}${t}%`}
+              className={cn(
+                'rounded px-1 py-0.5 text-[10px] transition-colors hover:bg-accent hover:text-foreground',
+                clampPercent(t) === clampPercent(percent) ? 'font-semibold text-foreground' : 'text-muted-foreground',
+              )}
+            >
+              {t > 0 ? `+${t}` : t}%
+            </button>
+          ))}
         </div>
       </div>
       <label className="flex h-9 items-center rounded-lg bg-secondary px-2 focus-within:ring-1 focus-within:ring-ring">
