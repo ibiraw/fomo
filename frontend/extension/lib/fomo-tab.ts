@@ -8,7 +8,7 @@ import type { ExecutionResult, Order, TradeRequest } from './types';
 
 /** Subset of the extension tabs API used here (injectable for tests). */
 export interface TabsApi {
-  query(q: { url: string }): Promise<{ id?: number; url?: string }[]>;
+  query(q: { url: string }): Promise<{ id?: number; url?: string; active?: boolean }[]>;
   create(p: { url: string; active: boolean }): Promise<{ id?: number }>;
   update(id: number, p: { url?: string; autoDiscardable?: boolean }): Promise<unknown>;
   sendMessage(id: number, msg: unknown): Promise<unknown>;
@@ -40,6 +40,17 @@ export function tokenUrl(mint: string): string {
   return `https://fomo.family/tokens/solana/${mint}`;
 }
 
+/** True when `url` shows the token page, ignoring query strings like ?tradeId=… and fragments. */
+export function isTokenPage(url: string | undefined, mint: string): boolean {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return u.hostname === 'fomo.family' && u.pathname.replace(/\/$/, '') === `/tokens/solana/${mint}`;
+  } catch {
+    return false;
+  }
+}
+
 /** Resolves after `ms`. */
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -55,11 +66,13 @@ function timeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
 export async function prepareTab(tabs: TabsApi, inject: InjectFn, mint: string, t: TabTimings = DEFAULT_TAB_TIMINGS): Promise<number> {
   const url = tokenUrl(mint);
   const open = await tabs.query({ url: FOMO_MATCH });
-  let tab = open.find((x) => x.url === url) ?? open[0];
+  // Prefer a tab already on the token (the one in front first) — navigating reloads FOMO, which is slow.
+  const onToken = open.filter((x) => isTokenPage(x.url, mint));
+  let tab = onToken.find((x) => x.active) ?? onToken[0] ?? open.find((x) => x.active) ?? open[0];
   if (!tab?.id) tab = await tabs.create({ url, active: false });
   const id = tab.id as number;
   await tabs.update(id, { autoDiscardable: false }); // keep Chrome's Memory Saver from unloading it
-  if (tab.url !== url) await tabs.update(id, { url });
+  if (!isTokenPage(tab.url, mint)) await tabs.update(id, { url });
 
   const deadline = Date.now() + t.readyMs;
   let injected = false;
@@ -97,6 +110,7 @@ export function toTradeRequest(order: Order): TradeRequest {
 /** Runs `order` in a FOMO tab. Never throws. */
 export async function executeInFomoTab(tabs: TabsApi, inject: InjectFn, order: Order, t: TabTimings = DEFAULT_TAB_TIMINGS): Promise<ExecutionResult> {
   let id: number;
+  const t0 = Date.now();
   try {
     id = await prepareTab(tabs, inject, order.mint, t);
   } catch (err) {
@@ -109,7 +123,9 @@ export async function executeInFomoTab(tabs: TabsApi, inject: InjectFn, order: O
       t.tradeMs,
       'FOMO tab did not answer',
     );
-    return result ?? { ok: false, kind: 'unknown', message: 'FOMO tab closed or reloaded during the trade — check FOMO' };
+    if (!result) return { ok: false, kind: 'unknown', message: 'FOMO tab closed or reloaded during the trade — check FOMO' };
+    const tabTime = `tab ${((Date.now() - t0) / 1000).toFixed(1)}s total`;
+    return result.ok ? { ...result, detail: `${result.detail} [${tabTime}]` } : { ...result, message: `${result.message} [${tabTime}]` };
   } catch (err) {
     return { ok: false, kind: 'unknown', message: `${err instanceof Error ? err.message : String(err)} — check FOMO` };
   }

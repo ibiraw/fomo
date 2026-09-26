@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { executeInFomoTab, prepareTab, tokenUrl, type TabsApi, type TabTimings } from '../lib/fomo-tab';
+import { executeInFomoTab, isTokenPage, prepareTab, tokenUrl, type TabsApi, type TabTimings } from '../lib/fomo-tab';
 import type { Order } from '../lib/types';
 
 const MINT = 'EcwFm5TJ3zuBXnsT6DngXMAMfsfELhwGc9JFgeVWpump';
@@ -15,7 +15,7 @@ const noInject = async (): Promise<void> => undefined;
 const ORDER = { id: 'o', mint: MINT, side: 'sell', amount: { kind: 'percent', value: 50 } } as unknown as Order;
 
 /** Fake tabs API; `onMint` decides the ping reply, `trade` the trade reply. */
-function fakeTabs(tabs: { id: number; url: string }[], opts: { onMint?: () => boolean; trade?: () => Promise<unknown> } = {}) {
+function fakeTabs(tabs: { id: number; url: string; active?: boolean }[], opts: { onMint?: () => boolean; trade?: () => Promise<unknown> } = {}) {
   const api = {
     query: vi.fn(async () => tabs),
     create: vi.fn(async ({ url }: { url: string }) => { const t = { id: 99, url }; tabs.push(t); return t; }),
@@ -34,6 +34,20 @@ describe('prepareTab', () => {
     expect(await prepareTab(tabs, noInject, MINT, FAST)).toBe(2);
     expect(tabs.update).toHaveBeenCalledWith(2, { autoDiscardable: false });
     expect(tabs.update).not.toHaveBeenCalledWith(2, { url: tokenUrl(MINT) });
+  });
+
+  it('treats token pages with query strings as the same page and prefers the tab in front', async () => {
+    expect(isTokenPage(`${tokenUrl(MINT)}?tradeId=abc`, MINT)).toBe(true);
+    expect(isTokenPage(`${tokenUrl(MINT)}/`, MINT)).toBe(true);
+    expect(isTokenPage('https://fomo.family/profile/x', MINT)).toBe(false);
+    expect(isTokenPage('not a url', MINT)).toBe(false);
+    expect(isTokenPage(undefined, MINT)).toBe(false);
+    const tabs = fakeTabs([
+      { id: 1, url: `${tokenUrl(MINT)}?tradeId=1` },
+      { id: 2, url: `${tokenUrl(MINT)}?tradeId=2`, active: true },
+    ]);
+    expect(await prepareTab(tabs, noInject, MINT, FAST)).toBe(2);
+    expect(tabs.update).not.toHaveBeenCalledWith(2, { url: tokenUrl(MINT) }); // no reload
   });
 
   it('navigates another FOMO tab, or opens one when none exist', async () => {
@@ -73,7 +87,7 @@ describe('prepareTab', () => {
 describe('executeInFomoTab', () => {
   it('sends the trade request and returns the content script result', async () => {
     const tabs = fakeTabs([{ id: 1, url: tokenUrl(MINT) }]);
-    expect(await executeInFomoTab(tabs, noInject, ORDER, FAST)).toEqual({ ok: true, detail: 'sold' });
+    expect(await executeInFomoTab(tabs, noInject, ORDER, FAST)).toMatchObject({ ok: true, detail: expect.stringMatching(/^sold \[tab \d+\.\ds total\]$/) });
     expect(tabs.sendMessage).toHaveBeenLastCalledWith(1, { type: 'fomo.trade', mint: MINT, request: { side: 'sell', amount: { kind: 'percent', value: 50 } } });
   });
 

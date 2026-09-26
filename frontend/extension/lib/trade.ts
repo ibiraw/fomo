@@ -75,8 +75,16 @@ export async function executeTrade(doc: Document, req: TradeRequest, t: TradeTim
   }
 }
 
-/** The trade steps. */
+/** The trade steps. Records how long each step took (appended to the result for diagnosis). */
 async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<ExecutionResult> {
+  const t0 = Date.now();
+  const marks: string[] = [];
+  const mark = (step: string): void => { marks.push(`${step} ${((Date.now() - t0) / 1000).toFixed(1)}s`); };
+  const timed = (r: ExecutionResult): ExecutionResult => {
+    mark('end');
+    const timing = ` (${marks.join(', ')})`;
+    return r.ok ? { ...r, detail: r.detail + timing } : { ...r, message: r.message + timing };
+  };
   const panel = await waitFor(doc, () => findPanel(doc), t.panelMs);
   if (!panel) return fail('not_logged_in', 'FOMO trade panel not found — is the tab logged in and on a token page?');
 
@@ -110,11 +118,14 @@ async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<E
   else setReactInputValue(input, usd.toFixed(2));
 
   // 3. Wait for the quote, then submit.
+  mark('amount');
   if (!(await waitFor(doc, () => (submitReady(p(), req.side) ? true : null), t.readyMs))) {
-    return fail('ui_error', `FOMO did not accept the amount: "${submitBlocker(p()) ?? 'unknown'}"`);
+    return timed(fail('ui_error', `FOMO did not accept the amount: "${submitBlocker(p()) ?? 'unknown'}"`));
   }
+  mark('quote');
   const before = notificationTexts(doc).length;
   findSubmit(p())!.click();
+  mark('clicked');
 
   // 4. Confirm: the balance must drop (cash for buys, position for sells) or a failure notice appears.
   const outcome = await waitFor<ExecutionResult>(doc, () => {
@@ -126,5 +137,5 @@ async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<E
     }
     return null;
   }, t.confirmMs);
-  return outcome ?? fail('unknown', `Clicked ${req.side} but could not confirm within ${t.confirmMs / 1000}s — check FOMO`);
+  return timed(outcome ?? fail('unknown', `Clicked ${req.side} but could not confirm within ${t.confirmMs / 1000}s — check FOMO`));
 }

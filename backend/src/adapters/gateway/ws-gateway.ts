@@ -200,6 +200,7 @@ export class WsGateway extends TradeExecutorPort {
         });
       case 'exec.result': {
         const p = this.pending.get(msg.execId);
+        this.log(`exec result: ${msg.result.ok ? msg.result.detail : `${msg.result.kind}: ${msg.result.message}`}`);
         if (p && p.client === client) this.settle(msg.execId, p, msg.result);
         return;
       }

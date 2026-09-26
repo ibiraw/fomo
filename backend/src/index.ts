@@ -55,7 +55,10 @@ async function main(): Promise<void> {
   let guard: HoldingsGuard | null = null;
   const engine = new OrderEngine(store, feed, gateway, (e) => {
     gateway.handleEngineEvent(e);
-    if (e.type === 'order') guard?.onOrderChanged(e.order);
+    if (e.type === 'order') {
+      guard?.onOrderChanged(e.order);
+      log(`order ${e.order.id.slice(0, 8)} ${e.order.side} ${e.order.status}${e.order.lastError ? ` — ${e.order.lastError}` : ''}`);
+    }
   }, logError('engine'), confirmer);
   // With a wallet configured, open sells are cancelled once the token is no longer held.
   guard = confirmer ? new HoldingsGuard(engine, confirmer, 20_000, logError('holdings')) : null;
