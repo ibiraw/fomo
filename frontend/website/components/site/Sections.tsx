@@ -64,7 +64,7 @@ export function Hero() {
           Limit orders for <span className="text-brand">fomo</span>.
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-balance text-lg text-muted-foreground">
-          Set a market-cap target. <Wordmark /> clicks Buy or Sell in your own fomo tab the moment it hits —
+          Set a market-cap target. Limit clicks Buy or Sell in your own fomo tab the moment it hits —
           dip buys, take profits and stop losses, without watching the chart.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
