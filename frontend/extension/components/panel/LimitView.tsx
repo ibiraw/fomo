@@ -12,6 +12,8 @@ import { OrderList } from '@/components/orders/OrderList';
 import { useBackground } from '@/hooks/use-background';
 import type { ConnectionStatus } from '@/lib/server-connection';
 
+import { TokenXCard } from './TokenXCard';
+
 /** External store for the current page's mint (updated on FOMO's client-side navigation). */
 export interface MintStore {
   subscribe(cb: () => void): () => void;
@@ -39,6 +41,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
   return (
     <div className="space-y-4 p-1 pt-2">
       {notice && <p className="rounded-md bg-sell/15 p-2 text-xs text-sell">{notice}</p>}
+      {state.status === 'connected' && <TokenXCard key={mint} mint={mint} send={send} />}
       <NewOrderForm key={mint} ticks={state.ticks} initialMint={mint} lockMint onCreate={(order) => send({ type: 'order.create', order })} />
       <div className="space-y-2">
         <p className="text-xs font-semibold text-muted-foreground">Orders on this token</p>

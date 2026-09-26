@@ -8,13 +8,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { POPUP_PORT, type BackgroundMessage, type PopupRequest, type PopupState } from '@/lib/messages';
 
-type Pending = Map<string, { resolve: () => void; reject: (e: Error) => void }>;
+type Pending = Map<string, { resolve: (data: unknown) => void; reject: (e: Error) => void }>;
 
 /** Distributive Omit so each PopupRequest variant keeps its own fields. */
 type WithoutReqId<T> = T extends unknown ? Omit<T, 'reqId'> : never;
 
+/** Sends a request to the background and resolves with the reply data. */
+export type SendFn = (req: WithoutReqId<PopupRequest>) => Promise<unknown>;
+
 /** Live background state (null until the first message) and a promise-based `send`. */
-export function useBackground(): { state: PopupState | null; send: (req: WithoutReqId<PopupRequest>) => Promise<void> } {
+export function useBackground(): { state: PopupState | null; send: SendFn } {
   const [state, setState] = useState<PopupState | null>(null);
   const portRef = useRef<Browser.runtime.Port | null>(null);
   const pending = useRef<Pending>(new Map());
@@ -28,13 +31,13 @@ export function useBackground(): { state: PopupState | null; send: (req: Without
       const p = pending.current.get(msg.reqId);
       if (!p) return;
       pending.current.delete(msg.reqId);
-      if (msg.ok) p.resolve();
+      if (msg.ok) p.resolve(msg.data);
       else p.reject(new Error(msg.error));
     });
     return () => port.disconnect();
   }, []);
 
-  const send = useCallback((req: WithoutReqId<PopupRequest>): Promise<void> => {
+  const send = useCallback<SendFn>((req) => {
     const port = portRef.current;
     if (!port) return Promise.reject(new Error('Extension background not reachable'));
     const reqId = `p${++seq.current}`;

@@ -67,3 +67,15 @@ export function mintFromFomoUrl(url: string | undefined): string | null {
   const m = url ? /^https:\/\/fomo\.family\/tokens\/solana\/([1-9A-HJ-NP-Za-km-z]{32,44})/.exec(url) : null;
   return m ? m[1]! : null;
 }
+
+/** "just now", "45s ago", "12m ago", "3h ago", "2d ago". */
+export function timeAgo(iso: string, now: number = Date.now()): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return 'unknown time';
+  const s = Math.max(0, Math.round((now - t) / 1000));
+  if (s < 10) return 'just now';
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86_400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86_400)}d ago`;
+}

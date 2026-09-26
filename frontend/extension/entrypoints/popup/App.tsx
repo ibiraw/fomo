@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { NewOrderForm } from '@/components/orders/NewOrderForm';
 import { OrderList } from '@/components/orders/OrderList';
 import { PairingForm } from '@/components/orders/PairingForm';
+import { TokenXCard } from '@/components/panel/TokenXCard';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBackground } from '@/hooks/use-background';
@@ -37,7 +38,7 @@ export default function App() {
 
   const paired = state.status !== 'no_token' && state.status !== 'bad_token';
   const active = state.orders.filter((o) => o.status === 'open' || o.status === 'triggered' || o.status === 'executing').length;
-  const save = (serverUrl: string, token: string): Promise<void> => send({ type: 'settings.save', serverUrl, token });
+  const save = (serverUrl: string, token: string): Promise<unknown> => send({ type: 'settings.save', serverUrl, token });
 
   return (
     <div className="p-4 space-y-4">
@@ -59,6 +60,7 @@ export default function App() {
             {state.status === 'disconnected' && (
               <p className="mb-3 text-sm text-sell">Server offline — start it with <code>npm run dev</code> in <code>backend/</code>.</p>
             )}
+            {tabMint && state.status === 'connected' && <div className="mb-3"><TokenXCard mint={tabMint} send={send} /></div>}
             <NewOrderForm ticks={state.ticks} initialMint={tabMint} onCreate={(order) => send({ type: 'order.create', order })} />
           </TabsContent>
           <TabsContent value="orders" className="pt-2">

@@ -5,12 +5,14 @@
  */
 
 import { WsGateway } from './adapters/gateway/ws-gateway.js';
+import { FetchHttpJsonAdapter } from './adapters/http/fetch-http-json.adapter.js';
 import { KitSolanaAccountsAdapter } from './adapters/solana/kit-solana-accounts.adapter.js';
 import { SqliteOrderStoreAdapter } from './adapters/storage/sqlite-order-store.adapter.js';
 import { loadConfig } from './config.js';
 import { OrderEngine } from './core/orders/order-engine.js';
 import { WalletTradeConfirmer } from './core/orders/wallet-trade-confirmer.js';
 import { PumpPriceFeed } from './core/pricing/pump-price-feed.js';
+import { TokenInfoService } from './core/tokens/token-info-service.js';
 
 /** Timestamped console logger. */
 function log(msg: string): void {
@@ -34,7 +36,7 @@ async function main(): Promise<void> {
   );
   const confirmer = cfg.fomoWallet ? new WalletTradeConfirmer(accounts, cfg.fomoWallet, 400, logError('confirm')) : null;
   const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), logError('engine'), confirmer);
-  gateway.attach(engine);
+  gateway.attach(engine, new TokenInfoService(accounts, new FetchHttpJsonAdapter()));
 
   await feed.start();
   await gateway.listen();

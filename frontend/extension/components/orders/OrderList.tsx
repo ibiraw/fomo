@@ -35,7 +35,7 @@ const STATUS_STYLE: Record<OrderStatus, string> = {
 interface Props {
   readonly orders: Order[];
   readonly ticks: Record<string, PriceTick>;
-  readonly onCancel: (id: string) => Promise<void>;
+  readonly onCancel: (id: string) => Promise<unknown>;
   /** Scroll height in px. */
   readonly height?: number;
   /** Text shown when there are no orders. */

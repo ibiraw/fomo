@@ -51,9 +51,10 @@ describe('fomo-inject', () => {
     const limit = document.getElementById(LIMIT_TAB_ID)!;
     limit.click();
     expect(isLimitActive(panel)).toBe(true);
-    expect(limit.className).toContain('bg-bg-tertiary');
+    expect(limit.hasAttribute('data-active')).toBe(true);
     document.getElementById('tab-sell')!.click();
     expect(panel.hasAttribute(ACTIVE_ATTR)).toBe(false);
+    expect(limit.hasAttribute('data-active')).toBe(false);
     expect(limit.className).toContain('bg-bg-secondary');
   });
 
@@ -63,7 +64,7 @@ describe('fomo-inject', () => {
     setLimitActive(panel, true);
     document.getElementById(LIMIT_TAB_ID)!.remove();
     ensureLimitTab(document);
-    expect(document.getElementById(LIMIT_TAB_ID)!.className).toContain('bg-bg-tertiary');
+    expect(document.getElementById(LIMIT_TAB_ID)!.hasAttribute('data-active')).toBe(true);
   });
 
   it('wraps the view host so page CSS can hide it', () => {

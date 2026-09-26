@@ -21,6 +21,7 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('order.create'), reqId: z.string(), order: z.unknown() }),
   z.object({ type: z.literal('order.cancel'), reqId: z.string(), id: z.string() }),
   z.object({ type: z.literal('order.list'), reqId: z.string() }),
+  z.object({ type: z.literal('token.info'), reqId: z.string(), mint: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) }),
   z.object({ type: z.literal('exec.result'), execId: z.string(), result: ExecutionResultSchema }),
   z.object({ type: z.literal('pong') }),
 ]);

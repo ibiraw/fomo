@@ -14,6 +14,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { FomoError } from '../../core/errors.js';
 import type { Order } from '../../core/orders/order.js';
 import type { EngineEvent, OrderEngine } from '../../core/orders/order-engine.js';
+import type { TokenInfoService } from '../../core/tokens/token-info-service.js';
 import type { PriceTick } from '../../ports/price-feed.js';
 import { TradeExecutorPort, type ExecutionResult } from '../../ports/trade-executor.js';
 import { ClientMessageSchema, type ClientMessage } from './protocol.js';
@@ -54,6 +55,7 @@ function tokenMatches(given: string, expected: string): boolean {
 export class WsGateway extends TradeExecutorPort {
   private wss: WebSocketServer | null = null;
   private engine: OrderEngine | null = null;
+  private tokenInfo: TokenInfoService | null = null;
   private readonly clients = new Set<Client>();
   private executor: Client | null = null;
   private readonly pending = new Map<string, PendingExec>();
@@ -67,8 +69,9 @@ export class WsGateway extends TradeExecutorPort {
   }
 
   /** Wires the engine (engine and gateway depend on each other; set after both exist). */
-  attach(engine: OrderEngine): void {
+  attach(engine: OrderEngine, tokenInfo: TokenInfoService | null = null): void {
     this.engine = engine;
+    this.tokenInfo = tokenInfo;
   }
 
   /** Starts listening. Resolves once the port is bound. */
@@ -188,6 +191,11 @@ export class WsGateway extends TradeExecutorPort {
         return this.reply(client, msg.reqId, async () => this.requireEngine().cancelOrder(msg.id));
       case 'order.list':
         return this.reply(client, msg.reqId, async () => this.requireEngine().listOrders());
+      case 'token.info':
+        return this.reply(client, msg.reqId, () => {
+          if (!this.tokenInfo) throw new FomoError('Token info is not available on this server');
+          return this.tokenInfo.getInfo(msg.mint);
+        });
       case 'exec.result': {
         const p = this.pending.get(msg.execId);
         if (p && p.client === client) this.settle(msg.execId, p, msg.result);

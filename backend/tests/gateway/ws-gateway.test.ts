@@ -107,6 +107,16 @@ describe('WsGateway commands', () => {
     await c.next((m) => m.type === 'order' && (m.order as { status: string }).status === 'cancelled');
   });
 
+  it('answers token.info, or explains when it is unavailable', async () => {
+    const c = await authed(false);
+    c.send({ type: 'token.info', reqId: 't1', mint: MINT });
+    expect((await c.next((m) => m.reqId === 't1')).error).toMatch(/not available/);
+    const engine = new OrderEngine(store, feed, gateway, () => undefined, () => undefined);
+    gateway.attach(engine, { getInfo: async (mint: string) => ({ mint, name: 'W', symbol: 'W', twitter: null, website: null }) } as never);
+    c.send({ type: 'token.info', reqId: 't2', mint: MINT });
+    expect((await c.next((m) => m.reqId === 't2')).data).toMatchObject({ mint: MINT, symbol: 'W' });
+  });
+
   it('returns readable errors for bad commands', async () => {
     const c = await authed(false);
     c.send({ type: 'order.create', reqId: 'x', order: { ...ORDER, amount: { kind: 'usd', value: 1 } } });

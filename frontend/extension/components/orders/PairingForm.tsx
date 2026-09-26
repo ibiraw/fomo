@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 interface Props {
   readonly serverUrl: string;
   readonly badToken: boolean;
-  readonly onSave: (serverUrl: string, token: string) => Promise<void>;
+  readonly onSave: (serverUrl: string, token: string) => Promise<unknown>;
 }
 
 /** Lets the user paste the pairing code printed by the server. */

@@ -19,7 +19,7 @@ import { Segmented } from './Segmented';
 
 interface Props {
   readonly ticks: Record<string, PriceTick>;
-  readonly onCreate: (order: NewOrder) => Promise<void>;
+  readonly onCreate: (order: NewOrder) => Promise<unknown>;
   /** Pre-filled token address. */
   readonly initialMint?: string | null;
   /** When true the token is fixed (on-page panel) and the address field is hidden. */

@@ -14,6 +14,8 @@ import {
   type PopupState,
 } from '@/lib/messages';
 import { ServerConnection, type ConnectionStatus } from '@/lib/server-connection';
+import { XLatestService } from '@/lib/x-latest';
+import { scrapeLatestPost } from '@/lib/x-scraper';
 import type { Order, PriceTick } from '@/lib/types';
 
 const KEEPALIVE_ALARM = 'fomo-keepalive';
@@ -62,6 +64,23 @@ export default defineBackground({
       onExecute: (o) => executeInFomoTab(tabs, inject, o),
     });
 
+    // Reads X with the user's own session in a minimized window that is closed right after.
+    const xLatest = new XLatestService({
+      openWindow: async (url) => {
+        const w = await browser.windows.create({ url, state: 'minimized', focused: false });
+        const tabId = w?.tabs?.[0]?.id;
+        if (!w?.id || tabId === undefined) throw new Error('Could not open X');
+        return { windowId: w.id, tabId };
+      },
+      closeWindow: async (id) => { await browser.windows.remove(id); },
+      tabStatus: async (id) => (await browser.tabs.get(id)).status,
+      scrape: async (tabId, timeoutMs) => {
+        const [res] = await browser.scripting.executeScript({ target: { tabId }, func: scrapeLatestPost, args: [timeoutMs] });
+        if (!res?.result) throw new Error('X page did not return a result');
+        return res.result;
+      },
+    });
+
     /** Loads settings from storage and (re)connects. */
     const connectFromStorage = async (): Promise<void> => {
       const s = await browser.storage.local.get(['serverUrl', 'token']);
@@ -74,15 +93,20 @@ export default defineBackground({
     const handle = async (port: Browser.runtime.Port, req: PopupRequest): Promise<void> => {
       const reply = (msg: BackgroundMessage): void => port.postMessage(msg);
       try {
+        let data: unknown;
         if (req.type === 'settings.save') {
           await browser.storage.local.set({ serverUrl: req.serverUrl.trim(), token: req.token.trim() });
           await connectFromStorage();
         } else if (req.type === 'order.create') {
-          await conn.request('order.create', { order: req.order });
+          data = await conn.request('order.create', { order: req.order });
+        } else if (req.type === 'order.cancel') {
+          data = await conn.request('order.cancel', { id: req.id });
+        } else if (req.type === 'token.info') {
+          data = await conn.request('token.info', { mint: req.mint });
         } else {
-          await conn.request('order.cancel', { id: req.id });
+          data = await xLatest.get(req.url, req.force ?? false);
         }
-        reply({ type: 'reply', reqId: req.reqId, ok: true });
+        reply({ type: 'reply', reqId: req.reqId, ok: true, data });
       } catch (err) {
         reply({ type: 'reply', reqId: req.reqId, ok: false, error: err instanceof Error ? err.message : String(err) });
       }

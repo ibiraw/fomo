@@ -14,6 +14,6 @@ export default defineConfig({
     name: 'FOMO Limit Orders',
     description: 'Limit, take-profit and stop-loss orders for fomo.family.',
     permissions: ['storage', 'tabs', 'alarms', 'scripting'],
-    host_permissions: ['https://fomo.family/*'],
+    host_permissions: ['https://fomo.family/*', 'https://x.com/*'],
   },
 });
