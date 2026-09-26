@@ -1,0 +1,135 @@
+/**
+ * @file trade.test.ts
+ * @description Tests for executeTrade and FOMO DOM helpers against the simulated FOMO panel.
+ * @author Reborn1987
+ */
+
+// @vitest-environment happy-dom
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { findPanel, parseUsd, readBalance, setReactInputValue } from '../lib/fomo-dom';
+import { executeTrade, waitFor, type TradeTimings } from '../lib/trade';
+import { mountFakeFomo } from './fake-fomo';
+
+const FAST: TradeTimings = { panelMs: 50, stepMs: 50, readyMs: 50, confirmMs: 100 };
+
+beforeEach(() => {
+  document.body.innerHTML = '';
+});
+
+describe('fomo-dom helpers', () => {
+  it('parses USD strings', () => {
+    expect(parseUsd('$1,234.56')).toBe(1234.56);
+    expect(parseUsd('$0')).toBe(0);
+    expect(parseUsd('1.2M woj/acc')).toBeNull();
+  });
+
+  it('reads cash on the buy tab and position on the sell tab', () => {
+    mountFakeFomo(document, { cash: 533.4, position: 4.75 });
+    const p = findPanel(document)!;
+    expect(readBalance(p, 'buy')).toBe(533.4);
+    expect(readBalance(p, 'sell')).toBeNull(); // sell presets not rendered while on buy tab
+  });
+
+  it('returns null when no panel exists', () => {
+    expect(findPanel(document)).toBeNull();
+  });
+
+  it('fires input events React can see', () => {
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    let seen = '';
+    input.addEventListener('input', () => (seen = input.value));
+    setReactInputValue(input, '3.00');
+    expect(seen).toBe('3.00');
+  });
+
+  it('waitFor resolves null on timeout', async () => {
+    expect(await waitFor(document, () => null, 10)).toBeNull();
+  });
+});
+
+describe('executeTrade', () => {
+  it('buys a fixed USD amount and confirms by the cash drop', async () => {
+    const fake = mountFakeFomo(document, { cash: 100, position: 0 });
+    const r = await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST);
+    expect(r).toMatchObject({ ok: true });
+    expect(fake.state.submitted).toEqual({ side: 'buy', amount: '5.00' });
+    expect(fake.opts.cash).toBe(95);
+  });
+
+  it('buys a percentage of cash', async () => {
+    const fake = mountFakeFomo(document, { cash: 50, position: 0 });
+    expect(await executeTrade(document, { side: 'buy', amount: { kind: 'percent', value: 10 } }, FAST)).toMatchObject({ ok: true });
+    expect(fake.state.submitted?.amount).toBe('5.00');
+  });
+
+  it('sells a preset percentage by clicking the preset', async () => {
+    const fake = mountFakeFomo(document, { cash: 0, position: 40 });
+    expect(await executeTrade(document, { side: 'sell', amount: { kind: 'percent', value: 25 } }, FAST)).toMatchObject({ ok: true });
+    expect(fake.state.submitted).toEqual({ side: 'sell', amount: '10.00' });
+  });
+
+  it('sells a non-preset percentage by typing the dollar amount', async () => {
+    const fake = mountFakeFomo(document, { cash: 0, position: 40 });
+    expect(await executeTrade(document, { side: 'sell', amount: { kind: 'percent', value: 33 } }, FAST)).toMatchObject({ ok: true });
+    expect(fake.state.submitted?.amount).toBe('13.20');
+  });
+
+  it('refuses trades under the $2 minimum or above the balance', async () => {
+    mountFakeFomo(document, { cash: 0, position: 4 });
+    expect(await executeTrade(document, { side: 'sell', amount: { kind: 'percent', value: 25 } }, FAST))
+      .toMatchObject({ ok: false, kind: 'insufficient_funds', message: expect.stringMatching(/minimum/) });
+    mountFakeFomo(document, { cash: 3, position: 0 });
+    expect(await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST))
+      .toMatchObject({ ok: false, kind: 'insufficient_funds', message: expect.stringMatching(/only \$3.00/) });
+  });
+
+  it('maps FOMO failure notices to slippage / ui_error', async () => {
+    mountFakeFomo(document, { cash: 100, position: 0, outcome: 'slippage' });
+    expect(await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST)).toMatchObject({ ok: false, kind: 'slippage' });
+    mountFakeFomo(document, { cash: 100, position: 0, outcome: 'error' });
+    expect(await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST)).toMatchObject({ ok: false, kind: 'ui_error' });
+  });
+
+  it('reports unknown when nothing confirms the trade', async () => {
+    mountFakeFomo(document, { cash: 100, position: 0, outcome: 'silent' });
+    expect(await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST)).toMatchObject({ ok: false, kind: 'unknown' });
+  });
+
+  it('reports when the submit never becomes ready', async () => {
+    mountFakeFomo(document, { cash: 100, position: 0, blockSubmit: true });
+    expect(await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST))
+      .toMatchObject({ ok: false, kind: 'ui_error', message: expect.stringMatching(/Minimum amount/) });
+  });
+
+  it('reports when the tab cannot be switched', async () => {
+    mountFakeFomo(document, { cash: 100, position: 0 });
+    document.getElementById('tab-sell')!.replaceWith(Object.assign(document.createElement('span'), { textContent: 'x' }));
+    expect(await executeTrade(document, { side: 'sell', amount: { kind: 'usd', value: 5 } }, FAST))
+      .toMatchObject({ ok: false, kind: 'ui_error', message: expect.stringMatching(/sell tab/) });
+  });
+
+  it('reports a missing balance', async () => {
+    mountFakeFomo(document, { cash: 100, position: 0 });
+    document.getElementById('balance')!.innerHTML = '';
+    expect(await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST))
+      .toMatchObject({ ok: false, message: expect.stringMatching(/balance/) });
+  });
+
+  it('turns unexpected exceptions into ui_error results', async () => {
+    mountFakeFomo(document, { cash: 100, position: 0 });
+    const spy = vi.spyOn(HTMLElement.prototype, 'click').mockImplementation(() => { throw new Error('boom'); });
+    try {
+      expect(await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST))
+        .toMatchObject({ ok: false, kind: 'ui_error', message: expect.stringMatching(/Unexpected error.*boom/) });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('reports a missing panel as not logged in', async () => {
+    expect(await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST)).toMatchObject({ ok: false, kind: 'not_logged_in' });
+  });
+});
+

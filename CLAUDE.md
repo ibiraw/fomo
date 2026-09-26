@@ -6,7 +6,7 @@ A Chrome extension clicks Buy/Sell in the user's logged-in FOMO tab — no priva
 | Folder | Contents |
 |--------|----------|
 | `backend/` | Node + TypeScript price feed and order server (see backend/CLAUDE.md) |
-| `frontend/` | Chrome extension (MV3) — not started |
+| `frontend/` | Chrome extension (WXT, MV3) + future showcase website |
 | `documentation/` | PROGRESS.md and tasks/ |
 
 Plan and status: `documentation/PROGRESS.md`.
