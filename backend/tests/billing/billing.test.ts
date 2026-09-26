@@ -25,7 +25,7 @@ const USER_EVM = '0x59a1b6cc4cfc711ce0fa70f48fef4e4b7dd2b103';
 const STRANGER = '0x' + '9'.repeat(40);
 const asset = (chain: string, symbol = 'USDC') => STABLE_ASSETS.find((a) => a.chain === chain && a.symbol === symbol)!;
 const TOKEN: PaymentAsset = { chain: 'base', address: '0x' + '7'.repeat(40), symbol: 'AUTO', decimals: 18, kind: 'token' };
-const PLAN = { priceUsd: 50, tokenPriceUsd: 35, freeOrders: 3, periodDays: 30 };
+const PLAN = { priceUsd: 50, tokenPriceUsd: 35, freeOrders: 3, periodDays: 30, minCarryoverUsd: 5 };
 const DAY = 86_400_000;
 
 /** USD amount → raw units. */
@@ -92,6 +92,17 @@ describe('BillingService monthly access', () => {
     const renewed = svc.status(alice.id);
     expect(renewed.unlocked).toBe(true);
     expect(renewed.paidUntil).toBe(1_000 + 61 * DAY + 30 * DAY);
+  });
+
+  it('keeps leftovers under $5, carries larger ones, and still adds up partial payments', () => {
+    const { svc, store, pay, alice } = setup();
+    pay({ asset: asset('solana'), amount: 53.5, from: USER_SOL }); // $3.50 over: kept
+    expect(svc.status(alice.id)).toMatchObject({ unlocked: true, creditUsd: 0 });
+    expect(store.creditUsd(alice.id)).toBe(53.5); // still on the books
+    pay({ asset: asset('solana'), amount: 58, from: USER_SOL }); // $8 over: carried to the next month
+    expect(svc.status(alice.id).creditUsd).toBeCloseTo(8);
+    pay({ asset: asset('solana'), amount: 3, from: USER_SOL }); // no month bought: small top-ups still count
+    expect(svc.status(alice.id).creditUsd).toBeCloseTo(11);
   });
 
   it('pays for several periods at once and settles payments recorded before a restart', () => {

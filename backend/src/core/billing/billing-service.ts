@@ -9,7 +9,9 @@
  *              2. Otherwise the amount's last digits carry the account's payment code (e.g. 50.004137 USDC → code 4137,
  *                 or 1,234.4137 tokens → code 4137).
  *              3. Otherwise it is kept as unmatched for manual review.
- *              Payments add up; every full price of credit becomes one more period.
+ *              Payments add up; every full price of credit becomes one more period. What is left over after buying
+ *              periods carries to the next one only when it is at least `minCarryoverUsd`; smaller remainders are
+ *              kept. Payments are final.
  * @author Reborn1987
  */
 
@@ -28,6 +30,8 @@ export interface Plan {
   readonly freeOrders: number;
   /** Days of access one payment buys. */
   readonly periodDays: number;
+  /** Credit left over after buying periods is kept (not carried to the next period) when below this. */
+  readonly minCarryoverUsd: number;
 }
 
 /** Where payments go. */
@@ -242,7 +246,12 @@ export class BillingService {
       access = { spentUsd: access.spentUsd + this.plan.priceUsd, paidUntil: Math.max(now, access.paidUntil) + this.plan.periodDays * DAY_MS };
       extended = true;
     }
-    if (extended) this.store.setAccess(userId, access);
+    if (extended) {
+      const leftover = credit - access.spentUsd;
+      // Small remainders (e.g. overpaying by a few dollars) are kept rather than carried to the next period.
+      if (leftover > 0 && leftover < this.plan.minCarryoverUsd) access = { ...access, spentUsd: credit };
+      this.store.setAccess(userId, access);
+    }
     return extended;
   }
 

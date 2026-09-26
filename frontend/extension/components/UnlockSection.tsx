@@ -119,6 +119,7 @@ export function UnlockSection({ status, send }: { status: BillingStatus | null; 
         <p className="text-xs text-muted-foreground">
           ${status.priceUsd} in USDC per {status.periodDays} days{hasToken ? ` — or $${status.tokenPriceUsd} in the token` : ''}. Paying early adds to the end of your current month.
         </p>
+        <p className="text-[11px] text-muted-foreground">Crypto payments are final and non-refundable.</p>
       </div>
       {status.creditUsd > 0 && <Progress status={status} />}
       {!q ? (

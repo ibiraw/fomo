@@ -61,7 +61,7 @@ describe('loadConfig paywall', () => {
     expect(loadConfig({ ...base, DATA_DIR: tempDir() }).paywall).toBeNull();
     expect(() => loadConfig({ ...base, DATA_DIR: tempDir(), PAYWALL_ENABLED: 'true' })).toThrow(/PAY_SOLANA_TREASURY and PAY_EVM_TREASURY/);
     expect(loadConfig({ ...base, ...pay, DATA_DIR: tempDir(), PAYWALL_ENABLED: 'true' }).paywall).toEqual({
-      treasury: { solana: pay.PAY_SOLANA_TREASURY, evm: pay.PAY_EVM_TREASURY.toLowerCase() }, token: null, priceUsd: 50, tokenPriceUsd: 35, freeOrders: 3, periodDays: 30,
+      treasury: { solana: pay.PAY_SOLANA_TREASURY, evm: pay.PAY_EVM_TREASURY.toLowerCase() }, token: null, priceUsd: 50, tokenPriceUsd: 35, freeOrders: 3, periodDays: 30, minCarryoverUsd: 5,
     });
   });
 
