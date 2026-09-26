@@ -26,6 +26,9 @@ export abstract class SolanaAccountsPort {
   /** Returns the mint's current supply and decimals. */
   abstract getMintSupply(mint: string): Promise<MintSupply>;
 
+  /** Total raw amount of `mint` held by `owner` across all its token accounts (0 if none). */
+  abstract getTokenBalance(owner: string, mint: string): Promise<bigint>;
+
   /**
    * Streams account data changes. Implementations must reconnect on drop and re-deliver
    * the current state after reconnecting so no update is silently missed.

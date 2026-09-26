@@ -14,6 +14,7 @@ import {
   type SolanaRpcSubscriptionsApi,
 } from '@solana/kit';
 
+import { decodeTokenAccountAmount } from '../../core/pricing/decoders.js';
 import {
   SolanaAccountsPort,
   type AccountListener,
@@ -64,6 +65,14 @@ export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
   async getMintSupply(mint: string): Promise<MintSupply> {
     const res = await this.rpc.getTokenSupply(address(mint), { commitment: 'processed' }).send();
     return { amount: BigInt(res.value.amount), decimals: res.value.decimals };
+  }
+
+  /** Sums the owner's token accounts for `mint` (the mint filter covers both token programs). */
+  async getTokenBalance(owner: string, mint: string): Promise<bigint> {
+    const res = await this.rpc
+      .getTokenAccountsByOwner(address(owner), { mint: address(mint) }, { encoding: 'base64', commitment: 'processed' })
+      .send();
+    return res.value.reduce((sum, a) => sum + decodeTokenAccountAmount(fromBase64(a.account.data)), 0n);
   }
 
   /**

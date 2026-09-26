@@ -9,6 +9,7 @@ import { KitSolanaAccountsAdapter } from './adapters/solana/kit-solana-accounts.
 import { SqliteOrderStoreAdapter } from './adapters/storage/sqlite-order-store.adapter.js';
 import { loadConfig } from './config.js';
 import { OrderEngine } from './core/orders/order-engine.js';
+import { WalletTradeConfirmer } from './core/orders/wallet-trade-confirmer.js';
 import { PumpPriceFeed } from './core/pricing/pump-price-feed.js';
 
 /** Timestamped console logger. */
@@ -31,7 +32,8 @@ async function main(): Promise<void> {
     { host: cfg.gatewayHost, port: cfg.gatewayPort, token: cfg.pairingToken, execTimeoutMs: cfg.execTimeoutMs, tickThrottleMs: 250, pingIntervalMs: 20_000 },
     log,
   );
-  const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), logError('engine'));
+  const confirmer = cfg.fomoWallet ? new WalletTradeConfirmer(accounts, cfg.fomoWallet, 400, logError('confirm')) : null;
+  const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), logError('engine'), confirmer);
   gateway.attach(engine);
 
   await feed.start();
@@ -39,6 +41,7 @@ async function main(): Promise<void> {
   await engine.start();
   log(`FOMO limit-order server on ws://${cfg.gatewayHost}:${gateway.port()}`);
   log(`Pairing code for the extension: ${cfg.pairingToken}`);
+  log(cfg.fomoWallet ? `On-chain confirmation for wallet ${cfg.fomoWallet}` : 'FOMO_WALLET not set: trades are confirmed from the FOMO page only');
 
   const shutdown = async (): Promise<void> => {
     log('shutting down');

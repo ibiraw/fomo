@@ -8,8 +8,17 @@
 import { OrderStateError, ValidationError } from '../errors.js';
 import type { OrderStorePort } from '../../ports/order-store.js';
 import type { PriceFeedPort, PriceTick, PriceWatch } from '../../ports/price-feed.js';
+import type { TradeConfirmerPort } from '../../ports/trade-confirmer.js';
 import type { ExecutionResult, TradeExecutorPort } from '../../ports/trade-executor.js';
 import { CreateOrderSchema, isTriggered, metricValue, type Order } from './order.js';
+
+/** Resolves after `ms`, or immediately when `signal` aborts. */
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const t = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => { clearTimeout(t); resolve(); }, { once: true });
+  });
+}
 
 /** Events pushed to UIs / notifiers. */
 export type EngineEvent =
@@ -29,6 +38,8 @@ export class OrderEngine {
   /**
    * @param store durable orders @param feed live prices @param executor trade placement
    * @param onEvent event sink (gateway broadcast) @param onError sink for background errors
+   * @param confirmer optional on-chain confirmation (null when no wallet is configured)
+   * @param chainGraceMs extra wait for on-chain evidence after the UI reports unknown/timeout
    */
   constructor(
     private readonly store: OrderStorePort,
@@ -36,6 +47,8 @@ export class OrderEngine {
     private readonly executor: TradeExecutorPort,
     private readonly onEvent: (e: EngineEvent) => void,
     private readonly onError: (err: unknown) => void,
+    private readonly confirmer: TradeConfirmerPort | null = null,
+    private readonly chainGraceMs = 20_000,
   ) {
     executor.onReady(() => void this.pump());
   }
@@ -184,9 +197,40 @@ export class OrderEngine {
     const executing = this.store.transition(id, ['triggered'], 'executing', { attempts: order.attempts + 1 });
     if (!executing) return;
     this.publish(executing);
-    const result = await this.executor.execute(executing);
+    const result = await this.executeWithConfirmation(executing);
     this.publish(this.recordResult(executing, result));
     this.releaseWatchIfIdle(order.mint);
+  }
+
+  /**
+   * Runs the trade through the executor while watching the wallet on-chain. On-chain evidence marks
+   * the order filled as soon as it appears, and also rescues results the UI could not confirm
+   * (unknown / timeout). Without a confirmer this is just executor.execute().
+   */
+  private async executeWithConfirmation(order: Order): Promise<ExecutionResult> {
+    if (!this.confirmer) return this.executor.execute(order);
+    let before: bigint;
+    try {
+      before = await this.confirmer.snapshot(order.mint);
+    } catch (err) {
+      this.onError(err); // RPC hiccup: fall back to UI confirmation only
+      return this.executor.execute(order);
+    }
+    const abort = new AbortController();
+    const chain = this.confirmer.waitForChange(order.mint, before, order.side, abort.signal);
+    void chain.then((change) => {
+      if (change) this.publish(this.store.transition(order.id, ['executing'], 'filled', { lastError: null }));
+    });
+    try {
+      const result = await this.executor.execute(order);
+      if (result.ok || (result.kind !== 'unknown' && result.kind !== 'timeout')) return result;
+      const change = await Promise.race([chain, sleep(this.chainGraceMs, abort.signal).then(() => null)]);
+      return change
+        ? { ok: true, detail: `Confirmed on-chain (token balance ${change.before} → ${change.after})` }
+        : result;
+    } finally {
+      abort.abort();
+    }
   }
 
   /** Maps an execution result to the order's next status. */

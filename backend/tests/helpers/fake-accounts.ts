@@ -25,6 +25,8 @@ export class FakeAccounts extends SolanaAccountsPort {
   readonly data = new Map<string, Uint8Array>();
   readonly supplies = new Map<string, MintSupply>();
   readonly listeners = new Map<string, Set<AccountListener>>();
+  /** owner|mint -> balance for getTokenBalance. */
+  readonly balances = new Map<string, bigint>();
   /** Slot stamped on every delivery; tests bump it to simulate new blocks. */
   slot = 1n;
 
@@ -38,6 +40,11 @@ export class FakeAccounts extends SolanaAccountsPort {
     const s = this.supplies.get(mint);
     if (!s) throw new Error(`no supply for ${mint}`);
     return s;
+  }
+
+  /** Returns the stored owner/mint balance (0 if unset). */
+  async getTokenBalance(owner: string, mint: string): Promise<bigint> {
+    return this.balances.get(`${owner}|${mint}`) ?? 0n;
   }
 
   /** Registers listener and immediately delivers current state (mirrors the real adapter). */
