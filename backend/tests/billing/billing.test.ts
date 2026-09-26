@@ -104,6 +104,19 @@ describe('BillingService payments', () => {
     expect(changed).toEqual([alice.id, alice.id]);
   });
 
+  it('credits a still-locked account when several share the same fomo wallet', () => {
+    const { svc, accounts, pay, alice, advance } = setup();
+    svc.grant(alice.id); // e.g. the owner's main browser
+    advance(10);
+    const second = accounts.create('h3', { solana: USER_SOL, evm: USER_EVM });
+    advance(10);
+    accounts.touch(alice.id); // the unlocked account was seen most recently
+    expect(pay({ asset: asset('solana'), amount: 2.73, from: USER_SOL })).toBe(second.id);
+    const third = accounts.create('h4', { solana: USER_SOL, evm: null });
+    svc.quote(third.id); // the one that opened the payment screen wins among locked accounts
+    expect(pay({ asset: asset('solana'), amount: 1, from: USER_SOL })).toBe(third.id);
+  });
+
   it('matches other wallets by the payment code in the amount', () => {
     const { svc, pay, bob } = setup();
     const { code } = svc.quote(bob.id);

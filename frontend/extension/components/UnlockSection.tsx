@@ -68,6 +68,9 @@ function MethodDetails({ method, status }: { method: PaymentMethod; status: Bill
       <p className="text-xs">
         <b>From your fomo wallet:</b> send {token ? `$${remaining.toFixed(2)} worth of ${method.symbol}` : `${remaining.toFixed(2)} ${method.symbol}`} or more — it's matched to you automatically.
       </p>
+      <p className="rounded-md border border-yellow/50 bg-yellow/10 px-2 py-1.5 text-[11px] text-yellow">
+        fomo takes a withdrawal fee, so a bit less arrives than you send. Add about $0.50 — anything short just adds up, and you can top up.
+      </p>
       <CopyField label="From any other wallet, send exactly" value={`${method.amount}`} />
       <p className="text-[11px] text-muted-foreground">
         The last digits identify you. Only {token ? `the official ${method.symbol} token` : method.symbol === 'USDG' ? 'official USDG' : 'official USDC'} counts. Payments show up within about a minute.

@@ -80,11 +80,10 @@ export class SqliteAccountStoreAdapter extends AccountStorePort {
     return res.changes === 1 ? this.get(id) : null;
   }
 
-  /** Most recently seen account with this wallet. */
-  findByWallet(kind: 'solana' | 'evm', address: string): Account | null {
+  /** Accounts with this wallet, most recently seen first. */
+  findByWallet(kind: 'solana' | 'evm', address: string): Account[] {
     const col = kind === 'solana' ? 'solana_wallet' : 'evm_wallet';
-    const row = this.db.prepare(`SELECT * FROM accounts WHERE ${col} = ? ORDER BY last_seen_at DESC LIMIT 1`).get(address) as AccountRow | undefined;
-    return row ? toAccount(row) : null;
+    return (this.db.prepare(`SELECT * FROM accounts WHERE ${col} = ? ORDER BY last_seen_at DESC`).all(address) as unknown as AccountRow[]).map(toAccount);
   }
 
   /** Updates last_seen_at. */

@@ -216,12 +216,18 @@ export class BillingService {
     this.store.forgetUser(userId);
   }
 
-  /** Account for a transfer: its sender's fomo wallet first, then the payment code in the amount. */
+  /**
+   * Account for a transfer: the payment code in the amount first (it names one account exactly), then the sender's
+   * fomo wallet. Several accounts can share a wallet (e.g. two browsers): a still-locked one that asked how to pay
+   * wins, then any still-locked one, then the most recently active.
+   */
   private matchUser(t: IncomingTransfer, now: number): string | null {
-    const bySender = this.accounts.findByWallet(t.chain === 'solana' ? 'solana' : 'evm', t.chain === 'solana' ? t.from : t.from.toLowerCase());
-    if (bySender) return bySender.id;
     const code = this.codeIn(t);
-    return code === null ? null : (this.store.invoiceByCode(code, now)?.userId ?? null);
+    const byCode = code === null ? null : this.store.invoiceByCode(code, now);
+    if (byCode) return byCode.userId;
+    const candidates = this.accounts.findByWallet(t.chain === 'solana' ? 'solana' : 'evm', t.chain === 'solana' ? t.from : t.from.toLowerCase());
+    const locked = candidates.filter((a) => this.store.unlockedAt(a.id) === null);
+    return (locked.find((a) => this.store.activeInvoice(a.id, now) !== null) ?? locked[0] ?? candidates[0])?.id ?? null;
   }
 
   /** Payment code carried by the amount, or null. */
