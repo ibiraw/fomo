@@ -147,7 +147,7 @@ export function UnlockSection({ status, send }: { status: BillingStatus | null; 
 export function UnlockBanner({ status, where }: { status: BillingStatus | null; where: 'popup' | 'panel' }) {
   if (!status || status.unlocked) return null;
   const locked = mustUnlock(status);
-  const hint = where === 'popup' ? 'Settings → Unlock' : 'the auto fomo popup → Settings';
+  const hint = where === 'popup' ? 'Settings → Unlock' : 'open auto fomo extension → Settings';
   return (
     <p
       role="status"
