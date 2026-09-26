@@ -31,7 +31,7 @@ export default function App() {
   const { state, send } = useBackground();
   const [tabMint, setTabMint] = useState<string | null>(null);
 
-  useWatchPrice(tabMint, state?.status === 'connected', send);
+  const priceError = useWatchPrice(tabMint, state?.status === 'connected', send);
 
   useEffect(() => {
     void browser.tabs.query({ active: true, currentWindow: true }).then(([tab]) => setTabMint(mintFromFomoUrl(tab?.url)));
@@ -64,6 +64,7 @@ export default function App() {
               <p className="mb-3 text-sm text-sell">Server offline — start it with <code>npm run dev</code> in <code>backend/</code>.</p>
             )}
             {tabMint && state.status === 'connected' && <div className="mb-3"><TokenXCard mint={tabMint} send={send} /></div>}
+            {priceError && <p className="mb-3 rounded-md bg-card p-2 text-xs text-yellow">This token can't be priced yet: {priceError}</p>}
             <NewOrderForm ticks={state.ticks} initialMint={tabMint} onCreate={(order) => send({ type: 'order.create', order })} />
           </TabsContent>
           <TabsContent value="orders" className="pt-2">

@@ -143,7 +143,21 @@ describe('TokenInfoService', () => {
     const [a, b] = await Promise.all([svc.getInfo(MINT), svc.getInfo(MINT)]);
     expect(a).toEqual(b);
     expect(a.twitter).toBeNull();
-    expect(http.calls).toHaveLength(1);
+    expect(http.calls).toHaveLength(2); // metadata file + one DexScreener fallback lookup
+  });
+
+  it('falls back to DexScreener socials when the metadata has no X link', async () => {
+    const accounts = new FakeAccounts();
+    accounts.data.set(MINT, t22Mint('Bop', 'BOP', 'https://m/bop.json'));
+    const http = new FakeHttp({
+      'https://m/bop.json': { name: 'Bop' },
+      [`https://api.dexscreener.com/tokens/v1/solana/${MINT}`]: [
+        { info: { socials: [{ type: 'telegram', url: 'https://t.me/x' }] } },
+        { info: { socials: [{ type: 'twitter', url: 'https://x.com/Bop__onsolana' }], websites: [{ url: 'https://bop.fun' }] } },
+      ],
+    });
+    const info = await new TokenInfoService(accounts, http).getInfo(MINT);
+    expect(info).toMatchObject({ twitter: { handle: 'Bop__onsolana' }, website: 'https://bop.fun' });
   });
 
   it('explains missing tokens, missing metadata and unreachable files', async () => {

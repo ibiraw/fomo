@@ -25,6 +25,14 @@ export interface TokenInfo {
 /** Cache lifetimes (ms). */
 const HIT_TTL = 30 * 60_000;
 const FETCH_TIMEOUT_MS = 8_000;
+/** DexScreener token listing (free, no key). Teams register their socials there; FOMO shows the same links. */
+const DEXSCREENER_TOKEN_URL = 'https://api.dexscreener.com/tokens/v1/solana/';
+
+/** Socials from a DexScreener listing. */
+interface ListedSocials {
+  readonly twitter: TwitterLink | null;
+  readonly website: string | null;
+}
 
 export class TokenInfoService {
   private readonly cache = new Map<string, { at: number; info: TokenInfo }>();
@@ -51,19 +59,37 @@ export class TokenInfoService {
     return info;
   }
 
-  /** On-chain metadata → JSON file → normalized socials. */
+  /** On-chain metadata → JSON file → normalized socials, with DexScreener as fallback for missing links. */
   private async load(mint: string): Promise<TokenInfo> {
     const meta = await this.readMetadata(mint);
     const json = await this.fetchJson(meta.uri);
-    const website = typeof json.website === 'string' && /^https?:\/\//i.test(json.website) ? json.website : null;
     const ext = json.extensions && typeof json.extensions === 'object' ? (json.extensions as Record<string, unknown>) : {};
-    return {
-      mint,
-      name: meta.name,
-      symbol: meta.symbol,
-      twitter: parseTwitterLink(json.twitter) ?? parseTwitterLink(ext.twitter),
-      website,
-    };
+    let twitter = parseTwitterLink(json.twitter) ?? parseTwitterLink(ext.twitter);
+    let website = typeof json.website === 'string' && /^https?:\/\//i.test(json.website) ? json.website : null;
+    if (!twitter || !website) {
+      const listed = await this.fetchListedSocials(mint);
+      twitter ??= listed.twitter;
+      website ??= listed.website;
+    }
+    return { mint, name: meta.name, symbol: meta.symbol, twitter, website };
+  }
+
+  /** Socials registered on DexScreener. A lookup failure just means "none found" (it is a fallback). */
+  private async fetchListedSocials(mint: string): Promise<ListedSocials> {
+    let pairs: unknown;
+    try {
+      pairs = await this.http.getJson(DEXSCREENER_TOKEN_URL + mint, FETCH_TIMEOUT_MS);
+    } catch {
+      return { twitter: null, website: null };
+    }
+    let twitter: TwitterLink | null = null;
+    let website: string | null = null;
+    for (const pair of Array.isArray(pairs) ? pairs : []) {
+      const info = (pair as { info?: { socials?: { type?: unknown; url?: unknown }[]; websites?: { url?: unknown }[] } }).info;
+      for (const s of info?.socials ?? []) if (!twitter && s.type === 'twitter') twitter = parseTwitterLink(s.url);
+      for (const w of info?.websites ?? []) if (!website && typeof w.url === 'string' && /^https?:\/\//i.test(w.url)) website = w.url;
+    }
+    return { twitter, website };
   }
 
   /** Token-2022 metadata extension first, Metaplex account second. */

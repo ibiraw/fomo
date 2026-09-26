@@ -32,7 +32,7 @@ const OFFLINE_TEXT: Partial<Record<ConnectionStatus, string>> = {
 export function LimitView({ mintStore }: { mintStore: MintStore }) {
   const mint = useSyncExternalStore(mintStore.subscribe, mintStore.get);
   const { state, send } = useBackground();
-  useWatchPrice(mint, state?.status === 'connected', send);
+  const priceError = useWatchPrice(mint, state?.status === 'connected', send);
 
   if (!state) return <p className="p-2 text-sm text-muted-foreground">Loading…</p>;
   if (!mint) return <p className="p-2 text-sm text-muted-foreground">Limit orders are available on Solana token pages.</p>;
@@ -44,7 +44,14 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
     <div className="space-y-4 p-1 pt-2">
       {notice && <p className="rounded-md bg-sell/15 p-2 text-xs text-sell">{notice}</p>}
       {state.status === 'connected' && <TokenXCard key={`x:${mint}`} mint={mint} send={send} />}
-      <NewOrderForm key={`form:${mint}`} ticks={state.ticks} initialMint={mint} lockMint onCreate={(order) => send({ type: 'order.create', order })} />
+      {priceError ? (
+        <div className="space-y-1 rounded-lg border bg-card p-3">
+          <p className="text-sm font-semibold text-yellow">Limit orders aren't available for this token yet</p>
+          <p className="text-xs text-muted-foreground">{priceError}</p>
+        </div>
+      ) : (
+        <NewOrderForm key={`form:${mint}`} ticks={state.ticks} initialMint={mint} lockMint onCreate={(order) => send({ type: 'order.create', order })} />
+      )}
       <div className="space-y-2">
         <p className="text-xs font-semibold text-muted-foreground">Orders on this token</p>
         <OrderList orders={orders} ticks={state.ticks} height={260} emptyText="No orders on this token yet." onCancel={(id) => send({ type: 'order.cancel', id })} />
