@@ -27,9 +27,6 @@ export abstract class OrderStorePort {
    */
   abstract list(statuses?: readonly OrderStatus[], userId?: string): Order[];
 
-  /** Deletes every order of `userId` (account deletion). Returns how many were removed. */
-  abstract deleteForUser(userId: string): number;
-
   /**
    * Atomically moves an order from one of `from` to `to` (compare-and-set).
    * Returns the updated order, or null if the order was not in an allowed `from` status.

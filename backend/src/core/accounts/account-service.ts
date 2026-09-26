@@ -56,6 +56,13 @@ export class AccountService {
     return updated;
   }
 
+  /** The account; AuthError when it no longer exists. */
+  get(id: string): Account {
+    const a = this.store.get(id);
+    if (!a) throw new AuthError('Account no longer exists');
+    return a;
+  }
+
   /** Current wallets of an account (none when the account is gone). */
   wallets(id: string): UserWallets {
     return this.store.get(id)?.wallets ?? { solana: null, evm: null };

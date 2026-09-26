@@ -119,6 +119,13 @@ export function AccountSection({ account, serverUrl, send }: Props) {
         <p className="text-xs text-muted-foreground">No sign-up: this browser has its own account. Your wallets are read from your fomo login.</p>
       </div>
 
+      {account && (
+        <p className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Your ID</span>
+          <code className="rounded bg-secondary px-1.5 py-0.5 font-semibold select-all">{account.shortId}</code>
+          <span className="text-[11px] text-muted-foreground">— mention it if you contact support</span>
+        </p>
+      )}
       <WalletsBlock account={account} send={send} />
 
       <div className="space-y-1.5">
@@ -144,9 +151,9 @@ export function AccountSection({ account, serverUrl, send }: Props) {
       <div className="space-y-1.5">
         {confirmDelete ? (
           <div className="space-y-1.5 rounded-md border border-sell/40 p-2">
-            <p className="text-xs">Delete this account and all its orders from the server? This can't be undone.</p>
+            <p className="text-xs">Delete this account? Your open orders are cancelled and your wallets and backup code stop working. This can't be undone.</p>
             <div className="flex gap-1.5">
-              <Action danger onClick={() => del.mutate()}>{del.isPending ? 'Deleting…' : 'Delete everything'}</Action>
+              <Action danger onClick={() => del.mutate()}>{del.isPending ? 'Deleting…' : 'Delete my account'}</Action>
               <Action onClick={() => setConfirmDelete(false)}>Keep my account</Action>
             </div>
             {del.error && <p className="text-xs text-sell">{del.error.message}</p>}

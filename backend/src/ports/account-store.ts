@@ -12,6 +12,8 @@ export interface UserWallets {
 
 export interface Account {
   readonly id: string;
+  /** Short readable id shown to the user and in monitoring ("AF-7K3Q2P"). */
+  readonly shortId: string;
   readonly wallets: UserWallets;
   readonly createdAt: number;
   readonly lastSeenAt: number;

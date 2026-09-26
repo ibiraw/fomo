@@ -294,7 +294,7 @@ describe('WsGateway accounts', () => {
     c.send({ type: 'account.delete', reqId: 'd' });
     expect((await c.next((m) => m.reqId === 'd')).data).toEqual({ deleted: true });
     await vi.waitFor(() => expect(c.closeCode).toBe(4003));
-    expect(store.list()).toEqual([]);
+    expect(store.list().map((o) => o.status)).toEqual(['cancelled']); // order history is kept
     const again = await connect();
     again.send({ type: 'hello', token: TOKEN, executor: false });
     await vi.waitFor(() => expect(again.closeCode).toBe(4001));

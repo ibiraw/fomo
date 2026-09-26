@@ -48,6 +48,8 @@ export interface GatewayOptions {
   readonly pingIntervalMs: number;
   /** Behind Cloudflare: take the client IP from CF-Connecting-IP. */
   readonly trustProxy?: boolean;
+  /** Monitoring sink for account events (new, deleted, wallets, payment claims). */
+  readonly onActivity?: (kind: 'account' | 'payment', text: string) => void;
   readonly limits?: GatewayLimits;
 }
 
@@ -74,7 +76,7 @@ interface PendingExec {
 const isActive = (o: Order): boolean => o.status === 'open' || o.status === 'triggered' || o.status === 'executing';
 
 /** What a client sees about its account. */
-const accountView = (a: Account) => ({ id: a.id, wallets: a.wallets });
+const accountView = (a: Account) => ({ id: a.id, shortId: a.shortId, wallets: a.wallets });
 
 export class WsGateway extends TradeExecutorPort {
   private wss: WebSocketServer | null = null;
@@ -259,7 +261,10 @@ export class WsGateway extends TradeExecutorPort {
     try {
       const allowCreate = create && this.mayCreateAccount(client.ip);
       const res = this.requireAccounts().login(secret, allowCreate);
-      if (res.created) this.countCreated(client.ip);
+      if (res.created) {
+        this.countCreated(client.ip);
+        this.opts.onActivity?.('account', `new account ${res.account.shortId}`);
+      }
       account = res.account;
     } catch (err) {
       // An unknown key with create requested only fails when this network hit its account-creation limit.
@@ -321,12 +326,12 @@ export class WsGateway extends TradeExecutorPort {
         return this.reply(client, msg.reqId, async () => {
           const account = this.requireAccounts().setWallets(userId, msg.wallets);
           this.confirmers?.invalidate(userId);
+          this.opts.onActivity?.('account', `${account.shortId} wallets: SOL ${account.wallets.solana ?? '-'} · EVM ${account.wallets.evm ?? '-'}`);
           return accountView(account);
         });
       case 'account.info':
         return this.reply(client, msg.reqId, async () => {
-          const wallets = this.requireAccounts().wallets(userId);
-          return { id: userId, wallets };
+          return accountView(this.requireAccounts().get(userId));
         });
       case 'billing.status':
         return this.reply(client, msg.reqId, async () => this.billing?.status(userId) ?? null);
@@ -338,15 +343,25 @@ export class WsGateway extends TradeExecutorPort {
       case 'billing.claim':
         return this.reply(client, msg.reqId, async () => {
           if (!this.billing) throw new FomoError('This server has no paywall');
-          return this.billing.claim(userId, msg.tx);
+          const who = this.requireAccounts().get(userId).shortId;
+          try {
+            const status = this.billing.claim(userId, msg.tx);
+            this.opts.onActivity?.('payment', `${who} claimed ${msg.tx.slice(0, 120)}`);
+            return status;
+          } catch (err) {
+            this.opts.onActivity?.('payment', `${who} claim refused (${err instanceof Error ? err.message : String(err)}): ${msg.tx.slice(0, 120)}`);
+            throw err;
+          }
         });
       case 'account.delete':
         await this.reply(client, msg.reqId, async () => {
-          const orders = engine.deleteUserOrders(userId);
+          const who = this.requireAccounts().get(userId).shortId;
+          const orders = engine.closeUserOrders(userId);
           this.billing?.forget(userId);
           this.requireAccounts().delete(userId);
           this.confirmers?.invalidate(userId);
-          this.log(`account ${userId.slice(0, 8)} deleted (${orders} orders)`);
+          this.log(`account ${userId.slice(0, 8)} deleted (${orders} open orders cancelled)`);
+          this.opts.onActivity?.('account', `${who} deleted their account (${orders} open orders cancelled)`);
           return { deleted: true };
         });
         for (const c of this.clients) if (c.userId === userId) c.ws.close(4003, 'Account deleted');

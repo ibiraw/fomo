@@ -11,6 +11,10 @@ import { SqliteAccountStoreAdapter } from './adapters/storage/sqlite-account-sto
 import { SqliteOrderStoreAdapter } from './adapters/storage/sqlite-order-store.adapter.js';
 import { buildBilling } from './billing-setup.js';
 import { loadConfig } from './config.js';
+import { SqliteActivityStoreAdapter } from './adapters/storage/sqlite-activity-store.adapter.js';
+import { TelegramNotifierAdapter } from './adapters/telegram/telegram-notifier.adapter.js';
+import { ActivityRelay } from './core/monitoring/activity-relay.js';
+import { describeOrder } from './core/monitoring/describe.js';
 import { AccountService } from './core/accounts/account-service.js';
 import { WalletConfirmers } from './core/accounts/wallet-confirmers.js';
 import { ChainRouterConfirmer } from './core/chains/chain-router-confirmer.js';
@@ -42,14 +46,23 @@ function log(msg: string): void {
   console.log(`${new Date().toISOString()} ${msg}`);
 }
 
-/** Logs an error with context. */
+/** Monitoring relay (activity log + Telegram); set once the config is loaded. */
+let monitor: ActivityRelay | null = null;
+
+/** Logs an error with context, and reports it to monitoring (rate-limited per source). */
 function logError(ctx: string) {
-  return (err: unknown): void => console.error(`${new Date().toISOString()} [${ctx}]`, err);
+  return (err: unknown): void => {
+    console.error(`${new Date().toISOString()} [${ctx}]`, err);
+    if (ctx !== 'telegram') monitor?.recordError(ctx, err);
+  };
 }
 
 /** Builds and starts every component; shuts down cleanly on Ctrl+C. */
 async function main(): Promise<void> {
   const cfg = loadConfig();
+  const activityStore = new SqliteActivityStoreAdapter(cfg.dbPath);
+  monitor = new ActivityRelay(activityStore, cfg.telegram ? new TelegramNotifierAdapter(cfg.telegram.token, cfg.telegram.chatId) : null, logError('telegram'));
+  const relay = monitor;
   const accounts = new KitSolanaAccountsAdapter(cfg.rpcHttp, cfg.rpcWss, logError('rpc'));
   const http = new FetchHttpJsonAdapter();
   const jupiterHttp = new FetchHttpJsonAdapter(cfg.jupiter.apiKey ? { 'x-api-key': cfg.jupiter.apiKey } : {});
@@ -76,12 +89,15 @@ async function main(): Promise<void> {
   const store = new SqliteOrderStoreAdapter(cfg.dbPath, Date.now, LEGACY_ACCOUNT_ID);
   const accountStore = new SqliteAccountStoreAdapter(cfg.dbPath);
   const accountService = new AccountService(accountStore);
+  /** Short id of an account for monitoring messages. */
+  const who = (userId: string): string => accountStore.get(userId)?.shortId ?? userId.slice(0, 8);
   // The pre-accounts owner keeps working: their pairing code is the key of the "legacy" account, whose wallets come from .env.
   accountService.ensureLegacy(LEGACY_ACCOUNT_ID, cfg.pairingToken, { solana: cfg.fomoWallet, evm: cfg.fomoEvmWallet });
   const gateway = new WsGateway(
     {
       host: cfg.gatewayHost, port: cfg.gatewayPort, execTimeoutMs: cfg.execTimeoutMs, tickThrottleMs: 250, pingIntervalMs: 20_000,
       trustProxy: cfg.trustProxy,
+      onActivity: (kind, text) => relay.record(kind, text),
     },
     log,
   );
@@ -106,6 +122,7 @@ async function main(): Promise<void> {
       cfg, paywall: cfg.paywall, accounts: accountStore, solana: accounts,
       evm: new Map([...evm].map(([c, p]) => [c, { rpc: p.rpc, erc20: p.erc20 }] as const)),
       feed, orderCounts, onChange: (userId) => gateway.pushBilling(userId), log, logError,
+      activity: (kind, text) => relay.record(kind, text), who,
     })
     : null;
   // The owner never pays.
@@ -116,6 +133,8 @@ async function main(): Promise<void> {
     if (e.type === 'order') {
       guard?.onOrderChanged(e.order);
       log(`order ${e.order.id.slice(0, 8)} ${e.order.userId.slice(0, 8)} ${e.order.side} ${e.order.status}${e.order.lastError ? ` — ${e.order.lastError}` : ''}`);
+      const text = describeOrder(e.order, who(e.order.userId));
+      if (text) relay.record('order', text);
     }
   }, logError('engine'), confirmerFor, 20_000, Date.now, cfg.maxActiveOrdersPerUser, (userId) => billing?.service.assertCanPlaceOrder(userId));
   // Open sells are cancelled once their account no longer holds the token.
@@ -128,6 +147,9 @@ async function main(): Promise<void> {
   await engine.start();
   guard.start();
   await billing?.start();
+  relay.start();
+  relay.record('server', `server started · ${[...evm.keys()].length + 1} chains · paywall ${cfg.paywall ? `$${cfg.paywall.priceUsd}/${cfg.paywall.periodDays}d` : 'off'}`);
+  if (!cfg.telegram) log('Telegram monitoring off (set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID); activity is still logged to the database');
   if (!billing) log('paywall off (PAYWALL_ENABLED is not true)');
   log(`auto fomo server on ws://${cfg.gatewayHost}:${gateway.port()}${cfg.trustProxy ? ' (behind Cloudflare)' : ''}`);
   log(`Owner account key (old pairing code): ${cfg.pairingToken}`);
@@ -136,9 +158,12 @@ async function main(): Promise<void> {
   const shutdown = async (): Promise<void> => {
     log('shutting down');
     guard?.stop();
+    relay.stop();
+    await relay.deliver(); // flush what's queued
     billing?.stop();
     engine.stop();
     accountStore.close();
+    activityStore.close();
     await gateway.close();
     await feed.close();
     quotes.close();

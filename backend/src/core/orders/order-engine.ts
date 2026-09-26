@@ -186,19 +186,19 @@ export class OrderEngine {
     return this.store.list(undefined, userId);
   }
 
-  /** Cancels an account's active orders and deletes all its orders (account deletion). */
-  deleteUserOrders(userId: string): number {
+  /** Cancels an account's active orders (account deletion). Order history stays in the database. Returns how many were cancelled. */
+  closeUserOrders(userId: string): number {
+    let cancelled = 0;
     for (const o of this.store.list([...ACTIVE], userId)) {
       try {
         this.cancelOrder(o.id, 'Account deleted', userId);
+        cancelled++;
       } catch {
-        // started executing meanwhile; its row is deleted below and the outcome is dropped
+        // started executing meanwhile; its outcome is still recorded
       }
     }
     this.queues.delete(userId);
-    const removed = this.store.deleteForUser(userId);
-    for (const mint of [...this.watches.keys()]) this.releaseWatchIfIdle(mint);
-    return removed;
+    return cancelled;
   }
 
   /** Latest known tick per watched mint. */

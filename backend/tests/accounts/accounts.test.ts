@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { SqliteAccountStoreAdapter } from '../../src/adapters/storage/sqlite-account-store.adapter.js';
 import { SqliteOrderStoreAdapter } from '../../src/adapters/storage/sqlite-order-store.adapter.js';
 import { AccountService, hashSecret } from '../../src/core/accounts/account-service.js';
+import { SHORT_ID_RE, newShortId } from '../../src/core/accounts/short-id.js';
 import { WalletConfirmers } from '../../src/core/accounts/wallet-confirmers.js';
 import { AuthError, LimitError, OrderStateError, ValidationError } from '../../src/core/errors.js';
 import { HoldingsGuard, SOLD_OUT_REASON } from '../../src/core/orders/holdings-guard.js';
@@ -63,6 +64,12 @@ describe('AccountService', () => {
     expect(svc.delete(account.id)).toBe(false);
   });
 
+  it('makes short ids from an alphabet without look-alikes', () => {
+    expect(newShortId(() => 0)).toBe('AF-222222');
+    expect(newShortId(() => 0.999)).toBe('AF-ZZZZZZ');
+    expect(newShortId()).toMatch(SHORT_ID_RE);
+  });
+
   it('keeps the pre-accounts owner working: their pairing code logs into the legacy account and owns old orders', () => {
     const dir = mkdtempSync(join(tmpdir(), 'fomo-acc-'));
     dirs.push(dir);
@@ -84,21 +91,21 @@ describe('AccountService', () => {
     svc.ensureLegacy('legacy', pairing, { solana: SOL, evm: null });
     svc.ensureLegacy('legacy', 'ignored-second-time-xxxxxxxxxxxxxxx', { solana: null, evm: null });
     expect(svc.login(pairing, false).account).toMatchObject({ id: 'legacy', wallets: { solana: SOL, evm: null } });
+    expect(svc.get('legacy').shortId).toMatch(SHORT_ID_RE);
+    expect(() => svc.get('nobody')).toThrow(AuthError);
     orders.close();
     accounts.close();
   });
 });
 
 describe('SqliteOrderStoreAdapter per account', () => {
-  it('filters by owner and deletes one owner\'s orders', () => {
+  it('filters by owner', () => {
     const store = new SqliteOrderStoreAdapter(':memory:');
     const input = CreateOrderSchema.parse(buy);
     const a = store.create(input, 'u1');
     store.create(input, 'u2');
     expect(store.list(undefined, 'u1').map((o) => o.id)).toEqual([a.id]);
     expect(store.list(['open'], 'u2')).toHaveLength(1);
-    expect(store.deleteForUser('u2')).toBe(1);
-    expect(store.list()).toHaveLength(1);
   });
 });
 
@@ -175,14 +182,22 @@ describe('OrderEngine per account', () => {
     expect(engine.listOrders().every((o) => o.status === 'filled')).toBe(true);
   });
 
-  it('deletes an account\'s orders and stops watching tokens nobody needs', async () => {
+  it('on account deletion cancels open orders, keeps the history, and stops watching tokens nobody needs', async () => {
     const { engine, feed } = setup();
     await engine.createOrder('u1', buy);
     await engine.createOrder('u1', sell);
     expect(feed.listeners.has(MINT)).toBe(true);
-    expect(engine.deleteUserOrders('u1')).toBe(2);
-    expect(engine.listOrders('u1')).toEqual([]);
+    expect(engine.closeUserOrders('u1')).toBe(2);
+    expect(engine.listOrders('u1').map((o) => o.status)).toEqual(['cancelled', 'cancelled']);
+    expect(engine.listOrders('u1')[0]!.lastError).toBe('Account deleted');
     expect(feed.listeners.has(MINT)).toBe(false);
+  });
+
+  it('gives every account a unique short id, also to accounts made before short ids existed', () => {
+    const accounts = new SqliteAccountStoreAdapter(':memory:');
+    const ids = new Set([...Array(50)].map((_, i) => accounts.create(`h${i}`, { solana: null, evm: null }).shortId));
+    expect(ids.size).toBe(50);
+    for (const id of ids) expect(id).toMatch(SHORT_ID_RE);
   });
 });
 

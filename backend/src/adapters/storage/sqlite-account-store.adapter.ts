@@ -7,10 +7,12 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
+import { newShortId } from '../../core/accounts/short-id.js';
 import { AccountStorePort, type Account, type UserWallets } from '../../ports/account-store.js';
 
 interface AccountRow {
   id: string;
+  short_id: string;
   secret_hash: string;
   solana_wallet: string | null;
   evm_wallet: string | null;
@@ -36,6 +38,7 @@ CREATE INDEX IF NOT EXISTS idx_accounts_evm ON accounts(evm_wallet);
 function toAccount(r: AccountRow): Account {
   return {
     id: r.id,
+    shortId: r.short_id,
     wallets: { solana: r.solana_wallet, evm: r.evm_wallet as `0x${string}` | null },
     createdAt: r.created_at,
     lastSeenAt: r.last_seen_at,
@@ -51,6 +54,25 @@ export class SqliteAccountStoreAdapter extends AccountStorePort {
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode = WAL;');
     this.db.exec(SCHEMA);
+    // v1.1.0: short readable ids; accounts made before get one now.
+    const cols = (this.db.prepare('PRAGMA table_info(accounts)').all() as { name: string }[]).map((c) => c.name);
+    if (!cols.includes('short_id')) this.db.exec('ALTER TABLE accounts ADD COLUMN short_id TEXT');
+    this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_short_id ON accounts(short_id)');
+    for (const { id } of this.db.prepare('SELECT id FROM accounts WHERE short_id IS NULL').all() as { id: string }[]) {
+      this.insertWithShortId((shortId) => this.db.prepare('UPDATE accounts SET short_id = ? WHERE id = ?').run(shortId, id));
+    }
+  }
+
+  /** Runs `write` with a fresh short id, retrying on the (rare) collision. */
+  private insertWithShortId(write: (shortId: string) => void): void {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        write(newShortId());
+        return;
+      } catch (err) {
+        if (attempt >= 5 || !/UNIQUE constraint failed: accounts\.short_id/.test(String(err))) throw err;
+      }
+    }
   }
 
   /** Looks up by secret hash (unique index). */
@@ -65,12 +87,14 @@ export class SqliteAccountStoreAdapter extends AccountStorePort {
     return row ? toAccount(row) : null;
   }
 
-  /** Inserts a new account. */
+  /** Inserts a new account with a unique short id. */
   create(secretHash: string, wallets: UserWallets, id: string = randomUUID()): Account {
     const now = this.now();
-    this.db
-      .prepare('INSERT INTO accounts (id, secret_hash, solana_wallet, evm_wallet, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(id, secretHash, wallets.solana, wallets.evm, now, now);
+    this.insertWithShortId((shortId) =>
+      this.db
+        .prepare('INSERT INTO accounts (id, short_id, secret_hash, solana_wallet, evm_wallet, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(id, shortId, secretHash, wallets.solana, wallets.evm, now, now),
+    );
     return this.get(id) as Account;
   }
 

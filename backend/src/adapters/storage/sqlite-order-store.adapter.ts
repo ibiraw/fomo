@@ -146,11 +146,6 @@ export class SqliteOrderStoreAdapter extends OrderStorePort {
     return (this.db.prepare(sql).all(...args) as unknown as OrderRow[]).map(toOrder);
   }
 
-  /** Deletes all of a user's orders. */
-  deleteForUser(userId: string): number {
-    return Number(this.db.prepare('DELETE FROM orders WHERE user_id = ?').run(userId).changes);
-  }
-
   /** Compare-and-set status transition; returns null if the order was not in a `from` status. */
   transition(id: string, from: readonly OrderStatus[], to: OrderStatus, patch: TransitionPatch = {}): Order | null {
     const sets = ['status = ?', 'updated_at = ?'];

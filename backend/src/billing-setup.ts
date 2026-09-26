@@ -36,6 +36,10 @@ interface Deps {
   readonly orderCounts: (userId: string) => OrderCounts;
   readonly onChange: (userId: string) => void;
   readonly log: (msg: string) => void;
+  /** Monitoring sink. */
+  readonly activity: (kind: 'payment' | 'subscription', text: string) => void;
+  /** Short id of an account for messages. */
+  readonly who: (userId: string) => string;
   readonly logError: (ctx: string) => (err: unknown) => void;
 }
 
@@ -73,8 +77,16 @@ export async function buildBilling(d: Deps): Promise<BillingParts> {
   );
 
   const receive = (t: Parameters<BillingService['receive']>[0]): void => {
+    const amount = Number(t.amountRaw) / 10 ** t.asset.decimals;
     const userId = service.receive(t);
+    const to = userId ? d.who(userId) : 'UNMATCHED (review / claim)';
     d.log(`payment ${t.chain} ${t.asset.symbol} from ${t.from.slice(0, 8)} → ${userId ? `account ${userId.slice(0, 8)}` : 'UNMATCHED (review)'}`);
+    d.activity('payment', `${amount.toFixed(2)} ${t.asset.symbol} on ${t.chain} from ${t.from} → ${to} · tx ${t.txId}`);
+    if (userId) {
+      const s = service.status(userId);
+      if (s.unlocked && s.paidUntil) d.activity('subscription', `${d.who(userId)} active until ${new Date(s.paidUntil).toISOString().slice(0, 10)}`);
+      else if (!s.unlocked) d.activity('subscription', `${d.who(userId)} has $${s.creditUsd.toFixed(2)} of $${s.priceUsd} toward a month`);
+    }
   };
 
   const assetsOn = (chain: string): PaymentAsset[] => [...STABLE_ASSETS.filter((a) => a.chain === chain), ...(token?.chain === chain ? [token] : [])];

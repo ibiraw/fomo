@@ -49,6 +49,9 @@ const EnvSchema = z.object({
   FREE_ORDERS: z.coerce.number().int().min(0).default(3),
   /** Days of access one payment buys. */
   ACCESS_PERIOD_DAYS: z.coerce.number().positive().default(30),
+  /** Telegram monitoring: bot token from @BotFather and the chat to post into (both, or neither). */
+  TELEGRAM_BOT_TOKEN: z.string().regex(/^\d+:[A-Za-z0-9_-]{30,}$/, 'Not a Telegram bot token').optional(),
+  TELEGRAM_CHAT_ID: z.string().regex(/^-?\d+$/, 'Not a Telegram chat id').optional(),
   /** Optional Jupiter API key; without it the keyless lite endpoint is used. */
   JUPITER_API_KEY: z.string().min(1).optional(),
   JUPITER_POLL_MS: z.coerce.number().int().min(1_000).default(1_500),
@@ -67,6 +70,8 @@ export interface AppConfig {
   readonly execTimeoutMs: number;
   readonly fomoWallet: string | null;
   readonly fomoEvmWallet: `0x${string}` | null;
+  /** Telegram monitoring; null when not configured. */
+  readonly telegram: { readonly token: string; readonly chatId: string } | null;
   /** Paywall settings; null when the paywall is off. */
   readonly paywall: {
     readonly treasury: { readonly solana: string; readonly evm: string };
@@ -120,6 +125,13 @@ function paywallFrom(e: z.infer<typeof EnvSchema>): AppConfig['paywall'] {
   };
 }
 
+/** Telegram settings when both are set; ConfigError when only one is. */
+function telegramFrom(e: z.infer<typeof EnvSchema>): AppConfig['telegram'] {
+  if (!e.TELEGRAM_BOT_TOKEN && !e.TELEGRAM_CHAT_ID) return null;
+  if (!e.TELEGRAM_BOT_TOKEN || !e.TELEGRAM_CHAT_ID) throw new ConfigError('TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set together');
+  return { token: e.TELEGRAM_BOT_TOKEN, chatId: e.TELEGRAM_CHAT_ID };
+}
+
 /** Parses env vars; throws ConfigError listing every problem. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = EnvSchema.safeParse(env);
@@ -142,6 +154,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     fomoEvmWallet: (e.FOMO_EVM_WALLET?.toLowerCase() as `0x${string}` | undefined) ?? null,
     evm: evmEndpoints(e),
     paywall: paywallFrom(e),
+    telegram: telegramFrom(e),
     jupiter: {
       url: e.JUPITER_API_KEY ? 'https://api.jup.ag/price/v3' : 'https://lite-api.jup.ag/price/v3',
       apiKey: e.JUPITER_API_KEY ?? null,
