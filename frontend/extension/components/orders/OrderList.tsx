@@ -36,6 +36,10 @@ interface Props {
   readonly orders: Order[];
   readonly ticks: Record<string, PriceTick>;
   readonly onCancel: (id: string) => Promise<void>;
+  /** Scroll height in px. */
+  readonly height?: number;
+  /** Text shown when there are no orders. */
+  readonly emptyText?: string;
 }
 
 /** One order row. */
@@ -68,13 +72,13 @@ function OrderCard({ order, tick, onCancel }: { order: Order; tick: PriceTick | 
 }
 
 /** All orders, active first. */
-export function OrderList({ orders, ticks, onCancel }: Props) {
+export function OrderList({ orders, ticks, onCancel, height = 380, emptyText = 'No orders yet.' }: Props) {
   if (orders.length === 0) {
-    return <p className="py-10 text-center text-sm text-muted-foreground">No orders yet.</p>;
+    return <p className="py-6 text-center text-sm text-muted-foreground">{emptyText}</p>;
   }
   const sorted = [...orders].sort((a, b) => Number(isCancellable(b.status)) - Number(isCancellable(a.status)) || b.createdAt - a.createdAt);
   return (
-    <ScrollArea className="h-[380px] pr-3">
+    <ScrollArea className="pr-3" style={{ height }}>
       <div className="space-y-2">
         {sorted.map((o) => <OrderCard key={o.id} order={o} tick={ticks[o.mint]} onCancel={onCancel} />)}
       </div>

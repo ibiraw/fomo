@@ -1,0 +1,90 @@
+/**
+ * @file fomo-inject.ts
+ * @description Adds a "Limit" tab next to FOMO's Buy/Sell tabs and toggles FOMO's panel between its own
+ *              trade form and our limit-order view. Uses FOMO's own tab classes so it looks native.
+ * @author Reborn1987
+ */
+
+import { findPanel, findTab } from './fomo-dom';
+
+export const LIMIT_TAB_ID = 'fomo-limit-tab';
+export const LIMIT_HOST_TAG = 'fomo-limit-orders';
+/** Attribute set on FOMO's panel while the Limit view is active. */
+export const ACTIVE_ATTR = 'data-fomo-limit';
+const STYLE_ID = 'fomo-limit-style';
+
+/** FOMO's tab classes (observed 2026-09-26). */
+const TAB_BASE = 'flex-1 p-2 rounded-lg text-base font-bold transition-colors';
+const TAB_INACTIVE = 'bg-bg-secondary hover:bg-bg-tertiary text-text-secondary';
+const TAB_ACTIVE = 'bg-bg-tertiary text-text-primary';
+
+/**
+ * Page-level CSS: while active, hide every panel child except the tab row and our view, and render
+ * FOMO's Buy/Sell tabs as inactive so only "Limit" looks selected.
+ */
+const PAGE_CSS = `
+[${ACTIVE_ATTR}] > :not([data-fomo-limit-keep]):not(${LIMIT_HOST_TAG}) { display: none !important; }
+:not([${ACTIVE_ATTR}]) > ${LIMIT_HOST_TAG} { display: none !important; }
+[${ACTIVE_ATTR}] [data-fomo-limit-keep] > button:not(#${LIMIT_TAB_ID}) {
+  background: var(--color-bg-secondary, rgba(255,255,255,0.06)) !important;
+  color: var(--color-text-secondary, rgba(255,255,255,0.6)) !important;
+}
+`;
+
+/** The panel's direct child containing the Buy/Sell tabs, or null. */
+export function findTabRow(panel: HTMLElement): HTMLElement | null {
+  const sell = findTab(panel, 'sell');
+  let row = sell?.parentElement ?? null;
+  while (row && row.parentElement !== panel) row = row.parentElement;
+  return row;
+}
+
+/** Adds the page stylesheet once. */
+export function ensurePageStyle(doc: Document): void {
+  if (doc.getElementById(STYLE_ID)) return;
+  const style = doc.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = PAGE_CSS;
+  doc.head.appendChild(style);
+}
+
+/** True when the Limit view is showing. */
+export function isLimitActive(panel: HTMLElement): boolean {
+  return panel.hasAttribute(ACTIVE_ATTR);
+}
+
+/** Shows/hides the Limit view and updates the tab look. */
+export function setLimitActive(panel: HTMLElement, active: boolean): void {
+  panel.toggleAttribute(ACTIVE_ATTR, active);
+  const tab = panel.querySelector<HTMLButtonElement>(`#${LIMIT_TAB_ID}`);
+  if (tab) tab.className = `${TAB_BASE} ${active ? TAB_ACTIVE : TAB_INACTIVE}`;
+}
+
+/**
+ * Ensures the Limit tab exists in the current panel. Returns the panel and tab row it was placed in,
+ * or null when no FOMO trade panel is on the page. Idempotent — safe to call on every DOM change.
+ */
+export function ensureLimitTab(doc: Document): { panel: HTMLElement; tabRow: HTMLElement } | null {
+  const panel = findPanel(doc);
+  if (!panel) return null;
+  const tabRow = findTabRow(panel);
+  if (!tabRow) return null;
+  tabRow.setAttribute('data-fomo-limit-keep', '');
+  if (!tabRow.querySelector(`#${LIMIT_TAB_ID}`)) {
+    const tab = doc.createElement('button');
+    tab.id = LIMIT_TAB_ID;
+    tab.type = 'button';
+    tab.textContent = 'Limit';
+    // FOMO may re-render just the tab row while the view stays active; keep the look in sync.
+    tab.className = `${TAB_BASE} ${isLimitActive(panel) ? TAB_ACTIVE : TAB_INACTIVE}`;
+    tab.addEventListener('click', () => setLimitActive(panel, true));
+    // Clicking FOMO's own Buy/Sell tabs leaves the Limit view.
+    for (const side of ['buy', 'sell'] as const) {
+      findTab(panel, side)?.addEventListener('click', () => setLimitActive(panel, false));
+    }
+    const sell = findTab(panel, 'sell');
+    if (sell) sell.after(tab);
+    else tabRow.appendChild(tab);
+  }
+  return { panel, tabRow };
+}

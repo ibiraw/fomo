@@ -4,15 +4,17 @@
  * @author Reborn1987
  */
 
+import { useEffect, useState } from 'react';
+
+import { NewOrderForm } from '@/components/orders/NewOrderForm';
+import { OrderList } from '@/components/orders/OrderList';
+import { PairingForm } from '@/components/orders/PairingForm';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useBackground } from '@/hooks/use-background';
+import { mintFromFomoUrl } from '@/lib/format';
 import type { ConnectionStatus } from '@/lib/server-connection';
 import { cn } from '@/lib/utils';
-
-import { NewOrderForm } from './components/NewOrderForm';
-import { OrderList } from './components/OrderList';
-import { PairingForm } from './components/PairingForm';
-import { useBackground } from './use-background';
 
 const STATUS_TEXT: Record<ConnectionStatus, string> = {
   connected: 'Connected',
@@ -25,6 +27,11 @@ const STATUS_TEXT: Record<ConnectionStatus, string> = {
 /** Popup UI. */
 export default function App() {
   const { state, send } = useBackground();
+  const [tabMint, setTabMint] = useState<string | null>(null);
+
+  useEffect(() => {
+    void browser.tabs.query({ active: true, currentWindow: true }).then(([tab]) => setTabMint(mintFromFomoUrl(tab?.url)));
+  }, []);
 
   if (!state) return <p className="p-4 text-sm text-muted-foreground">Loading…</p>;
 
@@ -52,7 +59,7 @@ export default function App() {
             {state.status === 'disconnected' && (
               <p className="mb-3 text-sm text-sell">Server offline — start it with <code>npm run dev</code> in <code>backend/</code>.</p>
             )}
-            <NewOrderForm ticks={state.ticks} onCreate={(order) => send({ type: 'order.create', order })} />
+            <NewOrderForm ticks={state.ticks} initialMint={tabMint} onCreate={(order) => send({ type: 'order.create', order })} />
           </TabsContent>
           <TabsContent value="orders" className="pt-2">
             <OrderList orders={state.orders} ticks={state.ticks} onCancel={(id) => send({ type: 'order.cancel', id })} />
