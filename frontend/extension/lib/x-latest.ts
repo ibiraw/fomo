@@ -1,7 +1,7 @@
 /**
  * @file x-latest.ts
- * @description Opens an X page in a minimized background window, scrapes the newest post, closes the
- *              window. Results are cached and concurrent requests for one URL share a single scrape.
+ * @description Opens an X page in a background tab (never focused), scrapes the newest post, closes the
+ *              tab. Results are cached and concurrent requests for one URL share a single scrape.
  * @author Reborn1987
  */
 
@@ -9,8 +9,9 @@ import type { XScrapeResult } from './x-scraper';
 
 /** Browser APIs used (injectable for tests). */
 export interface XBrowserApi {
-  openWindow(url: string): Promise<{ windowId: number; tabId: number }>;
-  closeWindow(windowId: number): Promise<void>;
+  /** Opens `url` in a tab without switching to it; returns the tab id. */
+  openTab(url: string): Promise<number>;
+  closeTab(tabId: number): Promise<void>;
   tabStatus(tabId: number): Promise<string | undefined>;
   scrape(tabId: number, timeoutMs: number): Promise<XScrapeResult>;
 }
@@ -50,9 +51,9 @@ export class XLatestService {
     return p;
   }
 
-  /** Opens, waits for load, scrapes and always closes the window. */
+  /** Opens, waits for load, scrapes and always closes the tab. */
   private async scrape(url: string): Promise<XLatest> {
-    const { windowId, tabId } = await this.api.openWindow(url);
+    const tabId = await this.api.openTab(url);
     try {
       const deadline = this.now() + this.t.loadMs;
       while ((await this.api.tabStatus(tabId)) !== 'complete') {
@@ -63,7 +64,7 @@ export class XLatestService {
       }
       return this.store(url, await this.api.scrape(tabId, this.t.scrapeMs));
     } finally {
-      await this.api.closeWindow(windowId).catch(() => undefined);
+      await this.api.closeTab(tabId).catch(() => undefined); // already closed by the user is fine
     }
   }
 

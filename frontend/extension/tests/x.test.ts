@@ -66,44 +66,44 @@ const OK: XScrapeResult = { ok: true, post: { url: 'u', time: 't', text: '', aut
 /** Fake browser API with scriptable load status and scrape result. */
 function fakeApi(opts: { status?: () => string; result?: () => XScrapeResult } = {}) {
   return {
-    openWindow: vi.fn(async () => ({ windowId: 1, tabId: 2 })),
-    closeWindow: vi.fn(async () => undefined),
+    openTab: vi.fn(async () => 2),
+    closeTab: vi.fn(async () => undefined),
     tabStatus: vi.fn(async () => (opts.status ? opts.status() : 'complete')),
     scrape: vi.fn(async () => (opts.result ? opts.result() : OK)),
   } satisfies XBrowserApi;
 }
 
 describe('XLatestService', () => {
-  it('scrapes, closes the window, caches, and dedupes concurrent calls', async () => {
+  it('scrapes, closes the tab, caches, and dedupes concurrent calls', async () => {
     const api = fakeApi();
     let now = 0;
     const svc = new XLatestService(api, T, () => now);
     const [a, b] = await Promise.all([svc.get('https://x.com/w'), svc.get('https://x.com/w')]);
     expect(a.result).toEqual(OK);
     expect(b).toBe(a);
-    expect(api.openWindow).toHaveBeenCalledTimes(1);
-    expect(api.closeWindow).toHaveBeenCalledWith(1);
+    expect(api.openTab).toHaveBeenCalledTimes(1);
+    expect(api.closeTab).toHaveBeenCalledWith(2);
     await svc.get('https://x.com/w');
-    expect(api.openWindow).toHaveBeenCalledTimes(1);
+    expect(api.openTab).toHaveBeenCalledTimes(1);
     await svc.get('https://x.com/w', true);
     now = 2_000;
     await svc.get('https://x.com/w');
-    expect(api.openWindow).toHaveBeenCalledTimes(3);
+    expect(api.openTab).toHaveBeenCalledTimes(3);
   });
 
-  it('times out slow loads without caching, and still closes the window', async () => {
+  it('times out slow loads without caching, and still closes the tab', async () => {
     const api = fakeApi({ status: () => 'loading' });
     const svc = new XLatestService(api, T);
     expect((await svc.get('https://x.com/w')).result).toMatchObject({ ok: false, reason: 'timeout' });
-    expect(api.closeWindow).toHaveBeenCalled();
+    expect(api.closeTab).toHaveBeenCalled();
     await svc.get('https://x.com/w');
-    expect(api.openWindow).toHaveBeenCalledTimes(2);
+    expect(api.openTab).toHaveBeenCalledTimes(2);
   });
 
-  it('closes the window even when scraping throws', async () => {
+  it('closes the tab even when scraping throws', async () => {
     const api = fakeApi({ result: () => { throw new Error('boom'); } });
     await expect(new XLatestService(api, T).get('https://x.com/w')).rejects.toThrow('boom');
-    expect(api.closeWindow).toHaveBeenCalled();
+    expect(api.closeTab).toHaveBeenCalled();
   });
 });
 

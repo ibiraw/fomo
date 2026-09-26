@@ -64,15 +64,14 @@ export default defineBackground({
       onExecute: (o) => executeInFomoTab(tabs, inject, o),
     });
 
-    // Reads X with the user's own session in a minimized window that is closed right after.
+    // Reads X with the user's own session in a background tab (not focused) that is closed right after.
     const xLatest = new XLatestService({
-      openWindow: async (url) => {
-        const w = await browser.windows.create({ url, state: 'minimized', focused: false });
-        const tabId = w?.tabs?.[0]?.id;
-        if (!w?.id || tabId === undefined) throw new Error('Could not open X');
-        return { windowId: w.id, tabId };
+      openTab: async (url) => {
+        const tab = await browser.tabs.create({ url, active: false });
+        if (tab.id === undefined) throw new Error('Could not open X');
+        return tab.id;
       },
-      closeWindow: async (id) => { await browser.windows.remove(id); },
+      closeTab: async (id) => { await browser.tabs.remove(id); },
       tabStatus: async (id) => (await browser.tabs.get(id)).status,
       scrape: async (tabId, timeoutMs) => {
         const [res] = await browser.scripting.executeScript({ target: { tabId }, func: scrapeLatestPost, args: [timeoutMs] });
