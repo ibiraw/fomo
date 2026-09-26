@@ -58,9 +58,13 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
       {notice && <p className="rounded-md bg-sell/15 p-2 text-xs text-sell">{notice}</p>}
       {state.status === 'connected' && <TokenXCard key={`x:${mint}`} mint={mint} send={send} />}
       {priceError ? (
-        <div className="space-y-1 rounded-lg border bg-card p-3">
+        <div className="space-y-1.5 rounded-lg border bg-card p-3">
           <p className="text-sm font-semibold text-yellow">Limit orders aren't available for this token yet</p>
-          <p className="text-xs text-muted-foreground">{priceError}</p>
+          <p className="text-xs text-muted-foreground">It trades on a pool auto fomo can't read prices from yet, so orders couldn't trigger.</p>
+          <details className="text-[11px] text-faint">
+            <summary className="cursor-pointer select-none text-muted-foreground hover:text-foreground">Technical details</summary>
+            <p className="mt-1 break-all">{priceError}</p>
+          </details>
         </div>
       ) : (
         <NewOrderForm key={`form:${mint}`} ticks={state.ticks} initialMint={mint} lockMint mcSupply={supply} holds={holds} onCreate={(order) => send({ type: 'order.create', order })} />
@@ -84,7 +88,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
           <p className="py-4 text-center text-xs text-muted-foreground">
             No orders on this token.{' '}
             <button type="button" onClick={() => setScope('all')} className="font-semibold text-foreground underline-offset-2 hover:underline">
-              See all tokens ({activeAll} active)
+              See all orders ({activeAll > 0 ? `${activeAll} active` : state.orders.length})
             </button>
           </p>
         ) : (

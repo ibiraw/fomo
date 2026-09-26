@@ -14,6 +14,7 @@ import { HoldingsGuard } from './core/orders/holdings-guard.js';
 import { WalletTradeConfirmer } from './core/orders/wallet-trade-confirmer.js';
 import { CompositePriceFeed } from './core/pricing/composite-price-feed.js';
 import { JupiterPriceFeed } from './core/pricing/jupiter-price-feed.js';
+import { MeteoraDbcPriceFeed } from './core/pricing/meteora-dbc-price-feed.js';
 import { PoolDirectory } from './core/pricing/pool-directory.js';
 import { PumpPriceFeed } from './core/pricing/pump-price-feed.js';
 import { RaydiumCpmmPriceFeed } from './core/pricing/raydium-cpmm-price-feed.js';
@@ -38,13 +39,16 @@ async function main(): Promise<void> {
   const http = new FetchHttpJsonAdapter();
   const jupiterHttp = new FetchHttpJsonAdapter(cfg.jupiter.apiKey ? { 'x-api-key': cfg.jupiter.apiKey } : {});
   const quotes = new UsdQuotes(accounts, jupiterHttp, cfg.jupiter.url, 5_000, logError('quotes'));
-  const cpmm = new RaydiumCpmmPriceFeed(accounts, new PoolDirectory(http), quotes, logError('raydium-cpmm'));
+  const directory = new PoolDirectory(http);
+  const cpmm = new RaydiumCpmmPriceFeed(accounts, directory, quotes, logError('raydium-cpmm'));
+  const jupiter = new JupiterPriceFeed(jupiterHttp, accounts, { url: cfg.jupiter.url, pollMs: cfg.jupiter.pollMs }, logError('jupiter'));
   // Fast on-chain feeds first; Jupiter covers every other token (slower, polled).
   const feed = new CompositePriceFeed([
     new PumpPriceFeed(accounts, logError('price')),
     new RaydiumLaunchLabPriceFeed(accounts, quotes, cpmm, logError('raydium-launchlab')),
     cpmm,
-    new JupiterPriceFeed(jupiterHttp, accounts, { url: cfg.jupiter.url, pollMs: cfg.jupiter.pollMs }, logError('jupiter')),
+    new MeteoraDbcPriceFeed(accounts, directory, quotes, jupiter, logError('meteora-dbc')),
+    jupiter,
   ]);
   const store = new SqliteOrderStoreAdapter(cfg.dbPath);
   const gateway = new WsGateway(

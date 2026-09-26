@@ -32,4 +32,4 @@ A Chrome extension clicks Buy/Sell in the user's logged-in FOMO tab. No private 
 | 8 | Showcase website demonstrating the tech | Todo (requested 2026-09-26) |
 | 9 | Latest tweet for a token (time + optional preview) | Done — X link from on-chain metadata; latest post read via user's x.com session (minimized window); age colored green→red |
 | 10 | On-page Limit tab + FOMO-style form (presets, MC slider, inferred order type) | Done — verified live |
-| 11 | More tokens: Jupiter fallback + on-chain Raydium CPMM and LaunchLab (bonk.fun) | Done — 99 backend tests; BOP (CPMM/BONK) and a live LaunchLab curve verified |
+| 11 | More tokens: Jupiter fallback + on-chain Raydium CPMM, LaunchLab (bonk.fun) and Meteora DBC (fomo's launchpad) | Done — 119 backend tests; BOP (CPMM/BONK), a LaunchLab curve and EYES (DBC, matches fomo MC) verified live |
