@@ -17,4 +17,4 @@ Limit / take-profit / stop-loss orders for fomo's EVM tokens on Ethereum, Base, 
 ## Done when
 - Tests pass with >= 80% coverage. ✅ (158 backend tests, 96% statements; 82 extension tests)
 - Live price/MC for a sample token per chain matches fomo. ✅ (8 tokens on all 5 chains, incl. a four.meme and a flap curve, match DexScreener)
-- A user-triggered live trade on an EVM token fills and is confirmed on-chain. ⏳
+- A user-triggered live trade on an EVM token fills and is confirmed on-chain. ✅ ($25 breakout buy on Robinhood, 2026-09-26: triggered 1.4s after placing, filled in 2.6s, on-chain balance confirmed before the page reported back)
