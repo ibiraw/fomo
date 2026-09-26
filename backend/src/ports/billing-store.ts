@@ -45,6 +45,12 @@ export abstract class BillingStorePort {
   /** Payments nobody could be matched to (for manual review). */
   abstract unmatched(): PaymentRecord[];
 
+  /** Payments of one transaction (any chain / sender). */
+  abstract paymentsByTx(txId: string): PaymentRecord[];
+
+  /** Assigns an unmatched payment to an account with its credit; false when it was already assigned. */
+  abstract assignPayment(id: string, userId: string, creditUsd: number): boolean;
+
   /** When the account was granted permanent access (owner, testers), or null. */
   abstract unlockedAt(userId: string): number | null;
 

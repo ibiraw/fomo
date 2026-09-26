@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { transferFrom } from '../../src/adapters/solana/kit-solana-transfers.adapter.js';
 import { SqliteAccountStoreAdapter } from '../../src/adapters/storage/sqlite-account-store.adapter.js';
 import { SqliteBillingStoreAdapter } from '../../src/adapters/storage/sqlite-billing-store.adapter.js';
-import { BillingService, INVOICE_TTL_MS, PaymentRequiredError, type IncomingTransfer } from '../../src/core/billing/billing-service.js';
+import { BillingService, INVOICE_TTL_MS, PaymentRequiredError, transactionIdIn, type IncomingTransfer } from '../../src/core/billing/billing-service.js';
 import { EvmPaymentWatcher, TRANSFER_TOPIC } from '../../src/core/billing/evm-payment-watcher.js';
 import { STABLE_ASSETS, type PaymentAsset } from '../../src/core/billing/payment-assets.js';
 import { SolanaPaymentWatcher } from '../../src/core/billing/solana-payment-watcher.js';
@@ -25,7 +25,7 @@ const USER_EVM = '0x59a1b6cc4cfc711ce0fa70f48fef4e4b7dd2b103';
 const STRANGER = '0x' + '9'.repeat(40);
 const asset = (chain: string, symbol = 'USDC') => STABLE_ASSETS.find((a) => a.chain === chain && a.symbol === symbol)!;
 const TOKEN: PaymentAsset = { chain: 'base', address: '0x' + '7'.repeat(40), symbol: 'AUTO', decimals: 18, kind: 'token' };
-const PLAN = { priceUsd: 50, tokenPriceUsd: 35, freeOrders: 3, periodDays: 30, minCarryoverUsd: 5 };
+const PLAN = { priceUsd: 50, tokenPriceUsd: 35, freeOrders: 3, periodDays: 30 };
 const DAY = 86_400_000;
 
 /** USD amount → raw units. */
@@ -94,20 +94,18 @@ describe('BillingService monthly access', () => {
     expect(renewed.paidUntil).toBe(1_000 + 61 * DAY + 30 * DAY);
   });
 
-  it('keeps leftovers under $5, carries larger ones, and still adds up partial payments', () => {
+  it('treats overpayment beyond whole months as a tip, and still adds up partial payments', () => {
     const { svc, store, pay, alice } = setup();
-    pay({ asset: asset('solana'), amount: 53.5, from: USER_SOL }); // $3.50 over: kept
+    pay({ asset: asset('solana'), amount: 30, from: USER_SOL }); // partial: counts
+    expect(svc.status(alice.id)).toMatchObject({ unlocked: false, creditUsd: 30 });
+    pay({ asset: asset('solana'), amount: 38, from: USER_SOL }); // $68 total: one month, $18 tip
     expect(svc.status(alice.id)).toMatchObject({ unlocked: true, creditUsd: 0 });
-    expect(store.creditUsd(alice.id)).toBe(53.5); // still on the books
-    pay({ asset: asset('solana'), amount: 58, from: USER_SOL }); // $8 over: carried to the next month
-    expect(svc.status(alice.id).creditUsd).toBeCloseTo(8);
-    pay({ asset: asset('solana'), amount: 3, from: USER_SOL }); // no month bought: small top-ups still count
-    expect(svc.status(alice.id).creditUsd).toBeCloseTo(11);
+    expect(store.creditUsd(alice.id)).toBe(68); // still on the books
   });
 
   it('pays for several periods at once and settles payments recorded before a restart', () => {
     const { svc, store, pay, alice, changed } = setup();
-    pay({ asset: asset('solana'), amount: 100, from: USER_SOL });
+    pay({ asset: asset('solana'), amount: 120, from: USER_SOL }); // two months + $20 tip
     expect(svc.status(alice.id).paidUntil).toBe(1_000 + 60 * DAY);
     store.setAccess(alice.id, { paidUntil: 0, spentUsd: 0 }); // as if the credit had never been settled
     changed.length = 0;
@@ -209,6 +207,40 @@ describe('BillingService payments', () => {
     svc.forget(alice.id);
     expect(svc.status(alice.id).unlocked).toBe(false);
     expect(store.unmatched()).toHaveLength(1);
+  });
+});
+
+describe('BillingService claims (exchange withdrawals)', () => {
+  const HASH = '0x' + 'ab'.repeat(32);
+  const SIG = '5amakyYoQ1Hbe63wguvHR7DpoN2xHJmycSt6VFC1qoziZjqbZStRyihLW7Nf3uW39xAEUBWtQfADxZj5V5ZpMDnJ';
+
+  it('reads the transaction id from ids and explorer links', () => {
+    expect(transactionIdIn(`https://basescan.org/tx/${HASH.toUpperCase().replace('0X', '0x')}`)).toBe(HASH);
+    expect(transactionIdIn(`https://solscan.io/tx/${SIG}?cluster=mainnet`)).toBe(SIG);
+    expect(transactionIdIn(`  ${SIG}  `)).toBe(SIG);
+    expect(transactionIdIn('hello')).toBeNull();
+  });
+
+  it('credits an unmatched exchange payment to the account that claims it, once', () => {
+    const { svc, store, pay, bob, alice } = setup();
+    expect(pay({ asset: asset('base'), amount: 49.2, txId: HASH })).toBeNull(); // exchange wallet, no code: unmatched
+    expect(() => svc.claim(bob.id, 'nonsense')).toThrow(/transaction ID/);
+    expect(() => svc.claim(bob.id, '0x' + 'cd'.repeat(32))).toThrow(/haven't seen that payment/);
+    const status = svc.claim(bob.id, `https://basescan.org/tx/${HASH}`);
+    expect(status).toMatchObject({ unlocked: true }); // $49.20 is within 2% of $50
+    expect(store.unmatched()).toHaveLength(0);
+    expect(() => svc.claim(bob.id, HASH)).toThrow(/already on your account/);
+    expect(() => svc.claim(alice.id, HASH)).toThrow(/already credited/);
+  });
+
+  it('adds up a short exchange payment and prices unassigned token payments when claimed', () => {
+    const { svc, pay, bob, setPrice } = setup({ token: true, tokenPrice: null });
+    pay({ asset: asset('solana'), amount: 20, txId: SIG, from: 'ExchangeHotWallet111111111111111111111111111' });
+    expect(svc.claim(bob.id, SIG)).toMatchObject({ unlocked: false, creditUsd: 20 });
+    pay({ asset: TOKEN, amount: 2100, txId: HASH, from: STRANGER });
+    expect(() => svc.claim(bob.id, HASH)).toThrow(/can't be priced/);
+    setPrice(0.01); // 2100 tokens = $21 → counts as $30 toward $50
+    expect(svc.claim(bob.id, HASH)).toMatchObject({ unlocked: true });
   });
 });
 

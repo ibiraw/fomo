@@ -49,8 +49,6 @@ const EnvSchema = z.object({
   FREE_ORDERS: z.coerce.number().int().min(0).default(3),
   /** Days of access one payment buys. */
   ACCESS_PERIOD_DAYS: z.coerce.number().positive().default(30),
-  /** Leftover credit below this (USD) after buying a period is kept, not carried over. */
-  MIN_CARRYOVER_USD: z.coerce.number().min(0).default(5),
   /** Optional Jupiter API key; without it the keyless lite endpoint is used. */
   JUPITER_API_KEY: z.string().min(1).optional(),
   JUPITER_POLL_MS: z.coerce.number().int().min(1_000).default(1_500),
@@ -77,7 +75,6 @@ export interface AppConfig {
     readonly tokenPriceUsd: number;
     readonly freeOrders: number;
     readonly periodDays: number;
-    readonly minCarryoverUsd: number;
   } | null;
   /** RPC endpoints per EVM chain; chains without both URLs are not enabled. */
   readonly evm: ReadonlyMap<EvmChain, { readonly http: string; readonly wss: string }>;
@@ -120,7 +117,6 @@ function paywallFrom(e: z.infer<typeof EnvSchema>): AppConfig['paywall'] {
     tokenPriceUsd: e.UNLOCK_TOKEN_PRICE_USD,
     freeOrders: e.FREE_ORDERS,
     periodDays: e.ACCESS_PERIOD_DAYS,
-    minCarryoverUsd: e.MIN_CARRYOVER_USD,
   };
 }
 

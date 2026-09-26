@@ -34,6 +34,7 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('account.delete'), reqId: z.string() }),
   z.object({ type: z.literal('billing.status'), reqId: z.string() }),
   z.object({ type: z.literal('billing.quote'), reqId: z.string() }),
+  z.object({ type: z.literal('billing.claim'), reqId: z.string(), tx: z.string().max(300) }),
   z.object({ type: z.literal('exec.result'), execId: z.string(), result: ExecutionResultSchema }),
   z.object({ type: z.literal('pong') }),
 ]);

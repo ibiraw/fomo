@@ -11,6 +11,7 @@ import { Check, Copy } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import type { SendFn } from '@/hooks/use-background';
 import { chainName, daysLeft, mustUnlock, remainingUsd, renewSoon, type BillingQuote, type BillingStatus, type PaymentMethod } from '@/lib/billing';
 import { cn } from '@/lib/utils';
@@ -69,7 +70,7 @@ function MethodDetails({ method, status }: { method: PaymentMethod; status: Bill
         <b>From your fomo wallet:</b> send {token ? `$${remaining.toFixed(2)} worth of ${method.symbol}` : `${remaining.toFixed(2)} ${method.symbol}`} or more — it's matched to you automatically.
       </p>
       <p className="rounded-md border border-yellow/50 bg-yellow/10 px-2 py-1.5 text-[11px] text-yellow">
-        fomo takes a withdrawal fee, so a bit less arrives than you send. Add about $0.50 — anything short just adds up, and you can top up.
+        fomo and exchanges take a withdrawal fee, so a bit less arrives than you send. Add about $0.50 — if it comes up short you can top up; anything extra isn't refunded.
       </p>
       <CopyField label="From any other wallet, send exactly" value={`${method.amount}`} />
       <p className="text-[11px] text-muted-foreground">
@@ -81,6 +82,24 @@ function MethodDetails({ method, status }: { method: PaymentMethod; status: Bill
 
 /** Date like "Oct 26". */
 const shortDate = (ms: number): string => new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+/** "Paid from an exchange?": credits a payment by its transaction id or explorer link. */
+function ClaimForm({ send }: { send: SendFn }) {
+  const [tx, setTx] = useState('');
+  const claim = useMutation({ mutationFn: () => send({ type: 'billing.claim', tx }), onSuccess: () => setTx('') });
+  return (
+    <form className="space-y-1.5 rounded-md border border-border p-2" onSubmit={(e) => { e.preventDefault(); claim.mutate(); }}>
+      <p className="text-xs font-medium">Paid from an exchange?</p>
+      <p className="text-[11px] text-muted-foreground">Exchanges send from their own wallet and change the amount, so paste the transaction link or ID from your withdrawal history.</p>
+      <div className="flex gap-1.5">
+        <Input aria-label="Transaction link or ID" value={tx} onChange={(e) => setTx(e.target.value)} placeholder="https://solscan.io/tx/… or 0x…" className="h-8 text-xs" />
+        <Button type="submit" size="sm" disabled={!tx.trim() || claim.isPending}>{claim.isPending ? '…' : 'Find it'}</Button>
+      </div>
+      {claim.isSuccess && <p className="text-xs text-buy">Found it — added to your account.</p>}
+      {claim.error && <p className="text-xs text-sell">{claim.error.message}</p>}
+    </form>
+  );
+}
 
 /** Settings → Subscription. */
 export function UnlockSection({ status, send }: { status: BillingStatus | null; send: SendFn }) {
@@ -151,6 +170,7 @@ export function UnlockSection({ status, send }: { status: BillingStatus | null; 
             })}
           </div>
           {selected && <MethodDetails method={selected} status={q} />}
+          <ClaimForm send={send} />
           <p className="text-[11px] text-muted-foreground">Your code {q.code} is kept until {new Date(q.expiresAt).toLocaleString()}.</p>
         </div>
       )}

@@ -97,6 +97,16 @@ export class SqliteBillingStoreAdapter extends BillingStorePort {
     return (this.db.prepare('SELECT * FROM payments WHERE user_id IS NULL ORDER BY received_at DESC').all() as unknown as PaymentRow[]).map(toPayment);
   }
 
+  /** Payments whose id carries this transaction (ids are `<chain>:<tx>:<sender>`). */
+  paymentsByTx(txId: string): PaymentRecord[] {
+    return (this.db.prepare("SELECT * FROM payments WHERE id LIKE '%:' || ? || ':%'").all(txId) as unknown as PaymentRow[]).map(toPayment);
+  }
+
+  /** Compare-and-set assignment of an unmatched payment. */
+  assignPayment(id: string, userId: string, creditUsd: number): boolean {
+    return this.db.prepare('UPDATE payments SET user_id = ?, credit_usd = ? WHERE id = ? AND user_id IS NULL').run(userId, creditUsd, id).changes === 1;
+  }
+
   /** Unlock time or null. */
   unlockedAt(userId: string): number | null {
     const row = this.db.prepare('SELECT unlocked_at FROM unlocks WHERE user_id = ?').get(userId) as { unlocked_at: number } | undefined;

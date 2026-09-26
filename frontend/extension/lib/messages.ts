@@ -44,6 +44,7 @@ export type PopupRequest =
   | { readonly type: 'account.delete'; readonly reqId: string }
   | { readonly type: 'wallets.set'; readonly reqId: string; readonly wallets: Wallets }
   | { readonly type: 'billing.quote'; readonly reqId: string }
+  | { readonly type: 'billing.claim'; readonly reqId: string; readonly tx: string }
   | { readonly type: 'order.create'; readonly reqId: string; readonly order: NewOrder }
   | { readonly type: 'order.cancel'; readonly reqId: string; readonly id: string }
   | { readonly type: 'token.info'; readonly reqId: string; readonly mint: string }

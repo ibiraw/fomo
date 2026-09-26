@@ -63,7 +63,7 @@ export async function buildBilling(d: Deps): Promise<BillingParts> {
   const service = new BillingService(
     store,
     d.accounts,
-    { priceUsd: d.paywall.priceUsd, tokenPriceUsd: d.paywall.tokenPriceUsd, freeOrders: d.paywall.freeOrders, periodDays: d.paywall.periodDays, minCarryoverUsd: d.paywall.minCarryoverUsd },
+    { priceUsd: d.paywall.priceUsd, tokenPriceUsd: d.paywall.tokenPriceUsd, freeOrders: d.paywall.freeOrders, periodDays: d.paywall.periodDays },
     d.paywall.treasury,
     STABLE_ASSETS.filter((a) => a.chain === 'solana' || d.evm.has(a.chain as EvmChain)),
     token,

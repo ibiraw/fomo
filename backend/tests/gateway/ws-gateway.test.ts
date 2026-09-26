@@ -312,7 +312,7 @@ describe('WsGateway paywall', () => {
     confirmers = new WalletConfirmers((id) => accounts.wallets(id), () => null);
     gateway = new WsGateway({ host: '127.0.0.1', port: 0, execTimeoutMs: 300, tickThrottleMs: 250, pingIntervalMs: 50 }, () => undefined);
     const billing = new BillingService(
-      new SqliteBillingStoreAdapter(':memory:'), accountStore, { priceUsd: 50, tokenPriceUsd: 35, freeOrders: 1, periodDays: 30, minCarryoverUsd: 5 },
+      new SqliteBillingStoreAdapter(':memory:'), accountStore, { priceUsd: 50, tokenPriceUsd: 35, freeOrders: 1, periodDays: 30 },
       { solana: 'JDY8BeQUPmcRZnYJGVBiU7x71SMbdUECW6NMUdGGKQDg', evm: '0x' + 'a'.repeat(40) }, STABLE_ASSETS, null, () => null,
       (id) => ({ filled: store.list(['filled'], id).length, waiting: store.list(['open', 'triggered', 'executing'], id).length }), (id) => gateway.pushBilling(id),
     );

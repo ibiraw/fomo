@@ -335,6 +335,11 @@ export class WsGateway extends TradeExecutorPort {
           if (!this.billing) throw new FomoError('This server has no paywall');
           return this.billing.quote(userId);
         });
+      case 'billing.claim':
+        return this.reply(client, msg.reqId, async () => {
+          if (!this.billing) throw new FomoError('This server has no paywall');
+          return this.billing.claim(userId, msg.tx);
+        });
       case 'account.delete':
         await this.reply(client, msg.reqId, async () => {
           const orders = engine.deleteUserOrders(userId);

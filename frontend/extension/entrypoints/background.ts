@@ -222,6 +222,8 @@ export default defineBackground({
           data = tick;
         } else if (req.type === 'billing.quote') {
           data = await conn.request('billing.quote', {});
+        } else if (req.type === 'billing.claim') {
+          data = await conn.request('billing.claim', { tx: req.tx });
         } else if (req.type === 'x.latest') {
           data = await xLatest.get(req.url, req.force ?? false);
         }

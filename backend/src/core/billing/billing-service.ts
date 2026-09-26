@@ -9,13 +9,14 @@
  *              2. Otherwise the amount's last digits carry the account's payment code (e.g. 50.004137 USDC → code 4137,
  *                 or 1,234.4137 tokens → code 4137).
  *              3. Otherwise it is kept as unmatched for manual review.
- *              Payments add up; every full price of credit becomes one more period. What is left over after buying
- *              periods carries to the next one only when it is at least `minCarryoverUsd`; smaller remainders are
- *              kept. Payments are final.
+ *              Payments add up until they reach the price; every full price then becomes one more period (so paying
+ *              for two months at once works). Whatever is left over after buying periods is a tip and is not carried
+ *              over. Payments sent from an exchange (no code, exchange's wallet) are claimed by pasting the
+ *              transaction id. Payments are final.
  * @author Reborn1987
  */
 
-import { FomoError } from '../errors.js';
+import { FomoError, ValidationError } from '../errors.js';
 import type { AccountStorePort } from '../../ports/account-store.js';
 import type { BillingStorePort, Invoice, PaidAccess } from '../../ports/billing-store.js';
 import type { PaymentAsset } from './payment-assets.js';
@@ -30,8 +31,6 @@ export interface Plan {
   readonly freeOrders: number;
   /** Days of access one payment buys. */
   readonly periodDays: number;
-  /** Credit left over after buying periods is kept (not carried to the next period) when below this. */
-  readonly minCarryoverUsd: number;
 }
 
 /** Where payments go. */
@@ -103,6 +102,18 @@ export const INVOICE_TTL_MS = 24 * 60 * 60_000;
 /** Credit within 2% of the price buys a period (token prices move while the transfer confirms). */
 const UNLOCK_TOLERANCE = 0.98;
 const DAY_MS = 86_400_000;
+
+/**
+ * The transaction id in a pasted id or explorer link: an EVM hash (0x + 64 hex) or a Solana signature (base58, 64–88
+ * characters). Null when there is none.
+ */
+export function transactionIdIn(text: string): string | null {
+  const t = text.trim();
+  const evm = /0x[0-9a-fA-F]{64}/.exec(t);
+  if (evm) return evm[0].toLowerCase();
+  const sol = t.split(/[/?#\s]+/).find((part) => /^[1-9A-HJ-NP-Za-km-z]{64,88}$/.test(part));
+  return sol ?? null;
+}
 
 /** Amount in whole units (float) from raw units. */
 function units(raw: bigint, decimals: number): number {
@@ -219,7 +230,7 @@ export class BillingService {
     const userId = this.matchUser(t, now);
     const creditUsd = userId ? this.creditFor(t, userId, now) : 0;
     const stored = this.store.addPayment({
-      id: `${t.chain}:${t.txId}:${t.from.toLowerCase()}`,
+      id: `${t.chain}:${t.chain === 'solana' ? t.txId : t.txId.toLowerCase()}:${t.from.toLowerCase()}`,
       chain: t.chain,
       asset: t.asset.address,
       from: t.from,
@@ -247,12 +258,34 @@ export class BillingService {
       extended = true;
     }
     if (extended) {
-      const leftover = credit - access.spentUsd;
-      // Small remainders (e.g. overpaying by a few dollars) are kept rather than carried to the next period.
-      if (leftover > 0 && leftover < this.plan.minCarryoverUsd) access = { ...access, spentUsd: credit };
-      this.store.setAccess(userId, access);
+      // Anything beyond whole periods is a tip: it doesn't count toward the next period.
+      this.store.setAccess(userId, { ...access, spentUsd: Math.max(access.spentUsd, credit) });
     }
     return extended;
+  }
+
+  /**
+   * Credits an unmatched payment to the account that says it sent it (e.g. from an exchange, where neither the sender
+   * nor the exact amount identify the user). `tx` is a transaction id or an explorer link.
+   */
+  claim(userId: string, tx: string): BillingStatus {
+    const txId = transactionIdIn(tx);
+    if (!txId) throw new ValidationError('Paste the transaction ID or its explorer link (e.g. from your exchange\'s withdrawal history).');
+    const payments = this.store.paymentsByTx(txId);
+    if (payments.length === 0) {
+      throw new ValidationError("We haven't seen that payment yet. It can take a minute — check it went to the address shown, on that chain, then try again.");
+    }
+    const open = payments.filter((p) => p.userId === null);
+    if (open.length === 0) throw new ValidationError(payments.some((p) => p.userId === userId) ? 'That payment is already on your account.' : 'That payment was already credited to an account.');
+    const now = this.now();
+    for (const p of open) {
+      const credit = p.creditUsd > 0 ? p.creditUsd : this.creditForRecorded(p, userId, now);
+      if (credit === null) throw new ValidationError("That payment can't be priced right now — try again in a minute.");
+      this.store.assignPayment(p.id, userId, credit);
+    }
+    this.settle(userId, now);
+    this.onChange(userId);
+    return this.status(userId);
   }
 
   /** Settles every paying account (at startup), notifying those whose access was extended. */
@@ -309,6 +342,13 @@ export class BillingService {
     if (!price) return null;
     // Token payments get the discount: $35 of token counts as the full $50.
     return amount * price * (this.plan.priceUsd / this.plan.tokenPriceUsd);
+  }
+
+  /** Credit for a recorded (unassigned) payment: stables 1:1, the token at its price with the discount; null when unpriced. */
+  private creditForRecorded(p: { asset: string; amount: number }, userId: string, now: number): number | null {
+    if (this.token?.address !== p.asset) return p.amount;
+    const price = this.store.activeInvoice(userId, now)?.tokenPriceUsd ?? this.tokenUsd();
+    return price ? p.amount * price * (this.plan.priceUsd / this.plan.tokenPriceUsd) : null;
   }
 
   /** Treasury wallet for a chain. */

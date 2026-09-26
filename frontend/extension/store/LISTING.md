@@ -36,7 +36,8 @@ Everything to paste into the Chrome Web Store developer dashboard. Visibility: *
 > Pricing
 > • Your first 3 filled orders are free.
 > • Then $50 per month in USDC (on Solana, Ethereum, Base, BNB Chain or Arc; USDG on Robinhood Chain). Each payment adds 30 days; paying early adds to the end of your month. Paying from your fomo wallet is matched automatically.
-> • Crypto payments are final and non-refundable.
+> • Paid from an exchange? Paste the transaction link in Settings and it's credited to you.
+> • Crypto payments are final and non-refundable; anything paid above the price isn't refunded.
 >
 > Keep Chrome open with fomo.family logged in for orders to run.
 >
