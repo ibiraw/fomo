@@ -107,11 +107,29 @@ export class OrderEngine {
       throw new ValidationError(parsed.error.issues.map((i) => `${i.path.join('.') || 'order'}: ${i.message}`).join('; '));
     }
     await this.ensureWatch(parsed.data.mint); // throws UnsupportedPoolError before anything is saved
+    if (parsed.data.side === 'sell') await this.requireHolding(parsed.data.mint);
     const order = this.store.create(parsed.data);
     this.publish(order);
     const tick = this.lastTick.get(order.mint);
     if (tick) this.evaluate(tick);
     return order;
+  }
+
+  /**
+   * Sell orders (take profit / stop loss) need a balance to sell. Checked on-chain against the configured
+   * wallet; without a wallet there is nothing to check against, so the order is accepted.
+   */
+  private async requireHolding(mint: string): Promise<void> {
+    if (!this.confirmer) return;
+    let balance: bigint;
+    try {
+      balance = await this.confirmer.snapshot(mint);
+    } catch (err) {
+      throw new ValidationError(`Couldn't check your balance of this token (${err instanceof Error ? err.message : String(err)}). Try again in a moment.`);
+    }
+    if (balance <= 0n) {
+      throw new ValidationError("You don't hold this token — buy it first, then set a take profit or stop loss.");
+    }
   }
 
   /** Cancels an order that has not started executing; `reason` is stored as its note. */

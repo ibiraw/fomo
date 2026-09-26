@@ -57,6 +57,29 @@ describe('WalletTradeConfirmer', () => {
   });
 });
 
+describe('OrderEngine sell orders need a balance', () => {
+  const SELL = { mint: MINT, side: 'sell', trigger: { metric: 'price', direction: 'above', value: 9 }, amount: { kind: 'percent', value: 50 } };
+
+  it('refuses a take profit / stop loss on a token the wallet does not hold', async () => {
+    const { engine, store } = await setup();
+    await expect(engine.createOrder(SELL)).rejects.toThrow(/don't hold this token/);
+    expect(store.list()).toHaveLength(0);
+  });
+
+  it('accepts it once the wallet holds the token, and never checks buys', async () => {
+    const { accounts, engine } = await setup();
+    await expect(engine.createOrder(BUY)).resolves.toMatchObject({ side: 'buy' });
+    accounts.balances.set(KEY, 5n);
+    await expect(engine.createOrder(SELL)).resolves.toMatchObject({ side: 'sell' });
+  });
+
+  it('explains when the balance cannot be checked', async () => {
+    const { accounts, engine } = await setup();
+    accounts.getTokenBalance = async () => { throw new Error('rpc down'); };
+    await expect(engine.createOrder(SELL)).rejects.toThrow(/Couldn't check your balance.*rpc down/);
+  });
+});
+
 describe('OrderEngine on-chain confirmation', () => {
   it('rescues a UI "unknown" result when the wallet balance moved', async () => {
     const { accounts, store, feed, exec, engine } = await setup();
