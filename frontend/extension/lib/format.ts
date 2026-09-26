@@ -79,3 +79,18 @@ export function timeAgo(iso: string, now: number = Date.now()): string {
   if (s < 86_400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86_400)}d ago`;
 }
+
+/** Age at which a post counts as fully "old" (red). */
+const OLD_POST_MINUTES = 24 * 60;
+
+/**
+ * Color for a post's age: green when fresh, through yellow/orange, to red at 24h+.
+ * Uses a log scale so minutes-to-hours differences stay visible.
+ */
+export function ageColor(iso: string, now: number = Date.now()): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return 'hsl(0 0% 60%)';
+  const minutes = Math.max(0, (now - t) / 60_000);
+  const x = Math.min(1, Math.log1p(minutes) / Math.log1p(OLD_POST_MINUTES));
+  return `hsl(${Math.round(140 * (1 - x))} 80% 55%)`;
+}

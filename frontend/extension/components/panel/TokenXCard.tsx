@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import type { SendFn } from '@/hooks/use-background';
-import { timeAgo } from '@/lib/format';
+import { ageColor, timeAgo } from '@/lib/format';
 import type { TokenInfo } from '@/lib/messages';
 import type { XLatest } from '@/lib/x-latest';
 
@@ -76,7 +76,7 @@ export function TokenXCard({ mint, send }: { mint: string; send: SendFn }) {
       {result?.ok && (
         <>
           <p className="text-sm">
-            Last post <span className="font-semibold text-[#facc15]">{timeAgo(result.post.time, now)}</span>
+            Last post <span className="font-semibold" style={{ color: ageColor(result.post.time, now) }}>{timeAgo(result.post.time, now)}</span>
           </p>
           <Button type="button" size="sm" variant="secondary" className="w-full" onClick={() => setShowPost((v) => !v)}>
             {showPost ? 'Hide post' : 'Show post'}

@@ -7,7 +7,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { timeAgo } from '../lib/format';
+import { ageColor, timeAgo } from '../lib/format';
 import { XLatestService, type XBrowserApi, type XTimings } from '../lib/x-latest';
 import { scrapeLatestPost, type XScrapeResult } from '../lib/x-scraper';
 
@@ -116,5 +116,18 @@ describe('timeAgo', () => {
     expect(timeAgo('2026-09-26T09:00:00Z', now)).toBe('3h ago');
     expect(timeAgo('2026-09-24T12:00:00Z', now)).toBe('2d ago');
     expect(timeAgo('garbage', now)).toBe('unknown time');
+  });
+});
+
+describe('ageColor', () => {
+  it('goes from green (fresh) to red (24h+)', () => {
+    const now = Date.parse('2026-09-26T12:00:00Z');
+    const hue = (iso: string): number => Number(/hsl\((\d+)/.exec(ageColor(iso, now))![1]);
+    expect(hue('2026-09-26T12:00:00Z')).toBe(140);
+    expect(hue('2026-09-26T11:50:00Z')).toBeGreaterThan(hue('2026-09-26T11:00:00Z'));
+    expect(hue('2026-09-26T11:00:00Z')).toBeGreaterThan(hue('2026-09-26T06:00:00Z'));
+    expect(hue('2026-09-25T12:00:00Z')).toBe(0);
+    expect(hue('2026-09-20T12:00:00Z')).toBe(0);
+    expect(ageColor('bad', now)).toBe('hsl(0 0% 60%)');
   });
 });
