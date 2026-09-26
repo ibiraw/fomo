@@ -17,6 +17,7 @@ import { VaultPair } from '../../src/core/pricing/vault-pair.js';
 import { HttpJsonPort } from '../../src/ports/http-json.js';
 import type { PriceTick } from '../../src/ports/price-feed.js';
 import { FakeAccounts, pythBytes, tokenAccountBytes } from '../helpers/fake-accounts.js';
+import { FakePriceFeed } from '../helpers/fakes.js';
 
 const BOP = '527PdUTGwcFxVEMXt8tyRJA1nYbVedgSiSfh4s2LWTWz' as Address;
 const BONK = 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263' as Address;
@@ -178,6 +179,58 @@ describe('UsdQuotes', () => {
     const q = new UsdQuotes(new FakeAccounts(), new FakeHttp(), JUP, 1000, () => undefined);
     await expect(q.start()).rejects.toThrow(/Pyth/);
     await q.poll(); // nothing tracked: no-op
+  });
+});
+
+describe('UsdQuotes on-chain chaining', () => {
+  /** UsdQuotes with a fake on-chain feed. */
+  async function chainSetup(firstTickMs = 200) {
+    const accounts = new FakeAccounts();
+    accounts.data.set(PYTH_SOL_USD_ACCOUNT, pythBytes(15000n, -2));
+    const http = new FakeHttp();
+    const errors: unknown[] = [];
+    const quotes = new UsdQuotes(accounts, http, JUP, 60_000, (e) => errors.push(e), firstTickMs);
+    await quotes.start();
+    const onchain = new FakePriceFeed();
+    quotes.setOnchainFeed(onchain);
+    return { http, quotes, onchain, errors };
+  }
+
+  it('prices a quote token live through the on-chain feeds before Jupiter', async () => {
+    const { http, quotes, onchain } = await chainSetup();
+    http.jup[BONK] = 0.00002;
+    const p = quotes.track(BONK);
+    await vi.waitFor(() => expect(onchain.listeners.has(BONK)).toBe(true));
+    onchain.tick(BONK, 0.00003);
+    await p;
+    expect(quotes.usd(BONK)).toBe(0.00003); // on-chain value, not Jupiter's
+    const seen = vi.fn();
+    quotes.onChange(seen);
+    onchain.tick(BONK, 0.00004);
+    expect(seen).toHaveBeenCalledWith(BONK);
+    await quotes.track(BONK); // already live: no-op
+  });
+
+  it('falls back to Jupiter when no on-chain route exists or no price arrives in time', async () => {
+    const a = await chainSetup();
+    a.onchain.unsupported.add(BONK);
+    a.http.jup[BONK] = 0.00002;
+    await a.quotes.track(BONK);
+    expect(a.quotes.usd(BONK)).toBe(0.00002);
+    const b = await chainSetup(20);
+    b.http.jup[BONK] = 0.00005;
+    await b.quotes.track(BONK); // on-chain watch never ticks
+    expect(b.quotes.usd(BONK)).toBe(0.00005);
+    expect(b.onchain.listeners.has(BONK)).toBe(false);
+  });
+
+  it('refuses cycles and reports unexpected on-chain errors', async () => {
+    const { http, quotes, onchain, errors } = await chainSetup();
+    http.jup[BOP] = 1;
+    onchain.watch = async (mint) => { await quotes.track(mint); throw new Error('unreachable'); };
+    await quotes.track(BOP); // the inner track(BOP) hits the cycle guard; outer falls back to Jupiter
+    expect(quotes.usd(BOP)).toBe(1);
+    expect(errors.some((e) => e instanceof Error && /unreachable/.test(e.message))).toBe(false);
   });
 });
 

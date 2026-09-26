@@ -6,9 +6,9 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
+import { ChevronDown, ChevronUp, ExternalLink, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
 import type { SendFn } from '@/hooks/use-background';
 import { ageColor, timeAgo } from '@/lib/format';
 import type { TokenInfo } from '@/lib/messages';
@@ -62,10 +62,17 @@ export function TokenXCard({ mint, send }: { mint: string; send: SendFn }) {
   return (
     <div className="space-y-2 rounded-lg border bg-card p-2.5">
       <div className="flex items-center justify-between gap-2 text-xs">
-        <a href={twitter.url} target="_blank" rel="noreferrer" className="font-semibold hover:underline">
+        <a href={twitter.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold underline decoration-muted-foreground/60 underline-offset-2 hover:decoration-foreground">
           𝕏 {sourceLabel(twitter)}
+          <ExternalLink className="size-3 text-muted-foreground" aria-hidden />
         </a>
-        <button type="button" onClick={refresh} disabled={latest.isFetching} className="text-muted-foreground hover:text-foreground disabled:opacity-50">
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={latest.isFetching}
+          className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
+        >
+          <RefreshCw className={latest.isFetching ? 'size-3 animate-spin' : 'size-3'} aria-hidden />
           {latest.isFetching ? 'Checking…' : 'Refresh'}
         </button>
       </div>
@@ -78,12 +85,21 @@ export function TokenXCard({ mint, send }: { mint: string; send: SendFn }) {
           <p className="text-sm">
             Last post <span className="font-semibold" style={{ color: ageColor(result.post.time, now) }}>{timeAgo(result.post.time, now)}</span>
           </p>
-          <Button type="button" size="sm" variant="secondary" className="w-full" onClick={() => setShowPost((v) => !v)}>
+          <button
+            type="button"
+            onClick={() => setShowPost((v) => !v)}
+            aria-expanded={showPost}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-input bg-accent py-1.5 text-xs font-semibold text-foreground transition-colors hover:border-foreground/40 hover:bg-foreground/10"
+          >
             {showPost ? 'Hide post' : 'Show post'}
-          </Button>
+            {showPost ? <ChevronUp className="size-3.5" aria-hidden /> : <ChevronDown className="size-3.5" aria-hidden />}
+          </button>
           {showPost && (
-            <a href={result.post.url} target="_blank" rel="noreferrer" className="block space-y-2 rounded-md bg-secondary p-2 hover:bg-accent">
-              <p className="text-xs text-muted-foreground">@{result.post.author} · {new Date(result.post.time).toLocaleString()}</p>
+            <a href={result.post.url} target="_blank" rel="noreferrer" className="block space-y-2 rounded-md border border-input bg-secondary p-2 transition-colors hover:border-foreground/40">
+              <p className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>@{result.post.author} · {new Date(result.post.time).toLocaleString()}</span>
+                <span className="inline-flex shrink-0 items-center gap-1 font-medium text-foreground underline underline-offset-2">Open on X <ExternalLink className="size-3" aria-hidden /></span>
+              </p>
               {result.post.text && <p className="whitespace-pre-wrap text-xs leading-relaxed">{result.post.text}</p>}
               {result.post.image && <img src={result.post.image} alt="" className="max-h-40 w-full rounded object-cover" />}
             </a>

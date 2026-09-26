@@ -68,4 +68,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Anything clickable shows the hand cursor. */
+  button:not(:disabled), [role="button"], [role="tab"], [role="radio"], summary, a[href], label[for] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
 }

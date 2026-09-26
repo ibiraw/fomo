@@ -14,6 +14,7 @@ import { HoldingsGuard } from './core/orders/holdings-guard.js';
 import { WalletTradeConfirmer } from './core/orders/wallet-trade-confirmer.js';
 import { CompositePriceFeed } from './core/pricing/composite-price-feed.js';
 import { JupiterPriceFeed } from './core/pricing/jupiter-price-feed.js';
+import { MeteoraDammV2PriceFeed } from './core/pricing/meteora-damm-v2-price-feed.js';
 import { MeteoraDbcPriceFeed } from './core/pricing/meteora-dbc-price-feed.js';
 import { PoolDirectory } from './core/pricing/pool-directory.js';
 import { PumpPriceFeed } from './core/pricing/pump-price-feed.js';
@@ -42,14 +43,19 @@ async function main(): Promise<void> {
   const directory = new PoolDirectory(http);
   const cpmm = new RaydiumCpmmPriceFeed(accounts, directory, quotes, logError('raydium-cpmm'));
   const jupiter = new JupiterPriceFeed(jupiterHttp, accounts, { url: cfg.jupiter.url, pollMs: cfg.jupiter.pollMs }, logError('jupiter'));
+  const damm2 = new MeteoraDammV2PriceFeed(accounts, directory, quotes, logError('meteora-damm2'));
   // Fast on-chain feeds first; Jupiter covers every other token (slower, polled).
-  const feed = new CompositePriceFeed([
+  const onchain = new CompositePriceFeed([
     new PumpPriceFeed(accounts, logError('price')),
     new RaydiumLaunchLabPriceFeed(accounts, quotes, cpmm, logError('raydium-launchlab')),
     cpmm,
-    new MeteoraDbcPriceFeed(accounts, directory, quotes, jupiter, logError('meteora-dbc')),
-    jupiter,
+    // DBC curves migrate to DAMM v2; fall back to Jupiter if that pool isn't listed yet.
+    new MeteoraDbcPriceFeed(accounts, directory, quotes, new CompositePriceFeed([damm2, jupiter]), logError('meteora-dbc')),
+    damm2,
   ]);
+  // Quote tokens like VBUCKS are priced through the same on-chain feeds before falling back to Jupiter.
+  quotes.setOnchainFeed(onchain);
+  const feed = new CompositePriceFeed([onchain, jupiter]);
   const store = new SqliteOrderStoreAdapter(cfg.dbPath);
   const gateway = new WsGateway(
     { host: cfg.gatewayHost, port: cfg.gatewayPort, token: cfg.pairingToken, execTimeoutMs: cfg.execTimeoutMs, tickThrottleMs: 250, pingIntervalMs: 20_000 },

@@ -62,7 +62,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
           <p className="text-sm font-semibold text-yellow">Limit orders aren't available for this token yet</p>
           <p className="text-xs text-muted-foreground">It trades on a pool auto fomo can't read prices from yet, so orders couldn't trigger.</p>
           <details className="text-[11px] text-faint">
-            <summary className="cursor-pointer select-none text-muted-foreground hover:text-foreground">Technical details</summary>
+            <summary className="select-none text-muted-foreground underline underline-offset-2 hover:text-foreground">Technical details</summary>
             <p className="mt-1 break-all">{priceError}</p>
           </details>
         </div>
@@ -87,7 +87,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
         {scope === 'token' && orders.length === 0 && state.orders.length > 0 ? (
           <p className="py-4 text-center text-xs text-muted-foreground">
             No orders on this token.{' '}
-            <button type="button" onClick={() => setScope('all')} className="font-semibold text-foreground underline-offset-2 hover:underline">
+            <button type="button" onClick={() => setScope('all')} className="font-semibold text-foreground underline underline-offset-2 hover:decoration-2">
               See all orders ({activeAll > 0 ? `${activeAll} active` : state.orders.length})
             </button>
           </p>

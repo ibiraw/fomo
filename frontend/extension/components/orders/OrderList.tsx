@@ -67,7 +67,7 @@ function OrderRow({ order, tick, onCancel, showMint, label, linkTarget }: {
         <span className="min-w-0 flex-1 truncate text-foreground">
           {triggerLabel(order)} · {amountShort(order)}
           {showMint && (
-            <a className="ml-1 font-semibold text-muted-foreground hover:text-foreground hover:underline" href={tokenUrl(order.mint)} target={linkTarget} rel="noreferrer" title={order.mint}>
+            <a className="ml-1 font-semibold text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground hover:decoration-solid" href={tokenUrl(order.mint)} target={linkTarget} rel="noreferrer" title={`Open ${order.mint} on fomo`}>
               {label ?? shortMint(order.mint)}
             </a>
           )}

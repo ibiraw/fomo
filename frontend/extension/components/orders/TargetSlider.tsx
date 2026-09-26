@@ -45,8 +45,8 @@ export function TargetSlider({ percent, onChange }: Props) {
               onClick={() => onChange(clampPercent(t))}
               title={t === -100 ? 'Sets −99% (a target of $0 is not possible)' : `Set ${t > 0 ? '+' : ''}${t}%`}
               className={cn(
-                'rounded px-1 py-0.5 text-[10px] transition-colors hover:bg-accent hover:text-foreground',
-                clampPercent(t) === clampPercent(percent) ? 'font-semibold text-foreground' : 'text-muted-foreground',
+                'rounded bg-accent px-1.5 py-0.5 text-[10px] transition-colors hover:bg-foreground/15 hover:text-foreground',
+                clampPercent(t) === clampPercent(percent) ? 'font-semibold text-foreground ring-1 ring-foreground/30' : 'text-muted-foreground',
               )}
             >
               {t > 0 ? `+${t}` : t}%

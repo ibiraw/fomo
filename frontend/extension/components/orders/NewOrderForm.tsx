@@ -150,7 +150,7 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, m
 
       <div className="space-y-2">
         <FieldBox
-          label={<button type="button" onClick={switchMetric} title="Switch between market cap and price" className="uppercase hover:text-foreground">{metric === 'marketCap' ? 'Mkt cap' : 'Price'} ⇄</button>}
+          label={<button type="button" onClick={switchMetric} title="Switch between market cap and price" className="rounded border border-input px-1.5 py-0.5 uppercase transition-colors hover:border-foreground/40 hover:text-foreground">{metric === 'marketCap' ? 'Mkt cap' : 'Price'} ⇄</button>}
           value={target}
           onChange={onTargetChange}
           placeholder={current === null ? 'Loading…' : '0'}
