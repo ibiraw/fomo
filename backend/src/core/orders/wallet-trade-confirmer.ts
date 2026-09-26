@@ -9,6 +9,7 @@
 import type { SolanaAccountsPort } from '../../ports/solana-accounts.js';
 import { TradeConfirmerPort, type BalanceChange } from '../../ports/trade-confirmer.js';
 import type { OrderSide } from './order.js';
+import { isTokenKey, parseTokenKey } from '../chains/token-key.js';
 
 export class WalletTradeConfirmer extends TradeConfirmerPort {
   /**
@@ -22,6 +23,11 @@ export class WalletTradeConfirmer extends TradeConfirmerPort {
     private readonly onError: (err: unknown) => void,
   ) {
     super();
+  }
+
+  /** Solana tokens only. */
+  covers(mint: string): boolean {
+    return isTokenKey(mint) && parseTokenKey(mint).chain === 'solana';
   }
 
   /** Current raw balance of `mint` in the wallet. */

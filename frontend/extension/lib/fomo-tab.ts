@@ -4,6 +4,7 @@
  * @author Reborn1987
  */
 
+import { keyFromPath, parseTokenKey, tokenPath } from './token-key';
 import type { ExecutionResult, Order, TradeRequest } from './types';
 
 /** Subset of the extension tabs API used here (injectable for tests). */
@@ -41,9 +42,9 @@ export const DEFAULT_TAB_TIMINGS: TabTimings = { readyMs: 30_000, pollMs: 500, t
 
 const FOMO_MATCH = 'https://fomo.family/*';
 
-/** URL of a Solana token page on FOMO. */
+/** URL of a token page on FOMO (any chain; see token-key.ts). */
 export function tokenUrl(mint: string): string {
-  return `https://fomo.family/tokens/solana/${mint}`;
+  return `https://fomo.family${tokenPath(mint)}`;
 }
 
 /** True when `url` shows the token page, ignoring query strings like ?tradeId=… and fragments. */
@@ -51,7 +52,7 @@ export function isTokenPage(url: string | undefined, mint: string): boolean {
   if (!url) return false;
   try {
     const u = new URL(url);
-    return u.hostname === 'fomo.family' && u.pathname.replace(/\/$/, '') === `/tokens/solana/${mint}`;
+    return u.hostname === 'fomo.family' && keyFromPath(u.pathname) === (parseTokenKey(mint) ? keyFromPath(tokenPath(mint)) : null);
   } catch {
     return false;
   }

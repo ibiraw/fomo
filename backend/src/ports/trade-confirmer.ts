@@ -14,6 +14,9 @@ export interface BalanceChange {
 
 /** Abstract confirmer. Implementation: WalletTradeConfirmer (polls the FOMO wallet's token balance). */
 export abstract class TradeConfirmerPort {
+  /** True when this confirmer can read balances for `mint`'s chain (a wallet is configured for it). */
+  abstract covers(mint: string): boolean;
+
   /** Current token balance for `mint` (raw units). */
   abstract snapshot(mint: string): Promise<bigint>;
 

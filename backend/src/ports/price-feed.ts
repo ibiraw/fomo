@@ -4,13 +4,19 @@
  * @author Reborn1987
  */
 
+/** Solana on-chain sources, EVM on-chain sources, then the polled fallbacks. */
+export type PriceSource =
+  | 'pump-curve' | 'pump-swap' | 'raydium-launchlab' | 'raydium-cpmm' | 'meteora-dbc' | 'meteora-damm2'
+  | 'v2-pool' | 'v3-pool' | 'v4-pool' | 'four-meme' | 'flap'
+  | 'jupiter' | 'dexscreener';
+
 /** One live price observation for a token. */
 export interface PriceTick {
   readonly mint: string;
   readonly priceUsd: number;
   readonly marketCapUsd: number;
-  /** Which source produced the tick. On-chain sources are sub-second; 'jupiter' is a polled fallback (seconds). */
-  readonly source: 'pump-curve' | 'pump-swap' | 'raydium-launchlab' | 'raydium-cpmm' | 'meteora-dbc' | 'meteora-damm2' | 'jupiter';
+  /** Which source produced the tick. On-chain sources are sub-second; 'jupiter' and 'dexscreener' are polled fallbacks (seconds). */
+  readonly source: PriceSource;
   readonly receivedAt: number;
 }
 

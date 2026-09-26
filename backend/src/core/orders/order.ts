@@ -7,6 +7,7 @@
 import { z } from 'zod';
 
 import type { PriceTick } from '../../ports/price-feed.js';
+import { canonicalTokenKey, isTokenKey } from '../chains/token-key.js';
 
 /** FOMO's minimum trade size in USD. */
 export const MIN_TRADE_USD = 2;
@@ -33,6 +34,7 @@ export type OrderAmount = { readonly kind: 'usd'; readonly value: number } | { r
 /** A persisted order. */
 export interface Order {
   readonly id: string;
+  /** Token key: a Solana mint or `<chain>:<0xaddress>` (see core/chains/token-key.ts). */
   readonly mint: string;
   readonly side: OrderSide;
   readonly trigger: {
@@ -60,12 +62,10 @@ export interface Order {
 /** Statuses from which an order can no longer change. */
 export const FINAL_STATUSES: ReadonlySet<OrderStatus> = new Set(['filled', 'failed', 'cancelled', 'unknown']);
 
-const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-
 /** Validated input for creating an order. */
 export const CreateOrderSchema = z
   .object({
-    mint: z.string().regex(SOLANA_ADDRESS, 'Not a valid Solana token address'),
+    mint: z.string().refine(isTokenKey, 'Not a valid token address').transform(canonicalTokenKey),
     side: z.enum(['buy', 'sell']),
     trigger: z.object({
       metric: z.enum(['price', 'marketCap']),

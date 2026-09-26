@@ -9,6 +9,11 @@ import { FetchHttpJsonAdapter } from './adapters/http/fetch-http-json.adapter.js
 import { KitSolanaAccountsAdapter } from './adapters/solana/kit-solana-accounts.adapter.js';
 import { SqliteOrderStoreAdapter } from './adapters/storage/sqlite-order-store.adapter.js';
 import { loadConfig } from './config.js';
+import { ChainRouterConfirmer } from './core/chains/chain-router-confirmer.js';
+import { ChainRouterPriceFeed } from './core/chains/chain-router-price-feed.js';
+import type { Chain, EvmChain } from './core/chains/token-key.js';
+import { buildEvmChain, type EvmChainParts } from './evm-chain.js';
+import { EvmWalletConfirmer } from './core/evm/evm-wallet-confirmer.js';
 import { OrderEngine } from './core/orders/order-engine.js';
 import { HoldingsGuard } from './core/orders/holdings-guard.js';
 import { WalletTradeConfirmer } from './core/orders/wallet-trade-confirmer.js';
@@ -22,6 +27,8 @@ import { RaydiumCpmmPriceFeed } from './core/pricing/raydium-cpmm-price-feed.js'
 import { RaydiumLaunchLabPriceFeed } from './core/pricing/raydium-launchlab-price-feed.js';
 import { UsdQuotes } from './core/pricing/usd-quotes.js';
 import { TokenInfoService } from './core/tokens/token-info-service.js';
+import type { PriceFeedPort } from './ports/price-feed.js';
+import type { TradeConfirmerPort } from './ports/trade-confirmer.js';
 
 /** Timestamped console logger. */
 function log(msg: string): void {
@@ -55,13 +62,23 @@ async function main(): Promise<void> {
   ]);
   // Quote tokens like VBUCKS are priced through the same on-chain feeds before falling back to Jupiter.
   quotes.setOnchainFeed(onchain);
-  const feed = new CompositePriceFeed([onchain, jupiter]);
+  const solanaFeed = new CompositePriceFeed([onchain, jupiter]);
+  const evm = new Map<EvmChain, EvmChainParts>([...cfg.evm].map(([chain, urls]) => [chain, buildEvmChain(chain, urls, directory, http, logError)]));
+  const feed = new ChainRouterPriceFeed(new Map<Chain, PriceFeedPort>([['solana', solanaFeed], ...[...evm].map(([c, p]) => [c, p.feed] as const)]));
+  const erc20ByChain = new Map([...evm].map(([c, p]) => [c, p.erc20] as const));
   const store = new SqliteOrderStoreAdapter(cfg.dbPath);
   const gateway = new WsGateway(
     { host: cfg.gatewayHost, port: cfg.gatewayPort, token: cfg.pairingToken, execTimeoutMs: cfg.execTimeoutMs, tickThrottleMs: 250, pingIntervalMs: 20_000 },
     log,
   );
-  const confirmer = cfg.fomoWallet ? new WalletTradeConfirmer(accounts, cfg.fomoWallet, 400, logError('confirm')) : null;
+  // On-chain confirmation per chain: the Solana wallet for Solana tokens, the EVM wallet (same address everywhere) for EVM tokens.
+  const confirmers = new Map<Chain, TradeConfirmerPort>();
+  if (cfg.fomoWallet) confirmers.set('solana', new WalletTradeConfirmer(accounts, cfg.fomoWallet, 400, logError('confirm')));
+  if (cfg.fomoEvmWallet) {
+    const evmConfirmer = new EvmWalletConfirmer(erc20ByChain, cfg.fomoEvmWallet, 400, logError('confirm:evm'));
+    for (const c of evm.keys()) confirmers.set(c, evmConfirmer);
+  }
+  const confirmer = confirmers.size > 0 ? new ChainRouterConfirmer(confirmers) : null;
   let guard: HoldingsGuard | null = null;
   const engine = new OrderEngine(store, feed, gateway, (e) => {
     gateway.handleEngineEvent(e);
@@ -72,7 +89,7 @@ async function main(): Promise<void> {
   }, logError('engine'), confirmer);
   // With a wallet configured, open sells are cancelled once the token is no longer held.
   guard = confirmer ? new HoldingsGuard(engine, confirmer, 20_000, logError('holdings')) : null;
-  gateway.attach(engine, new TokenInfoService(accounts, http));
+  gateway.attach(engine, new TokenInfoService(accounts, http, Date.now, erc20ByChain));
 
   await quotes.start();
   await feed.start();
@@ -82,6 +99,7 @@ async function main(): Promise<void> {
   log(`FOMO limit-order server on ws://${cfg.gatewayHost}:${gateway.port()}`);
   log(`Pairing code for the extension: ${cfg.pairingToken}`);
   log(cfg.fomoWallet ? `On-chain confirmation for wallet ${cfg.fomoWallet}` : 'FOMO_WALLET not set: trades are confirmed from the FOMO page only');
+  log(evm.size ? `EVM chains: ${[...evm.keys()].join(', ')}${cfg.fomoEvmWallet ? ` · confirmation for ${cfg.fomoEvmWallet}` : ' · FOMO_EVM_WALLET not set'}` : 'No EVM chains configured');
 
   const shutdown = async (): Promise<void> => {
     log('shutting down');
@@ -90,6 +108,7 @@ async function main(): Promise<void> {
     await gateway.close();
     await feed.close();
     quotes.close();
+    for (const p of evm.values()) { p.quotes.close(); await p.rpc.close(); }
     store.close();
     process.exit(0);
   };

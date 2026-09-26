@@ -10,13 +10,15 @@
     "coverage": "vitest run --coverage",
     "start": "node --env-file=.env dist/index.js",
     "dev": "tsx watch --env-file=.env src/index.ts",
-    "watch-price": "tsx --env-file=.env scripts/watch-price.ts"
+    "watch-price": "tsx --env-file=.env scripts/watch-price.ts",
+    "watch-evm-price": "tsx --env-file=.env scripts/watch-evm-price.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@solana/kit": "^8.3.0",
+    "viem": "^2.56.9",
     "ws": "^8.21.3",
     "zod": "^4.6.5"
   },

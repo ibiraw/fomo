@@ -7,7 +7,11 @@ Node 22 + TypeScript (strict). Local server: live prices, order engine, WebSocke
 |------|---------|
 | `src/index.ts` | Composition root — wires adapters into the core |
 | `src/config.ts` | Env validation (zod); creates `data/pairing-token.txt` on first run |
-| `src/ports/` | `PriceFeedPort`, `SolanaAccountsPort`, `OrderStorePort`, `TradeExecutorPort` |
+| `src/ports/` | `PriceFeedPort`, `SolanaAccountsPort`, `EvmRpcPort`, `OrderStorePort`, `TradeExecutorPort`, `TradeConfirmerPort` |
+| `src/evm-chain.ts` | Composition for one EVM chain (used by index.ts and `watch-evm-price`) |
+| `src/adapters/evm/` | `ViemEvmRpcAdapter` — batched HTTP eth_call + WebSocket `logs` subscriptions (re-subscribes with backoff) |
+| `src/core/chains/` | Token keys (`<mint>` for Solana, `<chain>:<0xaddress>` for EVM; fomo URL slugs), `ChainRouterPriceFeed`, `ChainRouterConfirmer` |
+| `src/core/evm/` | Per chain: `LaunchpadPriceFeed` (four.meme on BNB, flap.sh on BNB/Base/Robinhood; trade events carry the price; hands off to pools on graduation) → `EvmPoolPriceFeed` (v2 Sync / v3 + PancakeSwap v3 Swap / Uniswap v4 Swap via StateView) → `DexScreenerPriceFeed` (polled, "slower"). `EvmUsdQuotes` (stables $1, others chained on-chain, loop-safe via AsyncLocalStorage path), `Erc20Reader`, `EvmWalletConfirmer`, `evm-addresses.ts` (verified contract addresses) |
 | `src/adapters/solana/` | `KitSolanaAccountsAdapter` — @solana/kit over Chainstack HTTP/WSS, auto-reconnect |
 | `src/adapters/storage/` | `SqliteOrderStoreAdapter` — node:sqlite, compare-and-set status transitions |
 | `src/adapters/gateway/` | `WsGateway` (ws://127.0.0.1:8787) + `protocol.ts` message schemas |
@@ -22,6 +26,7 @@ Node 22 + TypeScript (strict). Local server: live prices, order engine, WebSocke
 - `npm test` / `npm run coverage` (80% threshold)
 - `npm run typecheck`
 - `npm run watch-price -- <mint> [seconds]`
+- `npm run watch-evm-price -- <chain>:<0xaddress> [seconds]`
 
 ## Order lifecycle
 `open → triggered → executing → filled | failed | unknown`, `open/triggered → cancelled`.
@@ -42,3 +47,7 @@ Only `chrome-extension://` origins or non-browser clients; wrong token → close
 - A feed that can't price a token throws `UnsupportedPoolError` and the next feed is tried; other errors are rethrown.
 - LaunchLab and CPMM share the "PoolState" discriminator — LaunchLab pools are found by PDA, CPMM pools via DexScreener + layout check.
 - Optional env: `FOMO_WALLET` (on-chain trade confirmation), `JUPITER_API_KEY`, `JUPITER_POLL_MS`.
+- EVM env (each chain needs both): `ETH_RPC_HTTP/WSS`, `BASE_…`, `BNB_…`, `ROBINHOOD_…`, `ARC_…`; `FOMO_EVM_WALLET` (same address on every EVM chain) enables EVM confirmation, sell checks and auto-cancel.
+- EVM pools are found via DexScreener `token-pairs/v1` (its `tokens/v1` returns only a token's main pair). Listings whose contract reverts are skipped.
+- v4 orientation: the other currency may be native (0x0, 18 decimals) even when DexScreener lists the wrapped token; both readings are priced and the one matching DexScreener's `priceNative` wins.
+- Arc's native gas token is USDC (0x3600… ERC-20, 6 decimals). Chainstack caps eth_getLogs at 10k blocks.

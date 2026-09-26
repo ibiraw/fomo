@@ -4,6 +4,7 @@
  * @author Reborn1987
  */
 
+import { keyFromPath, tokenAddress } from './token-key';
 import type { Order, OrderStatus } from './types';
 
 /** "$4.2K", "$1.35M", "$12.50". */
@@ -21,9 +22,10 @@ export function formatPrice(v: number): string {
   return `$${v.toPrecision(4)}`;
 }
 
-/** Shortens a mint: "EcwF…Wpump". */
+/** Shortens a token key's address: "EcwF…Wpump", "0x95…db07". */
 export function shortMint(mint: string): string {
-  return mint.length > 10 ? `${mint.slice(0, 4)}…${mint.slice(-5)}` : mint;
+  const a = tokenAddress(mint);
+  return a.length > 10 ? `${a.slice(0, 4)}…${a.slice(-5)}` : a;
 }
 
 /** Human description of the order's kind, e.g. "Limit buy", "Take profit", "Stop loss", "Breakout buy". */
@@ -67,10 +69,15 @@ export function isCancellable(status: OrderStatus): boolean {
   return status === 'open' || status === 'triggered';
 }
 
-/** Extracts a Solana mint from a FOMO token URL, or null. */
+/** Extracts the token key (Solana mint or `<chain>:<0xaddress>`) from a FOMO token URL, or null. */
 export function mintFromFomoUrl(url: string | undefined): string | null {
-  const m = url ? /^https:\/\/fomo\.family\/tokens\/solana\/([1-9A-HJ-NP-Za-km-z]{32,44})/.exec(url) : null;
-  return m ? m[1]! : null;
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return u.hostname === 'fomo.family' ? keyFromPath(u.pathname) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** "just now", "45s ago", "12m ago", "3h ago", "2d ago". */

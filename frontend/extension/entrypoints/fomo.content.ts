@@ -5,6 +5,7 @@
  * @author Reborn1987
  */
 
+import { keyFromPath, tokenPath } from '@/lib/token-key';
 import { executeTrade } from '@/lib/trade';
 import type { ExecutionResult, TradeRequest } from '@/lib/types';
 
@@ -18,9 +19,9 @@ export interface PingReply {
   readonly onMint: boolean;
 }
 
-/** True when the page shows the Solana token `mint`. */
+/** True when the page shows the token `mint` (any chain). */
 function onMintPage(mint: string): boolean {
-  return location.pathname === `/tokens/solana/${mint}`;
+  return keyFromPath(location.pathname) === keyFromPath(tokenPath(mint));
 }
 
 export default defineContentScript({

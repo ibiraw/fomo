@@ -163,8 +163,8 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, m
         )}
         <p className="text-xs text-muted-foreground">
           {current !== null && <>Now {metric === 'marketCap' ? formatUsdCompact(current) : formatPrice(current)} · </>}
-          {tick?.source === 'jupiter' && (
-            <span title="This token's pool isn't read on-chain yet; its price comes from Jupiter and can lag a few seconds." className="mr-1 rounded bg-yellow/15 px-1 py-0.5 text-[10px] font-semibold text-yellow">
+          {(tick?.source === 'jupiter' || tick?.source === 'dexscreener') && (
+            <span title="This token's pool isn't read on-chain yet; its price comes from Jupiter or DexScreener and can lag a few seconds." className="mr-1 rounded bg-yellow/15 px-1 py-0.5 text-[10px] font-semibold text-yellow">
               slower price
             </span>
           )}

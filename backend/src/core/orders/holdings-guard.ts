@@ -48,12 +48,12 @@ export class HoldingsGuard {
 
   /** Checks every mint that has open sell orders. */
   async sweep(): Promise<void> {
-    await Promise.all([...this.sellMints()].map((m) => this.check(m)));
+    await Promise.all([...this.sellMints()].filter((m) => this.wallet.covers(m)).map((m) => this.check(m)));
   }
 
   /** Engine event hook: re-check a mint after any of its orders changes (e.g. a sell filled). */
   onOrderChanged(order: Order): void {
-    if (this.sellMints().has(order.mint)) void this.check(order.mint);
+    if (this.wallet.covers(order.mint) && this.sellMints().has(order.mint)) void this.check(order.mint);
   }
 
   /** Reads the balance; marks the mint held, or cancels its open sells after a sell-out. */

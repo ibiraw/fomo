@@ -8,11 +8,13 @@ import type { Address } from '@solana/kit';
 import { describe, expect, it, vi } from 'vitest';
 
 import { FomoError } from '../../src/core/errors.js';
+import { ERC20_ABI, Erc20Reader } from '../../src/core/evm/erc20.js';
 import { decodeMetaplexMetadata, decodeToken2022Metadata, deriveMetaplexMetadata } from '../../src/core/tokens/metadata.js';
 import { candidateUrls, parseTwitterLink } from '../../src/core/tokens/socials.js';
 import { TokenInfoService } from '../../src/core/tokens/token-info-service.js';
 import { HttpJsonPort } from '../../src/ports/http-json.js';
 import { FakeAccounts } from '../helpers/fake-accounts.js';
+import { FakeEvmRpc } from '../helpers/fake-evm.js';
 
 const MINT = 'EcwFm5TJ3zuBXnsT6DngXMAMfsfELhwGc9JFgeVWpump';
 
@@ -61,6 +63,7 @@ class FakeHttp extends HttpJsonPort {
     return this.docs[url];
   }
 }
+
 
 describe('metadata decoders', () => {
   it('reads Token-2022 TokenMetadata after other extensions', () => {
@@ -182,5 +185,14 @@ describe('FetchHttpJsonAdapter', () => {
     expect(await http.getJson('https://x', 1000)).toEqual({ a: 1 });
     await expect(http.getJson('https://x', 1000)).rejects.toThrow(/HTTP 404/);
     spy.mockRestore();
+  });
+
+  it('reads EVM token name/symbol on-chain and socials from DexScreener', async () => {
+    const token = '0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07';
+    const rpc = new FakeEvmRpc('bnb').on(token, ERC20_ABI, 'name', 'Demo Coin').on(token, ERC20_ABI, 'symbol', 'DEMO');
+    const http = new FakeHttp({ [`https://api.dexscreener.com/tokens/v1/bsc/${token}`]: [{ info: { socials: [{ type: 'twitter', url: 'https://x.com/democoin' }], websites: [{ url: 'https://demo.coin' }] } }] });
+    const svc = new TokenInfoService(new FakeAccounts(), http, Date.now, new Map([['bnb', new Erc20Reader(rpc)]]));
+    expect(await svc.getInfo(`bnb:${token}`)).toMatchObject({ mint: `bnb:${token}`, name: 'Demo Coin', symbol: 'DEMO', website: 'https://demo.coin', twitter: { handle: 'democoin' } });
+    await expect(svc.getInfo(`base:${token}`)).rejects.toThrow(/base is not enabled/);
   });
 });

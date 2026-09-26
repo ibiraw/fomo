@@ -6,6 +6,11 @@
 
 import { z } from 'zod';
 
+import { canonicalTokenKey, isTokenKey } from '../../core/chains/token-key.js';
+
+/** A token key (Solana mint or `<chain>:<0xaddress>`), normalized to its canonical form. */
+const TokenKeySchema = z.string().refine(isTokenKey, 'Not a valid token address').transform(canonicalTokenKey);
+
 const ExecutionResultSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), detail: z.string() }),
   z.object({
@@ -21,9 +26,9 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('order.create'), reqId: z.string(), order: z.unknown() }),
   z.object({ type: z.literal('order.cancel'), reqId: z.string(), id: z.string() }),
   z.object({ type: z.literal('order.list'), reqId: z.string() }),
-  z.object({ type: z.literal('token.info'), reqId: z.string(), mint: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) }),
-  z.object({ type: z.literal('price.watch'), reqId: z.string(), mint: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) }),
-  z.object({ type: z.literal('wallet.holds'), reqId: z.string(), mint: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) }),
+  z.object({ type: z.literal('token.info'), reqId: z.string(), mint: TokenKeySchema }),
+  z.object({ type: z.literal('price.watch'), reqId: z.string(), mint: TokenKeySchema }),
+  z.object({ type: z.literal('wallet.holds'), reqId: z.string(), mint: TokenKeySchema }),
   z.object({ type: z.literal('exec.result'), execId: z.string(), result: ExecutionResultSchema }),
   z.object({ type: z.literal('pong') }),
 ]);

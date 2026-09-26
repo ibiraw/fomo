@@ -18,6 +18,8 @@ const MINT = 'EcwFm5TJ3zuBXnsT6DngXMAMfsfELhwGc9JFgeVWpump';
 class FakeWallet extends TradeConfirmerPort {
   balances = new Map<string, bigint>();
   fail = false;
+  covered = true;
+  covers(): boolean { return this.covered; }
   async snapshot(mint: string): Promise<bigint> {
     if (this.fail) throw new Error('rpc down');
     return this.balances.get(mint) ?? 0n;

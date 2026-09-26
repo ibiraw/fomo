@@ -3,7 +3,7 @@
 Author: Reborn1987
 
 ## Goal
-Limit / take-profit / stop-loss orders for fomo.family (Solana first).
+Limit / take-profit / stop-loss orders for fomo.family (Solana + EVM: Ethereum, Base, BNB, Robinhood, Arc).
 A Chrome extension clicks Buy/Sell in the user's logged-in FOMO tab. No private keys.
 
 ## Architecture
@@ -15,7 +15,7 @@ A Chrome extension clicks Buy/Sell in the user's logged-in FOMO tab. No private 
 
 ## Key facts (verified 2026-09-26)
 - FOMO has no public API; trades have no confirmation prompt.
-- Token page URL: `fomo.family/tokens/solana/<mint>`.
+- Token page URL: `fomo.family/tokens/<chain>/<address>` (chains: solana, ethereum, base, bnb, monad, robinhood, arc). The Buy/Sell panel is the same on every chain.
 - Buy panel: $ input, $25/$50/$75/$100, Max. Sell panel: $ input, 10/25/50/100%.
 - Minimum trade: $2. Trades can fail on slippage.
 
@@ -33,3 +33,4 @@ A Chrome extension clicks Buy/Sell in the user's logged-in FOMO tab. No private 
 | 9 | Latest tweet for a token (time + optional preview) | Done — X link from on-chain metadata; latest post read via user's x.com session (minimized window); age colored green→red |
 | 10 | On-page Limit tab + FOMO-style form (presets, MC slider, inferred order type) | Done — verified live |
 | 11 | More tokens: Jupiter fallback + on-chain Raydium CPMM, LaunchLab (bonk.fun) and Meteora DBC (fomo's launchpad) | Done — 119 backend tests; BOP (CPMM/BONK), a LaunchLab curve and EYES (DBC, matches fomo MC) verified live |
+| 12 | EVM chains (Ethereum, Base, BNB, Robinhood, Arc): Uniswap v2/v3/v4 + PancakeSwap, four.meme and flap.sh curves, DexScreener fallback, ERC-20 confirmation — see tasks/TASK_3.md | Done — 158 backend + 82 extension tests; 8 live tokens across all 5 chains match DexScreener; awaiting user's live EVM trade |

@@ -10,6 +10,9 @@ import type { Address } from '@solana/kit';
 import { AccountNotFoundError, FomoError } from '../errors.js';
 import type { HttpJsonPort } from '../../ports/http-json.js';
 import type { SolanaAccountsPort } from '../../ports/solana-accounts.js';
+import type { Hex } from '../../ports/evm-rpc.js';
+import { dexScreenerChain, parseTokenKey, type EvmChain, type TokenRef } from '../chains/token-key.js';
+import type { Erc20Reader } from '../evm/erc20.js';
 import { decodeMetaplexMetadata, decodeToken2022Metadata, deriveMetaplexMetadata, type TokenMetadata } from './metadata.js';
 import { candidateUrls, parseTwitterLink, type TwitterLink } from './socials.js';
 
@@ -26,7 +29,7 @@ export interface TokenInfo {
 const HIT_TTL = 30 * 60_000;
 const FETCH_TIMEOUT_MS = 8_000;
 /** DexScreener token listing (free, no key). Teams register their socials there; FOMO shows the same links. */
-const DEXSCREENER_TOKEN_URL = 'https://api.dexscreener.com/tokens/v1/solana/';
+const DEXSCREENER_TOKEN_URL = 'https://api.dexscreener.com/tokens/v1/';
 
 /** Socials from a DexScreener listing. */
 interface ListedSocials {
@@ -38,11 +41,15 @@ export class TokenInfoService {
   private readonly cache = new Map<string, { at: number; info: TokenInfo }>();
   private readonly inflight = new Map<string, Promise<TokenInfo>>();
 
-  /** @param accounts RPC reads @param http JSON fetcher @param now clock */
+  /**
+   * @param accounts Solana RPC reads @param http JSON fetcher @param now clock
+   * @param evm ERC-20 readers per enabled EVM chain (name/symbol; socials come from DexScreener)
+   */
   constructor(
     private readonly accounts: SolanaAccountsPort,
     private readonly http: HttpJsonPort,
     private readonly now: () => number = Date.now,
+    private readonly evm: ReadonlyMap<EvmChain, Erc20Reader> = new Map(),
   ) {}
 
   /** Returns token info (cached 30 min). Concurrent calls for one mint share a single lookup. */
@@ -61,6 +68,8 @@ export class TokenInfoService {
 
   /** On-chain metadata → JSON file → normalized socials, with DexScreener as fallback for missing links. */
   private async load(mint: string): Promise<TokenInfo> {
+    const ref = parseTokenKey(mint);
+    if (ref.chain !== 'solana') return this.loadEvm(mint, ref);
     const meta = await this.readMetadata(mint);
     const json = await this.fetchJson(meta.uri);
     const ext = json.extensions && typeof json.extensions === 'object' ? (json.extensions as Record<string, unknown>) : {};
@@ -74,11 +83,21 @@ export class TokenInfoService {
     return { mint, name: meta.name, symbol: meta.symbol, twitter, website };
   }
 
+  /** EVM tokens: ERC-20 name/symbol on-chain; socials from DexScreener (EVM tokens have no metadata URI). */
+  private async loadEvm(mint: string, ref: TokenRef): Promise<TokenInfo> {
+    const reader = ref.chain === 'solana' ? undefined : this.evm.get(ref.chain);
+    if (!reader) throw new FomoError(`${ref.chain} is not enabled on this server`);
+    const token = ref.address as Hex;
+    const [name, symbol, listed] = await Promise.all([reader.name(token), reader.symbol(token), this.fetchListedSocials(mint)]);
+    return { mint, name, symbol, ...listed };
+  }
+
   /** Socials registered on DexScreener. A lookup failure just means "none found" (it is a fallback). */
   private async fetchListedSocials(mint: string): Promise<ListedSocials> {
     let pairs: unknown;
     try {
-      pairs = await this.http.getJson(DEXSCREENER_TOKEN_URL + mint, FETCH_TIMEOUT_MS);
+      const ref = parseTokenKey(mint);
+      pairs = await this.http.getJson(`${DEXSCREENER_TOKEN_URL}${dexScreenerChain(ref.chain)}/${ref.address}`, FETCH_TIMEOUT_MS);
     } catch {
       return { twitter: null, website: null };
     }

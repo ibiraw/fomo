@@ -120,7 +120,7 @@ export class OrderEngine {
    * so the caller knows it cannot tell rather than being told "no".
    */
   async holds(mint: string): Promise<boolean | null> {
-    if (!this.confirmer) return null;
+    if (!this.confirmer?.covers(mint)) return null;
     return (await this.confirmer.snapshot(mint)) > 0n;
   }
 
@@ -129,7 +129,7 @@ export class OrderEngine {
    * wallet; without a wallet there is nothing to check against, so the order is accepted.
    */
   private async requireHolding(mint: string): Promise<void> {
-    if (!this.confirmer) return;
+    if (!this.confirmer?.covers(mint)) return;
     let balance: bigint;
     try {
       balance = await this.confirmer.snapshot(mint);
@@ -263,7 +263,7 @@ export class OrderEngine {
    * (unknown / timeout). Without a confirmer this is just executor.execute().
    */
   private async executeWithConfirmation(order: Order): Promise<ExecutionResult> {
-    if (!this.confirmer) return this.executor.execute(order);
+    if (!this.confirmer?.covers(order.mint)) return this.executor.execute(order);
     let before: bigint;
     try {
       before = await this.confirmer.snapshot(order.mint);

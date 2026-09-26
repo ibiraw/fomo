@@ -40,4 +40,17 @@ describe('loadConfig', () => {
       .toThrow(ConfigError);
     expect(() => loadConfig({ DATA_DIR: tempDir() })).toThrow(/SOLANA_RPC_HTTP.*SOLANA_RPC_WSS/);
   });
+
+  it('enables EVM chains that have both RPC URLs and normalizes the EVM wallet', () => {
+    const cfg = loadConfig({
+      ...base, DATA_DIR: tempDir(),
+      BASE_RPC_HTTP: 'https://base.example', BASE_RPC_WSS: 'wss://base.example',
+      FOMO_EVM_WALLET: '0x59a1b6CC4Cfc711ce0fa70f48Fef4e4b7Dd2B103',
+    });
+    expect([...cfg.evm]).toEqual([['base', { http: 'https://base.example', wss: 'wss://base.example' }]]);
+    expect(cfg.fomoEvmWallet).toBe('0x59a1b6cc4cfc711ce0fa70f48fef4e4b7dd2b103');
+    expect(loadConfig({ ...base, DATA_DIR: tempDir() }).fomoEvmWallet).toBeNull();
+    expect(() => loadConfig({ ...base, DATA_DIR: tempDir(), BNB_RPC_HTTP: 'https://bnb.example' })).toThrow(/BNB_RPC_HTTP and BNB_RPC_WSS must be set together/);
+    expect(() => loadConfig({ ...base, DATA_DIR: tempDir(), FOMO_EVM_WALLET: '0x12' })).toThrow(/Not a valid EVM address/);
+  });
 });

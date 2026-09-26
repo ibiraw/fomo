@@ -43,8 +43,11 @@ export interface PriceTick {
   readonly mint: string;
   readonly priceUsd: number;
   readonly marketCapUsd: number;
-  /** On-chain sources are sub-second; 'jupiter' is a polled fallback (a few seconds behind). */
-  readonly source: 'pump-curve' | 'pump-swap' | 'raydium-launchlab' | 'raydium-cpmm' | 'meteora-dbc' | 'meteora-damm2' | 'jupiter';
+  /** On-chain sources are sub-second; 'jupiter' and 'dexscreener' are polled fallbacks (a few seconds behind). */
+  readonly source:
+    | 'pump-curve' | 'pump-swap' | 'raydium-launchlab' | 'raydium-cpmm' | 'meteora-dbc' | 'meteora-damm2'
+    | 'v2-pool' | 'v3-pool' | 'v4-pool' | 'four-meme' | 'flap'
+    | 'jupiter' | 'dexscreener';
   readonly receivedAt: number;
 }
 

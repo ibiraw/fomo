@@ -46,7 +46,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
   const priceError = useWatchPrice(mint, state?.status === 'connected', send);
 
   if (!state) return <p className="p-2 text-sm text-muted-foreground">Loading…</p>;
-  if (!mint) return <p className="p-2 text-sm text-muted-foreground">Limit orders are available on Solana token pages.</p>;
+  if (!mint) return <p className="p-2 text-sm text-muted-foreground">Limit orders are available on token pages.</p>;
 
   const notice = OFFLINE_TEXT[state.status];
   const orders = state.orders.filter((o) => o.mint === mint);
