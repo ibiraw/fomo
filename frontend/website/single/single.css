@@ -1,0 +1,13 @@
+/*
+ * @file single.css
+ * @description Styles for the single-file build: the site theme, with Geist from Google Fonts instead of next/font.
+ * @author Reborn1987
+ */
+@import "../app/globals.css";
+@source "../components";
+@source "../app";
+
+:root {
+  --font-geist-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-geist-mono: "Geist Mono", ui-monospace, Consolas, monospace;
+}
