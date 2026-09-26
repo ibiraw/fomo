@@ -68,7 +68,7 @@ export default function App() {
             <NewOrderForm ticks={state.ticks} initialMint={tabMint} onCreate={(order) => send({ type: 'order.create', order })} />
           </TabsContent>
           <TabsContent value="orders" className="pt-2">
-            <OrderList orders={state.orders} ticks={state.ticks} onCancel={(id) => send({ type: 'order.cancel', id })} />
+            <OrderList orders={state.orders} ticks={state.ticks} showMint onCancel={(id) => send({ type: 'order.cancel', id })} />
           </TabsContent>
           <TabsContent value="settings" className="pt-2">
             <PairingForm serverUrl={state.serverUrl} badToken={false} onSave={save} />

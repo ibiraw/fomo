@@ -10,6 +10,7 @@ import { KitSolanaAccountsAdapter } from './adapters/solana/kit-solana-accounts.
 import { SqliteOrderStoreAdapter } from './adapters/storage/sqlite-order-store.adapter.js';
 import { loadConfig } from './config.js';
 import { OrderEngine } from './core/orders/order-engine.js';
+import { HoldingsGuard } from './core/orders/holdings-guard.js';
 import { WalletTradeConfirmer } from './core/orders/wallet-trade-confirmer.js';
 import { CompositePriceFeed } from './core/pricing/composite-price-feed.js';
 import { JupiterPriceFeed } from './core/pricing/jupiter-price-feed.js';
@@ -51,19 +52,27 @@ async function main(): Promise<void> {
     log,
   );
   const confirmer = cfg.fomoWallet ? new WalletTradeConfirmer(accounts, cfg.fomoWallet, 400, logError('confirm')) : null;
-  const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), logError('engine'), confirmer);
+  let guard: HoldingsGuard | null = null;
+  const engine = new OrderEngine(store, feed, gateway, (e) => {
+    gateway.handleEngineEvent(e);
+    if (e.type === 'order') guard?.onOrderChanged(e.order);
+  }, logError('engine'), confirmer);
+  // With a wallet configured, open sells are cancelled once the token is no longer held.
+  guard = confirmer ? new HoldingsGuard(engine, confirmer, 20_000, logError('holdings')) : null;
   gateway.attach(engine, new TokenInfoService(accounts, http));
 
   await quotes.start();
   await feed.start();
   await gateway.listen();
   await engine.start();
+  guard?.start();
   log(`FOMO limit-order server on ws://${cfg.gatewayHost}:${gateway.port()}`);
   log(`Pairing code for the extension: ${cfg.pairingToken}`);
   log(cfg.fomoWallet ? `On-chain confirmation for wallet ${cfg.fomoWallet}` : 'FOMO_WALLET not set: trades are confirmed from the FOMO page only');
 
   const shutdown = async (): Promise<void> => {
     log('shutting down');
+    guard?.stop();
     engine.stop();
     await gateway.close();
     await feed.close();

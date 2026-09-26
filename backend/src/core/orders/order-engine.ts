@@ -114,9 +114,9 @@ export class OrderEngine {
     return order;
   }
 
-  /** Cancels an order that has not started executing. */
-  cancelOrder(id: string): Order {
-    const order = this.store.transition(id, [...ACTIVE], 'cancelled');
+  /** Cancels an order that has not started executing; `reason` is stored as its note. */
+  cancelOrder(id: string, reason?: string): Order {
+    const order = this.store.transition(id, [...ACTIVE], 'cancelled', reason === undefined ? {} : { lastError: reason });
     if (!order) {
       const existing = this.store.get(id);
       throw new OrderStateError(existing

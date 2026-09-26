@@ -94,3 +94,31 @@ export function ageColor(iso: string, now: number = Date.now()): string {
   const x = Math.min(1, Math.log1p(minutes) / Math.log1p(OLD_POST_MINUTES));
   return `hsl(${Math.round(140 * (1 - x))} 80% 55%)`;
 }
+
+/** Short amount: "$5" / "$2.50" / "25%". */
+export function amountShort(o: Pick<Order, 'amount'>): string {
+  if (o.amount.kind === 'percent') return `${o.amount.value}%`;
+  return Number.isInteger(o.amount.value) ? `$${o.amount.value}` : `$${o.amount.value.toFixed(2)}`;
+}
+
+/** Plain-language one-liners for stored order notes ("kind: detail"), keyed by kind. */
+const NOTE_SHORT: Record<string, string> = {
+  auto_cancelled: 'Auto-cancelled: token sold',
+  slippage: 'Slippage — will retry',
+  insufficient_funds: 'Not enough balance',
+  not_logged_in: 'FOMO tab not logged in',
+  ui_error: 'FOMO page problem',
+  timeout: 'Unconfirmed — check FOMO',
+  unknown: 'Unconfirmed — check FOMO',
+};
+
+/** Short, readable version of an order note; the full text stays available as a tooltip. */
+export function shortNote(o: Pick<Order, 'lastError' | 'status'>): string | null {
+  if (!o.lastError) return null;
+  const kind = /^([a-z_]+):/.exec(o.lastError)?.[1];
+  const short = kind ? NOTE_SHORT[kind] : undefined;
+  if (kind === 'slippage' && o.status === 'failed') return 'Failed: slippage on every try';
+  if (short) return short;
+  if (/restarted/i.test(o.lastError)) return 'Unconfirmed — check FOMO';
+  return o.lastError.length > 48 ? `${o.lastError.slice(0, 45)}…` : o.lastError;
+}

@@ -1,20 +1,21 @@
 /**
  * @file OrderList.tsx
- * @description Scrollable list of orders with live market data, status and cancel.
+ * @description Compact, scrollable order list: one line per order (type, trigger, amount, status), live
+ *              market cap and a clear Cancel button for active orders, and a one-line note when relevant.
  * @author Reborn1987
  */
 
 import { useMutation } from '@tanstack/react-query';
+import { X } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-  amountLabel,
+  amountShort,
   formatUsdCompact,
   isCancellable,
   orderKind,
   shortMint,
+  shortNote,
   STATUS_LABEL,
   triggerLabel,
 } from '@/lib/format';
@@ -23,13 +24,13 @@ import type { Order, OrderStatus, PriceTick } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 const STATUS_STYLE: Record<OrderStatus, string> = {
-  open: 'bg-secondary text-secondary-foreground',
-  triggered: 'bg-amber-500/20 text-amber-300',
-  executing: 'bg-amber-500/20 text-amber-300',
-  filled: 'bg-buy/20 text-buy',
-  failed: 'bg-sell/20 text-sell',
-  cancelled: 'bg-secondary text-muted-foreground',
-  unknown: 'bg-sell/20 text-sell',
+  open: 'bg-accent text-muted-foreground',
+  triggered: 'bg-yellow/15 text-yellow',
+  executing: 'bg-yellow/15 text-yellow',
+  filled: 'bg-buy/15 text-buy',
+  failed: 'bg-sell/15 text-sell',
+  cancelled: 'bg-accent text-faint',
+  unknown: 'bg-sell/15 text-sell',
 };
 
 interface Props {
@@ -40,47 +41,64 @@ interface Props {
   readonly height?: number;
   /** Text shown when there are no orders. */
   readonly emptyText?: string;
+  /** Show which token each order is for (popup lists every token). */
+  readonly showMint?: boolean;
 }
 
-/** One order row. */
-function OrderCard({ order, tick, onCancel }: { order: Order; tick: PriceTick | undefined; onCancel: Props['onCancel'] }) {
+/** One compact order row. */
+function OrderRow({ order, tick, onCancel, showMint }: { order: Order; tick: PriceTick | undefined; onCancel: Props['onCancel']; showMint: boolean }) {
   const cancel = useMutation({ mutationFn: () => onCancel(order.id) });
+  const active = isCancellable(order.status);
+  const note = shortNote(order);
+  const done = order.status === 'cancelled' || order.status === 'filled';
+
   return (
-    <div className="rounded-lg border bg-card p-3 space-y-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <span className={cn('text-sm font-semibold', order.side === 'buy' ? 'text-buy' : 'text-sell')}>{orderKind(order)}</span>
-        <Badge className={STATUS_STYLE[order.status]}>{STATUS_LABEL[order.status]}</Badge>
+    <div className={cn('rounded-lg bg-secondary px-2.5 py-2', done && 'opacity-60')}>
+      <div className="flex items-center gap-2 text-xs">
+        <span className={cn('shrink-0 font-bold', order.side === 'buy' ? 'text-buy' : 'text-sell')}>{orderKind(order)}</span>
+        <span className="min-w-0 flex-1 truncate text-foreground">
+          {triggerLabel(order)} · {amountShort(order)}
+          {showMint && (
+            <a className="ml-1 text-muted-foreground hover:underline" href={tokenUrl(order.mint)} target="_blank" rel="noreferrer">{shortMint(order.mint)}</a>
+          )}
+        </span>
+        <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold', STATUS_STYLE[order.status])}>{STATUS_LABEL[order.status]}</span>
       </div>
-      <a className="block text-xs text-muted-foreground hover:underline" href={tokenUrl(order.mint)} target="_blank" rel="noreferrer">
-        {shortMint(order.mint)}
-      </a>
-      <p className="text-sm">
-        {triggerLabel(order)} · {amountLabel(order)}
-      </p>
-      {tick && isCancellable(order.status) && (
-        <p className="text-xs text-muted-foreground">Now MC {formatUsdCompact(tick.marketCapUsd)}</p>
+
+      {active && (
+        <div className="mt-1.5 flex items-center justify-between gap-2">
+          <span className="text-[11px] text-muted-foreground">{tick ? `Now ${formatUsdCompact(tick.marketCapUsd)}` : ' '}</span>
+          <button
+            type="button"
+            onClick={() => cancel.mutate()}
+            disabled={cancel.isPending}
+            className="inline-flex h-7 items-center gap-1 rounded-md border border-sell/60 bg-sell/10 px-2.5 text-xs font-semibold text-sell transition-colors hover:bg-sell/20 disabled:opacity-50"
+          >
+            <X className="size-3.5" />
+            {cancel.isPending ? 'Cancelling…' : 'Cancel'}
+          </button>
+        </div>
       )}
-      {order.lastError && <p className="text-xs text-sell">{order.lastError}</p>}
-      {cancel.error && <p className="text-xs text-destructive">{cancel.error.message}</p>}
-      {isCancellable(order.status) && (
-        <Button size="sm" variant="secondary" className="w-full" onClick={() => cancel.mutate()} disabled={cancel.isPending}>
-          {cancel.isPending ? 'Cancelling…' : 'Cancel'}
-        </Button>
+
+      {(note || cancel.error) && (
+        <p title={cancel.error?.message ?? order.lastError ?? ''} className={cn('mt-1 truncate text-[11px]', order.status === 'cancelled' ? 'text-muted-foreground' : 'text-sell')}>
+          {cancel.error?.message ?? note}
+        </p>
       )}
     </div>
   );
 }
 
 /** All orders, active first. */
-export function OrderList({ orders, ticks, onCancel, height = 380, emptyText = 'No orders yet.' }: Props) {
+export function OrderList({ orders, ticks, onCancel, height = 380, emptyText = 'No orders yet.', showMint = false }: Props) {
   if (orders.length === 0) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">{emptyText}</p>;
+    return <p className="py-4 text-center text-xs text-muted-foreground">{emptyText}</p>;
   }
   const sorted = [...orders].sort((a, b) => Number(isCancellable(b.status)) - Number(isCancellable(a.status)) || b.createdAt - a.createdAt);
   return (
-    <ScrollArea className="pr-3" style={{ height }}>
-      <div className="space-y-2">
-        {sorted.map((o) => <OrderCard key={o.id} order={o} tick={ticks[o.mint]} onCancel={onCancel} />)}
+    <ScrollArea className="pr-3" style={{ maxHeight: height }}>
+      <div className="space-y-1.5">
+        {sorted.map((o) => <OrderRow key={o.id} order={o} tick={ticks[o.mint]} onCancel={onCancel} showMint={showMint} />)}
       </div>
     </ScrollArea>
   );
