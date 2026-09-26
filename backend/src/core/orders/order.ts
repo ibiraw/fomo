@@ -34,6 +34,8 @@ export type OrderAmount = { readonly kind: 'usd'; readonly value: number } | { r
 /** A persisted order. */
 export interface Order {
   readonly id: string;
+  /** Account that owns the order (only that account sees it, and only its extension executes it). */
+  readonly userId: string;
   /** Token key: a Solana mint or `<chain>:<0xaddress>` (see core/chains/token-key.ts). */
   readonly mint: string;
   readonly side: OrderSide;

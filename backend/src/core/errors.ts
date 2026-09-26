@@ -30,3 +30,9 @@ export class OrderStateError extends FomoError {}
 
 /** Invalid or missing configuration. */
 export class ConfigError extends FomoError {}
+
+/** Missing, malformed or unknown account key. */
+export class AuthError extends FomoError {}
+
+/** A per-user limit was reached (open orders, watched tokens, request rate). */
+export class LimitError extends FomoError {}

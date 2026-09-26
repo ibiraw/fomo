@@ -35,8 +35,8 @@ describe('market cap with fomo supply', () => {
   it('defaults supply to null and stores it', () => {
     const store = new SqliteOrderStoreAdapter(':memory:');
     const base = { mint: MINT, side: 'sell', amount: { kind: 'percent', value: 100 } };
-    const a = store.create(CreateOrderSchema.parse({ ...base, trigger: { metric: 'marketCap', direction: 'above', value: 1 } }));
-    const b = store.create(CreateOrderSchema.parse({ ...base, trigger: { metric: 'marketCap', direction: 'above', value: 1, supply: 999_900_000 } }));
+    const a = store.create(CreateOrderSchema.parse({ ...base, trigger: { metric: 'marketCap', direction: 'above', value: 1 } }), 'u1');
+    const b = store.create(CreateOrderSchema.parse({ ...base, trigger: { metric: 'marketCap', direction: 'above', value: 1, supply: 999_900_000 } }), 'u1');
     expect(a.trigger.supply).toBeNull();
     expect(b.trigger.supply).toBe(999_900_000);
   });

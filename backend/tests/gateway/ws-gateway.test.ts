@@ -7,12 +7,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
-import { WsGateway } from '../../src/adapters/gateway/ws-gateway.js';
+import { WsGateway, type GatewayLimits } from '../../src/adapters/gateway/ws-gateway.js';
+import { SqliteAccountStoreAdapter } from '../../src/adapters/storage/sqlite-account-store.adapter.js';
 import { SqliteOrderStoreAdapter } from '../../src/adapters/storage/sqlite-order-store.adapter.js';
+import { AccountService } from '../../src/core/accounts/account-service.js';
+import { WalletConfirmers } from '../../src/core/accounts/wallet-confirmers.js';
 import { OrderEngine } from '../../src/core/orders/order-engine.js';
 import { FakePriceFeed } from '../helpers/fakes.js';
 
-const TOKEN = 'test-token';
+const TOKEN = 'k'.repeat(43);
+const OTHER = 'o'.repeat(43);
+const MINT2 = 'DMPAgkCZmz4TZKJrbV11KGvHZUnCqc8uvnLL62SapDZJ';
 const MINT = 'EcwFm5TJ3zuBXnsT6DngXMAMfsfELhwGc9JFgeVWpump';
 const ORDER = { mint: MINT, side: 'buy', trigger: { metric: 'price', direction: 'below', value: 1 }, amount: { kind: 'usd', value: 5 } };
 
@@ -39,6 +44,8 @@ class TestClient {
 let gateway: WsGateway;
 let feed: FakePriceFeed;
 let store: SqliteOrderStoreAdapter;
+let accounts: AccountService;
+let confirmers: WalletConfirmers;
 const sockets: WebSocket[] = [];
 
 /** Opens a socket (optionally with an Origin header) and waits for it to open. */
@@ -50,23 +57,28 @@ async function connect(origin?: string): Promise<TestClient> {
   return c;
 }
 
-/** Connects and authenticates. */
-async function authed(executor: boolean): Promise<TestClient> {
+/** Connects and logs in (creating the account on first use); `userId` is read from the welcome. */
+async function authed(executor: boolean, secret = TOKEN): Promise<TestClient & { userId: string }> {
   const c = await connect('chrome-extension://abc');
-  c.send({ type: 'hello', token: TOKEN, executor });
-  await c.next((m) => m.type === 'welcome');
-  return c;
+  c.send({ type: 'hello', token: secret, executor, create: true });
+  const welcome = await c.next((m) => m.type === 'welcome');
+  return Object.assign(c, { userId: (welcome.account as { id: string }).id });
 }
 
-beforeEach(async () => {
+/** Fresh gateway + engine + accounts. */
+async function start(limits?: GatewayLimits): Promise<void> {
   feed = new FakePriceFeed();
   store = new SqliteOrderStoreAdapter(':memory:');
-  gateway = new WsGateway({ host: '127.0.0.1', port: 0, token: TOKEN, execTimeoutMs: 300, tickThrottleMs: 250, pingIntervalMs: 50 }, () => undefined);
+  accounts = new AccountService(new SqliteAccountStoreAdapter(':memory:'));
+  confirmers = new WalletConfirmers((id) => accounts.wallets(id), () => null);
+  gateway = new WsGateway({ host: '127.0.0.1', port: 0, execTimeoutMs: 300, tickThrottleMs: 250, pingIntervalMs: 50, ...(limits ? { limits } : {}) }, () => undefined);
   const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), () => undefined);
-  gateway.attach(engine);
+  gateway.attach(engine, accounts, confirmers);
   await gateway.listen();
   await engine.start();
-});
+}
+
+beforeEach(() => start());
 
 afterEach(async () => {
   sockets.splice(0).forEach((s) => s.terminate());
@@ -78,10 +90,39 @@ describe('WsGateway auth', () => {
     await expect(connect('https://evil.example')).rejects.toThrow(/401/);
   });
 
-  it('closes connections with a wrong token', async () => {
+  it('closes connections with a malformed or unknown key', async () => {
     const c = await connect();
-    c.send({ type: 'hello', token: 'wrong', executor: false });
+    c.send({ type: 'hello', token: 'wrong', executor: false, create: true });
     await vi.waitFor(() => expect(c.closeCode).toBe(4001));
+    const d = await connect();
+    d.send({ type: 'hello', token: OTHER, executor: false });
+    await vi.waitFor(() => expect(d.closeCode).toBe(4001));
+  });
+
+  it('logs back into the same account with the same key', async () => {
+    const a = await authed(false);
+    const b = await authed(false);
+    expect(b.userId).toBe(a.userId);
+  });
+
+  it('limits new accounts per network', async () => {
+    sockets.splice(0).forEach((s) => s.terminate());
+    await gateway.close();
+    await start({ messagesPerSecond: 20, viewedTokens: 8, accountsPerIpPerHour: 1 });
+    await authed(false, TOKEN);
+    const c = await connect();
+    c.send({ type: 'hello', token: OTHER, executor: false, create: true });
+    await vi.waitFor(() => expect(c.closeCode).toBe(4001));
+    await authed(false, TOKEN); // existing accounts still log in
+  });
+
+  it('closes connections that flood messages', async () => {
+    sockets.splice(0).forEach((s) => s.terminate());
+    await gateway.close();
+    await start({ messagesPerSecond: 2, viewedTokens: 8, accountsPerIpPerHour: 5 });
+    const c = await authed(false);
+    for (let i = 0; i < 10; i++) c.send({ type: 'pong' });
+    await vi.waitFor(() => expect(c.closeCode).toBe(4008));
   });
 
   it('closes unauthenticated clients that skip hello, and reports malformed JSON', async () => {
@@ -126,7 +167,7 @@ describe('WsGateway commands', () => {
     c.send({ type: 'token.info', reqId: 't1', mint: MINT });
     expect((await c.next((m) => m.reqId === 't1')).error).toMatch(/not available/);
     const engine = new OrderEngine(store, feed, gateway, () => undefined, () => undefined);
-    gateway.attach(engine, { getInfo: async (mint: string) => ({ mint, name: 'W', symbol: 'W', twitter: null, website: null }) } as never);
+    gateway.attach(engine, accounts, confirmers, { getInfo: async (mint: string) => ({ mint, name: 'W', symbol: 'W', twitter: null, website: null }) } as never);
     c.send({ type: 'token.info', reqId: 't2', mint: MINT });
     expect((await c.next((m) => m.reqId === 't2')).data).toMatchObject({ mint: MINT, symbol: 'W' });
   });
@@ -187,7 +228,7 @@ describe('WsGateway execution', () => {
     await ext.next((m) => m.type === 'exec.request');
     ext.ws.terminate();
     await vi.waitFor(() => expect(store.get(id)?.lastError).toMatch(/disconnected/));
-    expect(gateway.isReady()).toBe(false);
+    expect(gateway.isReady(ext.userId)).toBe(false);
   });
 
   it('holds triggered orders until an executor connects', async () => {
@@ -199,5 +240,60 @@ describe('WsGateway execution', () => {
     expect(await gateway.execute(store.get(id)!)).toMatchObject({ ok: false, kind: 'ui_error' });
     const ext = await authed(true);
     await ext.next((m) => m.type === 'exec.request');
+  });
+});
+
+describe('WsGateway accounts', () => {
+  it('saves wallets and reports them', async () => {
+    const c = await authed(false);
+    c.send({ type: 'wallets.set', reqId: 'w', wallets: { solana: 'JDY8BeQUPmcRZnYJGVBiU7x71SMbdUECW6NMUdGGKQDg', evm: null } });
+    expect((await c.next((m) => m.reqId === 'w')).data).toMatchObject({ wallets: { solana: 'JDY8BeQUPmcRZnYJGVBiU7x71SMbdUECW6NMUdGGKQDg', evm: null } });
+    c.send({ type: 'account.info', reqId: 'i' });
+    expect((await c.next((m) => m.reqId === 'i')).data).toMatchObject({ id: c.userId });
+    c.send({ type: 'wallets.set', reqId: 'bad', wallets: { solana: 'nope', evm: null } });
+    expect((await c.next((m) => m.reqId === 'bad')).error).toMatch(/Not a valid Solana address/);
+  });
+
+  it("keeps accounts apart: no one sees or cancels another account's orders", async () => {
+    const a = await authed(false, TOKEN);
+    const b = await authed(false, OTHER);
+    a.send({ type: 'order.create', reqId: 'a', order: ORDER });
+    const id = ((await a.next((m) => m.reqId === 'a')).data as { id: string }).id;
+    b.send({ type: 'order.list', reqId: 'l' });
+    expect((await b.next((m) => m.reqId === 'l')).data).toEqual([]);
+    b.send({ type: 'order.cancel', reqId: 'c', id });
+    expect((await b.next((m) => m.reqId === 'c')).error).toMatch(/not found/);
+    feed.tick(MINT, 5);
+    await a.next((m) => m.type === 'tick');
+    await new Promise((r) => setTimeout(r, 20));
+    expect(b.msgs.some((m) => m.type === 'order' || m.type === 'tick')).toBe(false);
+  });
+
+  it('keeps only the most recently viewed tokens live per connection', async () => {
+    sockets.splice(0).forEach((s) => s.terminate());
+    await gateway.close();
+    await start({ messagesPerSecond: 20, viewedTokens: 1, accountsPerIpPerHour: 5 });
+    const c = await authed(false);
+    c.send({ type: 'price.watch', reqId: '1', mint: MINT });
+    await c.next((m) => m.reqId === '1');
+    c.send({ type: 'price.watch', reqId: '2', mint: MINT2 });
+    await c.next((m) => m.reqId === '2');
+    feed.tick(MINT, 1);
+    feed.tick(MINT2, 1);
+    await c.next((m) => m.type === 'tick' && (m.tick as { mint: string }).mint === MINT2);
+    expect(c.msgs.some((m) => m.type === 'tick' && (m.tick as { mint: string }).mint === MINT)).toBe(false);
+  });
+
+  it('deletes the account with its orders and disconnects it', async () => {
+    const c = await authed(false);
+    c.send({ type: 'order.create', reqId: 'a', order: ORDER });
+    await c.next((m) => m.reqId === 'a');
+    c.send({ type: 'account.delete', reqId: 'd' });
+    expect((await c.next((m) => m.reqId === 'd')).data).toEqual({ deleted: true });
+    await vi.waitFor(() => expect(c.closeCode).toBe(4003));
+    expect(store.list()).toEqual([]);
+    const again = await connect();
+    again.send({ type: 'hello', token: TOKEN, executor: false });
+    await vi.waitFor(() => expect(again.closeCode).toBe(4001));
   });
 });

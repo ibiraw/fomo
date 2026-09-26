@@ -27,7 +27,7 @@ async function setup(graceMs = 200) {
   const exec = new FakeExecutor();
   const errors: unknown[] = [];
   const confirmer = new WalletTradeConfirmer(accounts, WALLET, 5, (e) => errors.push(e));
-  const engine = new OrderEngine(store, feed, exec, () => undefined, (e) => errors.push(e), confirmer, graceMs);
+  const engine = new OrderEngine(store, feed, exec, () => undefined, (e) => errors.push(e), () => confirmer, graceMs);
   await engine.start();
   return { accounts, store, feed, exec, engine, confirmer, errors };
 }
@@ -62,30 +62,30 @@ describe('OrderEngine sell orders need a balance', () => {
 
   it('refuses a take profit / stop loss on a token the wallet does not hold', async () => {
     const { engine, store } = await setup();
-    await expect(engine.createOrder(SELL)).rejects.toThrow(/don't hold this token/);
+    await expect(engine.createOrder('u1', SELL)).rejects.toThrow(/don't hold this token/);
     expect(store.list()).toHaveLength(0);
   });
 
   it('accepts it once the wallet holds the token, and never checks buys', async () => {
     const { accounts, engine } = await setup();
-    await expect(engine.createOrder(BUY)).resolves.toMatchObject({ side: 'buy' });
+    await expect(engine.createOrder('u1', BUY)).resolves.toMatchObject({ side: 'buy' });
     accounts.balances.set(KEY, 5n);
-    await expect(engine.createOrder(SELL)).resolves.toMatchObject({ side: 'sell' });
+    await expect(engine.createOrder('u1', SELL)).resolves.toMatchObject({ side: 'sell' });
   });
 
   it('reports whether the wallet holds a token (null without a wallet)', async () => {
     const { accounts, engine } = await setup();
-    expect(await engine.holds(MINT)).toBe(false);
+    expect(await engine.holds('u1', MINT)).toBe(false);
     accounts.balances.set(KEY, 1n);
-    expect(await engine.holds(MINT)).toBe(true);
+    expect(await engine.holds('u1', MINT)).toBe(true);
     const bare = new OrderEngine(new SqliteOrderStoreAdapter(':memory:'), new FakePriceFeed(), new FakeExecutor(), () => undefined, () => undefined);
-    expect(await bare.holds(MINT)).toBeNull();
+    expect(await bare.holds('u1', MINT)).toBeNull();
   });
 
   it('explains when the balance cannot be checked', async () => {
     const { accounts, engine } = await setup();
     accounts.getTokenBalance = async () => { throw new Error('rpc down'); };
-    await expect(engine.createOrder(SELL)).rejects.toThrow(/Couldn't check your balance.*rpc down/);
+    await expect(engine.createOrder('u1', SELL)).rejects.toThrow(/Couldn't check your balance.*rpc down/);
   });
 });
 
@@ -95,7 +95,7 @@ describe('OrderEngine on-chain confirmation', () => {
     let release!: () => void;
     exec.gate = new Promise((r) => (release = r));
     exec.results.push({ ok: false, kind: 'unknown', message: 'could not confirm' });
-    const o = await engine.createOrder(BUY);
+    const o = await engine.createOrder('u1', BUY);
     feed.tick(MINT, 1);
     await settle(10);
     accounts.balances.set(KEY, 713_788n); // the buy landed on-chain
@@ -109,7 +109,7 @@ describe('OrderEngine on-chain confirmation', () => {
   it('keeps unknown when the chain shows nothing within the grace period', async () => {
     const { store, feed, exec, engine } = await setup(30);
     exec.results.push({ ok: false, kind: 'timeout', message: 'no answer' });
-    const o = await engine.createOrder(BUY);
+    const o = await engine.createOrder('u1', BUY);
     feed.tick(MINT, 1);
     await settle(80);
     expect(store.get(o.id)?.status).toBe('unknown');
@@ -118,11 +118,11 @@ describe('OrderEngine on-chain confirmation', () => {
   it('trusts definite UI failures and UI successes', async () => {
     const { store, feed, exec, engine } = await setup();
     exec.results.push({ ok: false, kind: 'insufficient_funds', message: 'no cash' });
-    const o = await engine.createOrder(BUY);
+    const o = await engine.createOrder('u1', BUY);
     feed.tick(MINT, 1);
     await settle(20);
     expect(store.get(o.id)?.status).toBe('failed');
-    const p = await engine.createOrder(BUY);
+    const p = await engine.createOrder('u1', BUY);
     feed.tick(MINT, 1);
     await settle(20);
     expect(store.get(p.id)?.status).toBe('filled');
@@ -131,7 +131,7 @@ describe('OrderEngine on-chain confirmation', () => {
   it('falls back to UI-only confirmation when the snapshot fails', async () => {
     const { accounts, store, feed, engine, errors } = await setup();
     accounts.getTokenBalance = async () => { throw new Error('rpc down'); };
-    const o = await engine.createOrder(BUY);
+    const o = await engine.createOrder('u1', BUY);
     feed.tick(MINT, 1);
     await settle(20);
     expect(store.get(o.id)?.status).toBe('filled');

@@ -42,18 +42,18 @@ export class FakeExecutor extends TradeExecutorPort {
   ready = true;
   readonly executed: Order[] = [];
   readonly results: ExecutionResult[] = [];
-  private readyCb: (() => void) | null = null;
+  private readyCb: ((userId: string) => void) | null = null;
   /** When set, execute() waits for this promise before answering. */
   gate: Promise<void> | null = null;
 
-  /** Current readiness. */
-  isReady(): boolean { return this.ready; }
+  /** Current readiness (the same for every account). */
+  isReady(_userId: string): boolean { return this.ready; }
 
   /** Stores the readiness callback. */
-  onReady(cb: () => void): void { this.readyCb = cb; }
+  onReady(cb: (userId: string) => void): void { this.readyCb = cb; }
 
-  /** Flips to ready and notifies the engine. */
-  connect(): void { this.ready = true; this.readyCb?.(); }
+  /** Flips to ready and notifies the engine for `userId`. */
+  connect(userId = 'u1'): void { this.ready = true; this.readyCb?.(userId); }
 
   /** Returns the next queued result (default: success). */
   async execute(order: Order): Promise<ExecutionResult> {

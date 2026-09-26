@@ -1,11 +1,12 @@
 /**
  * @file order-engine.ts
- * @description Watches prices for open orders, triggers them atomically and executes them one at a
- *              time through the TradeExecutorPort. Slippage failures re-arm the order.
+ * @description Watches prices for open orders, triggers them atomically and executes them through the
+ *              TradeExecutorPort — one trade at a time per account (each account's own extension trades), accounts
+ *              in parallel. Slippage failures re-arm the order. Prices are shared by every account.
  * @author Reborn1987
  */
 
-import { OrderStateError, ValidationError } from '../errors.js';
+import { LimitError, OrderStateError, ValidationError } from '../errors.js';
 import type { OrderStorePort } from '../../ports/order-store.js';
 import type { PriceFeedPort, PriceTick, PriceWatch } from '../../ports/price-feed.js';
 import type { TradeConfirmerPort } from '../../ports/trade-confirmer.js';
@@ -29,22 +30,30 @@ export type EngineEvent =
 const ACTIVE = ['open', 'triggered'] as const;
 /** How long a viewer's interest keeps a mint's price stream alive without orders. */
 export const VIEW_TTL_MS = 5 * 60_000;
+/** Default cap on open + triggered orders per account. */
+export const DEFAULT_MAX_ACTIVE_PER_USER = 25;
+
+/** The on-chain confirmer for an account's wallets (null when the account has none set). */
+export type ConfirmerLookup = (userId: string) => TradeConfirmerPort | null;
 
 export class OrderEngine {
   private readonly watches = new Map<string, PriceWatch>();
   private readonly pendingWatches = new Map<string, Promise<PriceWatch>>();
   private readonly lastTick = new Map<string, PriceTick>();
-  private readonly queue: string[] = [];
+  /** Triggered order ids waiting to execute, per account. */
+  private readonly queues = new Map<string, string[]>();
+  /** Accounts with a trade in progress. */
+  private readonly busy = new Set<string>();
   /** mint -> time until which someone is viewing it (keeps the price stream open without orders). */
   private readonly viewers = new Map<string, number>();
   private sweepTimer: NodeJS.Timeout | null = null;
-  private busy = false;
 
   /**
    * @param store durable orders @param feed live prices @param executor trade placement
    * @param onEvent event sink (gateway broadcast) @param onError sink for background errors
-   * @param confirmer optional on-chain confirmation (null when no wallet is configured)
+   * @param confirmerFor on-chain confirmation for an account's wallets
    * @param chainGraceMs extra wait for on-chain evidence after the UI reports unknown/timeout
+   * @param maxActivePerUser cap on open + triggered orders per account
    */
   constructor(
     private readonly store: OrderStorePort,
@@ -52,11 +61,12 @@ export class OrderEngine {
     private readonly executor: TradeExecutorPort,
     private readonly onEvent: (e: EngineEvent) => void,
     private readonly onError: (err: unknown) => void,
-    private readonly confirmer: TradeConfirmerPort | null = null,
+    private readonly confirmerFor: ConfirmerLookup = () => null,
     private readonly chainGraceMs = 20_000,
     private readonly now: () => number = Date.now,
+    private readonly maxActivePerUser = DEFAULT_MAX_ACTIVE_PER_USER,
   ) {
-    executor.onReady(() => void this.pump());
+    executor.onReady((userId) => void this.pump(userId));
   }
 
   /**
@@ -76,9 +86,9 @@ export class OrderEngine {
         this.onError(err);
       }
     }
-    for (const o of this.store.list(['triggered']).reverse()) this.queue.push(o.id);
+    for (const o of this.store.list(['triggered']).reverse()) this.enqueue(o);
     this.sweepTimer = setInterval(() => this.sweepViewers(), 60_000);
-    void this.pump();
+    for (const userId of this.queues.keys()) void this.pump(userId);
   }
 
   /**
@@ -100,15 +110,18 @@ export class OrderEngine {
     }
   }
 
-  /** Validates input, confirms the token can be priced, then persists the order. */
-  async createOrder(input: unknown): Promise<Order> {
+  /** Validates input, checks the account's limit, confirms the token can be priced, then persists the order. */
+  async createOrder(userId: string, input: unknown): Promise<Order> {
     const parsed = CreateOrderSchema.safeParse(input);
     if (!parsed.success) {
       throw new ValidationError(parsed.error.issues.map((i) => `${i.path.join('.') || 'order'}: ${i.message}`).join('; '));
     }
+    if (this.store.list([...ACTIVE], userId).length >= this.maxActivePerUser) {
+      throw new LimitError(`You can have up to ${this.maxActivePerUser} open orders. Cancel one to add another.`);
+    }
     await this.ensureWatch(parsed.data.mint); // throws UnsupportedPoolError before anything is saved
-    if (parsed.data.side === 'sell') await this.requireHolding(parsed.data.mint);
-    const order = this.store.create(parsed.data);
+    if (parsed.data.side === 'sell') await this.requireHolding(userId, parsed.data.mint);
+    const order = this.store.create(parsed.data, userId);
     this.publish(order);
     const tick = this.lastTick.get(order.mint);
     if (tick) this.evaluate(tick);
@@ -119,20 +132,22 @@ export class OrderEngine {
    * Whether the wallet holds `mint` (for the UI to disable selling). Null when no wallet is configured,
    * so the caller knows it cannot tell rather than being told "no".
    */
-  async holds(mint: string): Promise<boolean | null> {
-    if (!this.confirmer?.covers(mint)) return null;
-    return (await this.confirmer.snapshot(mint)) > 0n;
+  async holds(userId: string, mint: string): Promise<boolean | null> {
+    const confirmer = this.confirmerFor(userId);
+    if (!confirmer?.covers(mint)) return null;
+    return (await confirmer.snapshot(mint)) > 0n;
   }
 
   /**
    * Sell orders (take profit / stop loss) need a balance to sell. Checked on-chain against the configured
    * wallet; without a wallet there is nothing to check against, so the order is accepted.
    */
-  private async requireHolding(mint: string): Promise<void> {
-    if (!this.confirmer?.covers(mint)) return;
+  private async requireHolding(userId: string, mint: string): Promise<void> {
+    const confirmer = this.confirmerFor(userId);
+    if (!confirmer?.covers(mint)) return;
     let balance: bigint;
     try {
-      balance = await this.confirmer.snapshot(mint);
+      balance = await confirmer.snapshot(mint);
     } catch (err) {
       throw new ValidationError(`Couldn't check your balance of this token (${err instanceof Error ? err.message : String(err)}). Try again in a moment.`);
     }
@@ -141,8 +156,13 @@ export class OrderEngine {
     }
   }
 
-  /** Cancels an order that has not started executing; `reason` is stored as its note. */
-  cancelOrder(id: string, reason?: string): Order {
+  /**
+   * Cancels an order that has not started executing; `reason` is stored as its note. With `userId`, only that
+   * account's orders can be cancelled (someone else's order reads as not found).
+   */
+  cancelOrder(id: string, reason?: string, userId?: string): Order {
+    const owned = this.store.get(id);
+    if (!owned || (userId !== undefined && owned.userId !== userId)) throw new OrderStateError(`Order ${id} not found`);
     const order = this.store.transition(id, [...ACTIVE], 'cancelled', reason === undefined ? {} : { lastError: reason });
     if (!order) {
       const existing = this.store.get(id);
@@ -155,9 +175,24 @@ export class OrderEngine {
     return order;
   }
 
-  /** All orders, newest first. */
-  listOrders(): Order[] {
-    return this.store.list();
+  /** Orders newest first — one account's, or everyone's when `userId` is omitted. */
+  listOrders(userId?: string): Order[] {
+    return this.store.list(undefined, userId);
+  }
+
+  /** Cancels an account's active orders and deletes all its orders (account deletion). */
+  deleteUserOrders(userId: string): number {
+    for (const o of this.store.list([...ACTIVE], userId)) {
+      try {
+        this.cancelOrder(o.id, 'Account deleted', userId);
+      } catch {
+        // started executing meanwhile; its row is deleted below and the outcome is dropped
+      }
+    }
+    this.queues.delete(userId);
+    const removed = this.store.deleteForUser(userId);
+    for (const mint of [...this.watches.keys()]) this.releaseWatchIfIdle(mint);
+    return removed;
   }
 
   /** Latest known tick per watched mint. */
@@ -211,31 +246,39 @@ export class OrderEngine {
 
   /** Triggers every open order on the tick's mint whose condition is met. */
   private evaluate(tick: PriceTick): void {
-    let queued = false;
+    const queued = new Set<string>();
     for (const o of this.store.list(['open'])) {
       if (o.mint !== tick.mint || !isTriggered(o, tick)) continue;
       const t = this.store.transition(o.id, ['open'], 'triggered', { triggeredAtValue: metricValue(o, tick) });
       if (!t) continue; // someone else moved it first
       this.publish(t);
-      this.queue.push(t.id);
-      queued = true;
+      this.enqueue(t);
+      queued.add(t.userId);
     }
-    if (queued) void this.pump();
+    for (const userId of queued) void this.pump(userId);
   }
 
-  /** Executes queued orders one at a time while an executor is connected. */
-  private async pump(): Promise<void> {
-    if (this.busy) return;
-    this.busy = true;
+  /** Adds a triggered order to its account's queue. */
+  private enqueue(order: Order): void {
+    let q = this.queues.get(order.userId);
+    if (!q) this.queues.set(order.userId, (q = []));
+    q.push(order.id);
+  }
+
+  /** Executes an account's queued orders one at a time while its extension is connected. */
+  private async pump(userId: string): Promise<void> {
+    if (this.busy.has(userId)) return;
+    this.busy.add(userId);
     try {
-      while (this.queue.length > 0 && this.executor.isReady()) {
-        const id = this.queue.shift() as string;
-        await this.executeOne(id);
+      const q = this.queues.get(userId);
+      while (q && q.length > 0 && this.executor.isReady(userId)) {
+        await this.executeOne(q.shift() as string);
       }
+      if (q?.length === 0) this.queues.delete(userId);
     } catch (err) {
       this.onError(err);
     } finally {
-      this.busy = false;
+      this.busy.delete(userId);
     }
   }
 
@@ -263,16 +306,17 @@ export class OrderEngine {
    * (unknown / timeout). Without a confirmer this is just executor.execute().
    */
   private async executeWithConfirmation(order: Order): Promise<ExecutionResult> {
-    if (!this.confirmer?.covers(order.mint)) return this.executor.execute(order);
+    const confirmer = this.confirmerFor(order.userId);
+    if (!confirmer?.covers(order.mint)) return this.executor.execute(order);
     let before: bigint;
     try {
-      before = await this.confirmer.snapshot(order.mint);
+      before = await confirmer.snapshot(order.mint);
     } catch (err) {
       this.onError(err); // RPC hiccup: fall back to UI confirmation only
       return this.executor.execute(order);
     }
     const abort = new AbortController();
-    const chain = this.confirmer.waitForChange(order.mint, before, order.side, abort.signal);
+    const chain = confirmer.waitForChange(order.mint, before, order.side, abort.signal);
     void chain.then((change) => {
       if (change) this.publish(this.store.transition(order.id, ['executing'], 'filled', { lastError: null }));
     });

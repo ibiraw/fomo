@@ -22,12 +22,12 @@ export type ExecutionResult =
 
 /** Abstract trade executor. Adapter: WsGateway (drives the Chrome extension). */
 export abstract class TradeExecutorPort {
-  /** True when an executor is connected and able to trade right now. */
-  abstract isReady(): boolean;
+  /** True when `userId`'s executor (their extension) is connected and able to trade right now. */
+  abstract isReady(userId: string): boolean;
 
-  /** Places the trade for `order`. Must resolve (never reject) with a typed result. */
+  /** Places the trade for `order` through its owner's executor. Must resolve (never reject) with a typed result. */
   abstract execute(order: Order): Promise<ExecutionResult>;
 
-  /** Registers a callback fired whenever readiness changes to true. */
-  abstract onReady(cb: () => void): void;
+  /** Registers a callback fired with the account id whenever that account's executor becomes ready. */
+  abstract onReady(cb: (userId: string) => void): void;
 }

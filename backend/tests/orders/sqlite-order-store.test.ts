@@ -17,7 +17,7 @@ const input = CreateOrderSchema.parse({
 describe('SqliteOrderStoreAdapter', () => {
   it('creates and reads back an open order', () => {
     const store = new SqliteOrderStoreAdapter(':memory:', () => 1000);
-    const o = store.create(input);
+    const o = store.create(input, 'u1');
     expect(o).toMatchObject({
       mint: MINT, side: 'buy', status: 'open', attempts: 0, maxAttempts: 3, lastError: null, triggeredAtValue: null,
       trigger: { metric: 'marketCap', direction: 'below', value: 3000 }, amount: { kind: 'usd', value: 5 }, createdAt: 1000,
@@ -30,8 +30,8 @@ describe('SqliteOrderStoreAdapter', () => {
   it('lists all or by status, newest first', () => {
     let t = 0;
     const store = new SqliteOrderStoreAdapter(':memory:', () => ++t);
-    const a = store.create(input);
-    const b = store.create(input);
+    const a = store.create(input, 'u1');
+    const b = store.create(input, 'u1');
     store.transition(a.id, ['open'], 'cancelled');
     expect(store.list().map((o) => o.id)).toEqual([b.id, a.id]);
     expect(store.list(['open']).map((o) => o.id)).toEqual([b.id]);
@@ -40,7 +40,7 @@ describe('SqliteOrderStoreAdapter', () => {
 
   it('transitions only from allowed statuses and applies the patch', () => {
     const store = new SqliteOrderStoreAdapter(':memory:');
-    const o = store.create(input);
+    const o = store.create(input, 'u1');
     const t = store.transition(o.id, ['open'], 'triggered', { triggeredAtValue: 2900, attempts: 1, lastError: 'x' });
     expect(t).toMatchObject({ status: 'triggered', triggeredAtValue: 2900, attempts: 1, lastError: 'x' });
     expect(store.transition(o.id, ['open'], 'triggered')).toBeNull(); // already moved — CAS fails

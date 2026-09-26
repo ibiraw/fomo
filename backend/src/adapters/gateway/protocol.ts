@@ -20,15 +20,18 @@ const ExecutionResultSchema = z.discriminatedUnion('ok', [
   }),
 ]);
 
-/** Messages a client may send. */
+/** Messages a client may send. `hello.token` is the account key; `create` registers it when unknown. */
 export const ClientMessageSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('hello'), token: z.string(), executor: z.boolean() }),
+  z.object({ type: z.literal('hello'), token: z.string().max(200), executor: z.boolean(), create: z.boolean().default(false) }),
   z.object({ type: z.literal('order.create'), reqId: z.string(), order: z.unknown() }),
   z.object({ type: z.literal('order.cancel'), reqId: z.string(), id: z.string() }),
   z.object({ type: z.literal('order.list'), reqId: z.string() }),
   z.object({ type: z.literal('token.info'), reqId: z.string(), mint: TokenKeySchema }),
   z.object({ type: z.literal('price.watch'), reqId: z.string(), mint: TokenKeySchema }),
   z.object({ type: z.literal('wallet.holds'), reqId: z.string(), mint: TokenKeySchema }),
+  z.object({ type: z.literal('wallets.set'), reqId: z.string(), wallets: z.unknown() }),
+  z.object({ type: z.literal('account.info'), reqId: z.string() }),
+  z.object({ type: z.literal('account.delete'), reqId: z.string() }),
   z.object({ type: z.literal('exec.result'), execId: z.string(), result: ExecutionResultSchema }),
   z.object({ type: z.literal('pong') }),
 ]);

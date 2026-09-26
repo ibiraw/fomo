@@ -1,6 +1,6 @@
 # backend/
 
-Node 22 + TypeScript (strict). Local server: live prices, order engine, WebSocket gateway for the Chrome extension.
+Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), per-account orders, WebSocket gateway the extensions log into.
 
 ## Layout
 | Path | Purpose |
@@ -13,7 +13,8 @@ Node 22 + TypeScript (strict). Local server: live prices, order engine, WebSocke
 | `src/core/chains/` | Token keys (`<mint>` for Solana, `<chain>:<0xaddress>` for EVM; fomo URL slugs), `ChainRouterPriceFeed`, `ChainRouterConfirmer` |
 | `src/core/evm/` | Per chain: `LaunchpadPriceFeed` (four.meme on BNB, flap.sh on BNB/Base/Robinhood; trade events carry the price; hands off to pools on graduation) → `EvmPoolPriceFeed` (v2 Sync / v3 + PancakeSwap v3 Swap / Uniswap v4 Swap via StateView) → `DexScreenerPriceFeed` (polled, "slower"). `EvmUsdQuotes` (stables $1, others chained on-chain, loop-safe via AsyncLocalStorage path), `Erc20Reader`, `EvmWalletConfirmer`, `evm-addresses.ts` (verified contract addresses) |
 | `src/adapters/solana/` | `KitSolanaAccountsAdapter` — @solana/kit over Chainstack HTTP/WSS, auto-reconnect |
-| `src/adapters/storage/` | `SqliteOrderStoreAdapter` — node:sqlite, compare-and-set status transitions |
+| `src/adapters/storage/` | `SqliteOrderStoreAdapter` (compare-and-set transitions, `user_id` per order) and `SqliteAccountStoreAdapter` (secret hashes + wallets) — same node:sqlite file |
+| `src/core/accounts/` | `AccountService` (login/create by key, wallets, legacy owner), `WalletConfirmers` (per-account on-chain confirmers, cached) |
 | `src/adapters/gateway/` | `WsGateway` (ws://127.0.0.1:8787) + `protocol.ts` message schemas |
 | `src/core/pricing/` | Price feeds behind `CompositePriceFeed` (priority order): `PumpPriceFeed` (curve + PumpSwap), `RaydiumLaunchLabPriceFeed` (bonk.fun curves, hands off to CPMM on graduation), `RaydiumCpmmPriceFeed`, `MeteoraDbcPriceFeed` (fomo's own launchpad curves; sqrt-price based; hands off to DAMM v2), `MeteoraDammV2PriceFeed` (sqrt-price pools, any quote token with a USD price), `JupiterPriceFeed` (polled fallback, tagged "slower"). Shared: `VaultPair` (slot-paired vault updates), `UsdQuotes` (SOL via Pyth, stables $1, others via Jupiter), `PoolDirectory` (DexScreener pool discovery, verified on-chain) |
 | `src/core/tokens/` | `TokenInfoService`: name/symbol/X link from Token-2022 or Metaplex metadata, DexScreener socials fallback |
@@ -35,10 +36,15 @@ Node 22 + TypeScript (strict). Local server: live prices, order engine, WebSocke
 - Timeout / extension disconnect / restart mid-trade → `unknown` (user must check FOMO).
 - One trade at a time.
 
+## Accounts
+- The extension makes a random key (≥ 32 base64url chars) and sends it in `hello`; the server stores only its SHA-256. `create: true` registers unknown keys (max `accountsPerIpPerHour` per IP; behind Cloudflare set `GATEWAY_TRUST_PROXY=true`).
+- Orders, wallets, executor and trade queue are per account; accounts trade in parallel, one trade at a time each. Cap: `MAX_ACTIVE_ORDERS_PER_USER` (default 25).
+- **Legacy owner:** orders from before accounts belong to account id `legacy`, whose key is the old pairing code (`data/pairing-token.txt`) and whose wallets were seeded from `FOMO_WALLET` / `FOMO_EVM_WALLET` on first start.
+
 ## Gateway protocol (JSON over WS)
-Client: `hello{token,executor}`, `order.create{reqId,order}`, `order.cancel{reqId,id}`, `order.list{reqId}`, `token.info{reqId,mint}`, `price.watch{reqId,mint}` (viewer interest, 5 min TTL), `wallet.holds{reqId,mint}` → `{holds: boolean|null}`, `exec.result{execId,result}`, `pong`.
-Server: `welcome{orders,ticks}`, `reply{reqId,ok,data|error}`, `order{order}`, `tick{tick}` (≤4/s per mint), `exec.request{execId,order}`, `ping`, `error`.
-Only `chrome-extension://` origins or non-browser clients; wrong token → close 4001.
+Client: `hello{token,executor,create?}`, `order.create{reqId,order}`, `order.cancel{reqId,id}`, `order.list{reqId}`, `token.info{reqId,mint}`, `price.watch{reqId,mint}` (viewer interest, 5 min TTL; newest `viewedTokens` per connection), `wallet.holds{reqId,mint}` → `{holds: boolean|null}`, `wallets.set{reqId,wallets:{solana,evm}}`, `account.info{reqId}`, `account.delete{reqId}`, `exec.result{execId,result}`, `pong`.
+Server: `welcome{account,orders,ticks}`, `reply{reqId,ok,data|error}`, `order{order}` (owner only), `tick{tick}` (≤4/s per mint, only to clients viewing it or with orders on it), `exec.request{execId,order}` (owner's executor), `ping`, `error`.
+Close codes: 4001 bad/unknown key or account limit, 4003 account deleted, 4008 too many messages. Only `chrome-extension://` origins or non-browser clients.
 
 ## Notes
 - `.env` (RPC URLs) and `data/` (DB + pairing token) are git-ignored.
@@ -46,7 +52,7 @@ Only `chrome-extension://` origins or non-browser clients; wrong token → close
 - On-chain (sub-second): pump.fun curve/PumpSwap, Raydium LaunchLab (constant-product curves, SOL/USD1 quote), Raydium CPMM (any quote with a USD price), Meteora DBC (fomo launchpad; live pools use a newer discriminator than the published IDL — both accepted). Everything else: Jupiter every 1.5s.
 - A feed that can't price a token throws `UnsupportedPoolError` and the next feed is tried; other errors are rethrown.
 - LaunchLab and CPMM share the "PoolState" discriminator — LaunchLab pools are found by PDA, CPMM pools via DexScreener + layout check.
-- Optional env: `FOMO_WALLET` (on-chain trade confirmation), `JUPITER_API_KEY`, `JUPITER_POLL_MS`.
+- Optional env: `FOMO_WALLET` / `FOMO_EVM_WALLET` (legacy owner's wallets, first start only), `JUPITER_API_KEY`, `JUPITER_POLL_MS`, `GATEWAY_TRUST_PROXY`, `MAX_ACTIVE_ORDERS_PER_USER`.
 - EVM env (each chain needs both): `ETH_RPC_HTTP/WSS`, `BASE_…`, `BNB_…`, `ROBINHOOD_…`, `ARC_…`; `FOMO_EVM_WALLET` (same address on every EVM chain) enables EVM confirmation, sell checks and auto-cancel.
 - EVM pools are found via DexScreener `token-pairs/v1` (its `tokens/v1` returns only a token's main pair). Listings whose contract reverts are skipped.
 - v4 orientation: the other currency may be native (0x0, 18 decimals) even when DexScreener lists the wrapped token; both readings are priced and the one matching DexScreener's `priceNative` wins.

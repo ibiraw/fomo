@@ -15,14 +15,20 @@ export interface TransitionPatch {
 
 /** Abstract order storage. Adapter: SqliteOrderStoreAdapter. */
 export abstract class OrderStorePort {
-  /** Persists a new order in status 'open'. */
-  abstract create(input: ValidCreateOrder): Order;
+  /** Persists a new order in status 'open' for `userId`. */
+  abstract create(input: ValidCreateOrder, userId: string): Order;
 
   /** Returns an order or null. */
   abstract get(id: string): Order | null;
 
-  /** Returns orders in any of the given statuses (all orders when omitted), newest first. */
-  abstract list(statuses?: readonly OrderStatus[]): Order[];
+  /**
+   * Returns orders in any of the given statuses (all statuses when omitted or empty), newest first;
+   * only `userId`'s orders when given.
+   */
+  abstract list(statuses?: readonly OrderStatus[], userId?: string): Order[];
+
+  /** Deletes every order of `userId` (account deletion). Returns how many were removed. */
+  abstract deleteForUser(userId: string): number;
 
   /**
    * Atomically moves an order from one of `from` to `to` (compare-and-set).

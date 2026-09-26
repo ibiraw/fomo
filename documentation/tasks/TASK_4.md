@@ -16,6 +16,10 @@ Author: Reborn1987
 | `ph_…_posthog` → `$stored_person_properties.solanaAddress` / `.evmAddress` | Solana + EVM | fomo's own labels, but analytics storage: ad-blockers can remove it |
 Fallback: read the deposit screen in the extension's hidden background tab; last resort: paste in Settings.
 
+## Status
+- Phase 1 ✅ (listing, icons, promo tile, privacy page, zip). Screenshots still to capture (after phase 3 UI).
+- Phase 2 ✅ multi-user server — 175 backend tests, 96.7% coverage. Live migration: 43 existing orders → `legacy` account, owner's extension logs in with the old pairing code.
+
 ## Phases
 1. **Store package** — "auto fomo" name/version, real icons, privacy policy page on the website, listing copy + permission
    justifications, screenshots (1280×800), `npm run zip`.

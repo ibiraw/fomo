@@ -14,6 +14,7 @@ import { OrderStorePort, type TransitionPatch } from '../../ports/order-store.js
 /** Raw row shape as stored in SQLite. */
 interface OrderRow {
   id: string;
+  user_id: string;
   mint: string;
   side: string;
   trigger_metric: string;
@@ -55,11 +56,15 @@ CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 
 /** v1.1.0: optional supply used for market-cap triggers (fomo's displayed supply). */
 const MIGRATION_TRIGGER_SUPPLY = 'ALTER TABLE orders ADD COLUMN trigger_supply REAL';
+/** v1.2.0: owning account. Orders created before accounts existed get `legacyUserId`. */
+const MIGRATION_USER_ID = 'ALTER TABLE orders ADD COLUMN user_id TEXT';
+const INDEX_USER = 'CREATE INDEX IF NOT EXISTS idx_orders_user_status ON orders(user_id, status)';
 
 /** Maps a DB row to the domain Order. */
 function toOrder(r: OrderRow): Order {
   return {
     id: r.id,
+    userId: r.user_id,
     mint: r.mint,
     side: r.side as Order['side'],
     trigger: {
@@ -84,26 +89,33 @@ export class SqliteOrderStoreAdapter extends OrderStorePort {
   private readonly insertStmt: StatementSync;
   private readonly getStmt: StatementSync;
 
-  /** @param path SQLite file path, or ':memory:' for tests. @param now clock (injectable for tests). */
-  constructor(path: string, private readonly now: () => number = Date.now) {
+  /**
+   * @param path SQLite file path, or ':memory:' for tests. @param now clock (injectable for tests).
+   * @param legacyUserId owner given to orders stored before accounts existed
+   */
+  constructor(path: string, private readonly now: () => number = Date.now, legacyUserId = 'legacy') {
     super();
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode = WAL;');
     this.db.exec(SCHEMA);
     const cols = (this.db.prepare('PRAGMA table_info(orders)').all() as { name: string }[]).map((c) => c.name);
     if (!cols.includes('trigger_supply')) this.db.exec(MIGRATION_TRIGGER_SUPPLY);
+    if (!cols.includes('user_id')) this.db.exec(MIGRATION_USER_ID);
+    this.db.prepare('UPDATE orders SET user_id = ? WHERE user_id IS NULL').run(legacyUserId);
+    this.db.exec(INDEX_USER);
     this.insertStmt = this.db.prepare(`
-      INSERT INTO orders (id, mint, side, trigger_metric, trigger_direction, trigger_value, trigger_supply,
+      INSERT INTO orders (id, user_id, mint, side, trigger_metric, trigger_direction, trigger_value, trigger_supply,
         amount_kind, amount_value, status, attempts, max_attempts, created_at, updated_at)
-      VALUES (:id, :mint, :side, :metric, :direction, :tvalue, :tsupply, :akind, :avalue, 'open', 0, :max, :now, :now)`);
+      VALUES (:id, :user, :mint, :side, :metric, :direction, :tvalue, :tsupply, :akind, :avalue, 'open', 0, :max, :now, :now)`);
     this.getStmt = this.db.prepare('SELECT * FROM orders WHERE id = ?');
   }
 
-  /** Inserts a new open order. */
-  create(input: ValidCreateOrder): Order {
+  /** Inserts a new open order for `userId`. */
+  create(input: ValidCreateOrder, userId: string): Order {
     const id = randomUUID();
     this.insertStmt.run({
       id,
+      user: userId,
       mint: input.mint,
       side: input.side,
       metric: input.trigger.metric,
@@ -124,12 +136,19 @@ export class SqliteOrderStoreAdapter extends OrderStorePort {
     return row ? toOrder(row) : null;
   }
 
-  /** Lists orders filtered by status, newest first. */
-  list(statuses?: readonly OrderStatus[]): Order[] {
-    const rows = statuses?.length
-      ? this.db.prepare(`SELECT * FROM orders WHERE status IN (${statuses.map(() => '?').join(',')}) ORDER BY created_at DESC, rowid DESC`).all(...statuses)
-      : this.db.prepare('SELECT * FROM orders ORDER BY created_at DESC, rowid DESC').all();
-    return (rows as unknown as OrderRow[]).map(toOrder);
+  /** Lists orders filtered by status and/or owner, newest first. */
+  list(statuses?: readonly OrderStatus[], userId?: string): Order[] {
+    const where: string[] = [];
+    const args: string[] = [];
+    if (statuses?.length) { where.push(`status IN (${statuses.map(() => '?').join(',')})`); args.push(...statuses); }
+    if (userId !== undefined) { where.push('user_id = ?'); args.push(userId); }
+    const sql = `SELECT * FROM orders ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at DESC, rowid DESC`;
+    return (this.db.prepare(sql).all(...args) as unknown as OrderRow[]).map(toOrder);
+  }
+
+  /** Deletes all of a user's orders. */
+  deleteForUser(userId: string): number {
+    return Number(this.db.prepare('DELETE FROM orders WHERE user_id = ?').run(userId).changes);
   }
 
   /** Compare-and-set status transition; returns null if the order was not in a `from` status. */

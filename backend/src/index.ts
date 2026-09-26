@@ -7,8 +7,11 @@
 import { WsGateway } from './adapters/gateway/ws-gateway.js';
 import { FetchHttpJsonAdapter } from './adapters/http/fetch-http-json.adapter.js';
 import { KitSolanaAccountsAdapter } from './adapters/solana/kit-solana-accounts.adapter.js';
+import { SqliteAccountStoreAdapter } from './adapters/storage/sqlite-account-store.adapter.js';
 import { SqliteOrderStoreAdapter } from './adapters/storage/sqlite-order-store.adapter.js';
 import { loadConfig } from './config.js';
+import { AccountService } from './core/accounts/account-service.js';
+import { WalletConfirmers } from './core/accounts/wallet-confirmers.js';
 import { ChainRouterConfirmer } from './core/chains/chain-router-confirmer.js';
 import { ChainRouterPriceFeed } from './core/chains/chain-router-price-feed.js';
 import type { Chain, EvmChain } from './core/chains/token-key.js';
@@ -29,6 +32,9 @@ import { UsdQuotes } from './core/pricing/usd-quotes.js';
 import { TokenInfoService } from './core/tokens/token-info-service.js';
 import type { PriceFeedPort } from './ports/price-feed.js';
 import type { TradeConfirmerPort } from './ports/trade-confirmer.js';
+
+/** Account that owns everything created before accounts existed (its key is the old pairing code). */
+const LEGACY_ACCOUNT_ID = 'legacy';
 
 /** Timestamped console logger. */
 function log(msg: string): void {
@@ -66,45 +72,55 @@ async function main(): Promise<void> {
   const evm = new Map<EvmChain, EvmChainParts>([...cfg.evm].map(([chain, urls]) => [chain, buildEvmChain(chain, urls, directory, http, logError)]));
   const feed = new ChainRouterPriceFeed(new Map<Chain, PriceFeedPort>([['solana', solanaFeed], ...[...evm].map(([c, p]) => [c, p.feed] as const)]));
   const erc20ByChain = new Map([...evm].map(([c, p]) => [c, p.erc20] as const));
-  const store = new SqliteOrderStoreAdapter(cfg.dbPath);
+  const store = new SqliteOrderStoreAdapter(cfg.dbPath, Date.now, LEGACY_ACCOUNT_ID);
+  const accountStore = new SqliteAccountStoreAdapter(cfg.dbPath);
+  const accountService = new AccountService(accountStore);
+  // The pre-accounts owner keeps working: their pairing code is the key of the "legacy" account, whose wallets come from .env.
+  accountService.ensureLegacy(LEGACY_ACCOUNT_ID, cfg.pairingToken, { solana: cfg.fomoWallet, evm: cfg.fomoEvmWallet });
   const gateway = new WsGateway(
-    { host: cfg.gatewayHost, port: cfg.gatewayPort, token: cfg.pairingToken, execTimeoutMs: cfg.execTimeoutMs, tickThrottleMs: 250, pingIntervalMs: 20_000 },
+    {
+      host: cfg.gatewayHost, port: cfg.gatewayPort, execTimeoutMs: cfg.execTimeoutMs, tickThrottleMs: 250, pingIntervalMs: 20_000,
+      trustProxy: cfg.trustProxy,
+    },
     log,
   );
-  // On-chain confirmation per chain: the Solana wallet for Solana tokens, the EVM wallet (same address everywhere) for EVM tokens.
-  const confirmers = new Map<Chain, TradeConfirmerPort>();
-  if (cfg.fomoWallet) confirmers.set('solana', new WalletTradeConfirmer(accounts, cfg.fomoWallet, 400, logError('confirm')));
-  if (cfg.fomoEvmWallet) {
-    const evmConfirmer = new EvmWalletConfirmer(erc20ByChain, cfg.fomoEvmWallet, 400, logError('confirm:evm'));
-    for (const c of evm.keys()) confirmers.set(c, evmConfirmer);
-  }
-  const confirmer = confirmers.size > 0 ? new ChainRouterConfirmer(confirmers) : null;
+  // On-chain confirmation per account: its Solana wallet for Solana tokens, its EVM wallet (same address on every EVM chain) for EVM tokens.
+  const walletConfirmers = new WalletConfirmers((id) => accountService.wallets(id), (w) => {
+    const byChain = new Map<Chain, TradeConfirmerPort>();
+    if (w.solana) byChain.set('solana', new WalletTradeConfirmer(accounts, w.solana, 400, logError('confirm')));
+    if (w.evm) {
+      const evmConfirmer = new EvmWalletConfirmer(erc20ByChain, w.evm, 400, logError('confirm:evm'));
+      for (const c of evm.keys()) byChain.set(c, evmConfirmer);
+    }
+    return byChain.size > 0 ? new ChainRouterConfirmer(byChain) : null;
+  });
+  const confirmerFor = (userId: string) => walletConfirmers.for(userId);
   let guard: HoldingsGuard | null = null;
   const engine = new OrderEngine(store, feed, gateway, (e) => {
     gateway.handleEngineEvent(e);
     if (e.type === 'order') {
       guard?.onOrderChanged(e.order);
-      log(`order ${e.order.id.slice(0, 8)} ${e.order.side} ${e.order.status}${e.order.lastError ? ` — ${e.order.lastError}` : ''}`);
+      log(`order ${e.order.id.slice(0, 8)} ${e.order.userId.slice(0, 8)} ${e.order.side} ${e.order.status}${e.order.lastError ? ` — ${e.order.lastError}` : ''}`);
     }
-  }, logError('engine'), confirmer);
-  // With a wallet configured, open sells are cancelled once the token is no longer held.
-  guard = confirmer ? new HoldingsGuard(engine, confirmer, 20_000, logError('holdings')) : null;
-  gateway.attach(engine, new TokenInfoService(accounts, http, Date.now, erc20ByChain));
+  }, logError('engine'), confirmerFor, 20_000, Date.now, cfg.maxActiveOrdersPerUser);
+  // Open sells are cancelled once their account no longer holds the token.
+  guard = new HoldingsGuard(engine, confirmerFor, 20_000, logError('holdings'));
+  gateway.attach(engine, accountService, walletConfirmers, new TokenInfoService(accounts, http, Date.now, erc20ByChain));
 
   await quotes.start();
   await feed.start();
   await gateway.listen();
   await engine.start();
-  guard?.start();
-  log(`FOMO limit-order server on ws://${cfg.gatewayHost}:${gateway.port()}`);
-  log(`Pairing code for the extension: ${cfg.pairingToken}`);
-  log(cfg.fomoWallet ? `On-chain confirmation for wallet ${cfg.fomoWallet}` : 'FOMO_WALLET not set: trades are confirmed from the FOMO page only');
-  log(evm.size ? `EVM chains: ${[...evm.keys()].join(', ')}${cfg.fomoEvmWallet ? ` · confirmation for ${cfg.fomoEvmWallet}` : ' · FOMO_EVM_WALLET not set'}` : 'No EVM chains configured');
+  guard.start();
+  log(`auto fomo server on ws://${cfg.gatewayHost}:${gateway.port()}${cfg.trustProxy ? ' (behind Cloudflare)' : ''}`);
+  log(`Owner account key (old pairing code): ${cfg.pairingToken}`);
+  log(evm.size ? `EVM chains: ${[...evm.keys()].join(', ')}` : 'No EVM chains configured');
 
   const shutdown = async (): Promise<void> => {
     log('shutting down');
     guard?.stop();
     engine.stop();
+    accountStore.close();
     await gateway.close();
     await feed.close();
     quotes.close();

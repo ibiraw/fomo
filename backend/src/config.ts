@@ -18,9 +18,13 @@ const EnvSchema = z.object({
   SOLANA_RPC_WSS: z.url({ protocol: /^wss?$/ }),
   GATEWAY_HOST: z.string().default('127.0.0.1'),
   GATEWAY_PORT: z.coerce.number().int().min(1).max(65535).default(8787),
+  /** Set to "true" when Cloudflare sits in front: client IPs are then read from CF-Connecting-IP. */
+  GATEWAY_TRUST_PROXY: z.enum(['true', 'false']).default('false'),
+  /** Cap on open + triggered orders per account. */
+  MAX_ACTIVE_ORDERS_PER_USER: z.coerce.number().int().min(1).max(1000).default(25),
   DATA_DIR: z.string().default('data'),
   EXEC_TIMEOUT_MS: z.coerce.number().int().positive().default(90_000),
-  /** The user's FOMO Solana wallet; enables on-chain trade confirmation when set. */
+  /** Wallets of the owner's (legacy) account on first start; afterwards each account's wallets come from its extension. */
   FOMO_WALLET: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, 'Not a valid Solana address').optional(),
   /** The user's FOMO EVM wallet (same address on every EVM chain); enables on-chain confirmation for EVM trades. */
   FOMO_EVM_WALLET: z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'Not a valid EVM address').optional(),
@@ -45,6 +49,8 @@ export interface AppConfig {
   readonly rpcWss: string;
   readonly gatewayHost: string;
   readonly gatewayPort: number;
+  readonly trustProxy: boolean;
+  readonly maxActiveOrdersPerUser: number;
   readonly dbPath: string;
   readonly pairingToken: string;
   readonly execTimeoutMs: number;
@@ -92,6 +98,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     rpcWss: e.SOLANA_RPC_WSS,
     gatewayHost: e.GATEWAY_HOST,
     gatewayPort: e.GATEWAY_PORT,
+    trustProxy: e.GATEWAY_TRUST_PROXY === 'true',
+    maxActiveOrdersPerUser: e.MAX_ACTIVE_ORDERS_PER_USER,
     dbPath: join(e.DATA_DIR, 'orders.db'),
     pairingToken: loadOrCreateToken(e.DATA_DIR),
     execTimeoutMs: e.EXEC_TIMEOUT_MS,
