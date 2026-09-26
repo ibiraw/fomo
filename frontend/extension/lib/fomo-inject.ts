@@ -30,8 +30,8 @@ const PAGE_CSS = `
 [${ACTIVE_ATTR}] > :not([data-fomo-limit-keep]):not([${VIEW_ATTR}]) { display: none !important; }
 :not([${ACTIVE_ATTR}]) > [${VIEW_ATTR}] { display: none !important; }
 #${LIMIT_TAB_ID}[data-active] {
-  background: color-mix(in srgb, var(--color-yellow, #ffbf17) 20%, transparent) !important;
-  color: var(--color-yellow, #ffbf17) !important;
+  background: color-mix(in srgb, var(--fomo-limit-brand, var(--color-yellow, #ffbf17)) 20%, transparent) !important;
+  color: var(--fomo-limit-brand, var(--color-yellow, #ffbf17)) !important;
 }
 [${ACTIVE_ATTR}] [data-fomo-limit-keep] > button:not(#${LIMIT_TAB_ID}) {
   background: var(--color-bg-secondary, rgba(255,255,255,0.06)) !important;
@@ -101,6 +101,20 @@ export function ensureLimitTab(doc: Document): { panel: HTMLElement; tabRow: HTM
     else tabRow.appendChild(tab);
   }
   return { panel, tabRow };
+}
+
+const THEME_STYLE_ID = 'fomo-limit-theme';
+
+/** Installs (or clears, for an empty string) the page-wide theme override stylesheet. */
+export function setPageTheme(doc: Document, css: string): void {
+  let style = doc.getElementById(THEME_STYLE_ID) as HTMLStyleElement | null;
+  if (!css) { style?.remove(); return; }
+  if (!style) {
+    style = doc.createElement('style');
+    style.id = THEME_STYLE_ID;
+    doc.head.appendChild(style); // last in <head>, so it wins over fomo's own :root variables
+  }
+  style.textContent = css;
 }
 
 /** Inserts the shadow host inside our wrapper, right after FOMO's tab row. */

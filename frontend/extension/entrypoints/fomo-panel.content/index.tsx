@@ -12,7 +12,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ReactDOM from 'react-dom/client';
 
 import { LimitView, type MintStore } from '@/components/panel/LimitView';
-import { appendViewAfter, ensureLimitTab, ensurePageStyle, LIMIT_HOST_TAG, VIEW_ATTR } from '@/lib/fomo-inject';
+import { loadTheme, onThemeChange } from '@/hooks/use-theme';
+import { appendViewAfter, ensureLimitTab, ensurePageStyle, LIMIT_HOST_TAG, setPageTheme, VIEW_ATTR } from '@/lib/fomo-inject';
+import { applyPanelVars, fomoOverrideCss, type Theme } from '@/lib/themes';
 import { mintFromFomoUrl } from '@/lib/format';
 
 /** Tiny external store holding the current page's mint. */
@@ -37,6 +39,15 @@ export default defineContentScript({
   /** Keeps the Limit tab and view attached to FOMO's trade panel. */
   async main(ctx) {
     ensurePageStyle(document);
+    // Theme: recolor fomo's page (its CSS variables) and our view; follow changes from the popup live.
+    let theme: Theme = await loadTheme();
+    const applyTheme = (): void => {
+      setPageTheme(document, fomoOverrideCss(theme));
+      const host = document.querySelector<HTMLElement>(LIMIT_HOST_TAG);
+      if (host) applyPanelVars(host, theme);
+    };
+    applyTheme();
+    const offTheme = onThemeChange((t) => { theme = t; applyTheme(); });
     const mintStore = createMintStore();
     const queryClient = new QueryClient();
     let ui: Awaited<ReturnType<typeof createShadowRootUi<ReactDOM.Root>>> | null = null;
@@ -78,6 +89,7 @@ export default defineContentScript({
         });
         ui.mount();
         mountedIn = found.panel;
+        applyTheme();
       } finally {
         busy = false;
       }
@@ -92,7 +104,7 @@ export default defineContentScript({
     const observer = new MutationObserver(schedule);
     observer.observe(document.body, { childList: true, subtree: true });
     ctx.addEventListener(window, 'wxt:locationchange', schedule);
-    ctx.onInvalidated(() => { observer.disconnect(); ui?.remove(); });
+    ctx.onInvalidated(() => { observer.disconnect(); offTheme(); ui?.remove(); });
     await sync();
   },
 });

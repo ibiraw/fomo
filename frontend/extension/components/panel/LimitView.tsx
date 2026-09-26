@@ -9,6 +9,7 @@ import { useSyncExternalStore } from 'react';
 
 import { NewOrderForm } from '@/components/orders/NewOrderForm';
 import { OrderList } from '@/components/orders/OrderList';
+import { ThemePicker } from '@/components/ThemePicker';
 import { useBackground } from '@/hooks/use-background';
 import { useFomoSupply } from '@/hooks/use-fomo-supply';
 import { useWatchPrice } from '@/hooks/use-watch-price';
@@ -57,6 +58,10 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
       <div className="space-y-2">
         <p className="text-xs font-semibold text-muted-foreground">Orders on this token</p>
         <OrderList orders={orders} ticks={state.ticks} height={260} emptyText="No orders on this token yet." onCancel={(id) => send({ type: 'order.cancel', id })} />
+      </div>
+      <div className="flex items-center justify-between gap-2 border-t pt-3">
+        <span className="text-xs text-muted-foreground">Theme</span>
+        <ThemePicker compact />
       </div>
     </div>
   );

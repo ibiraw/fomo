@@ -13,6 +13,7 @@ Chrome MV3 extension built with WXT. Connects to the local backend (ws://127.0.0
 | `components/orders/` | Shared UI: PairingForm, NewOrderForm, OrderList, Segmented (no dropdowns: portals escape the shadow root) |
 | `hooks/use-background.ts` | Popup/panel ⇄ background port |
 | `assets/theme.css` | Shared theme (vars on `:root, :host`) |
+| `lib/themes.ts`, `hooks/use-theme.ts`, `components/ThemePicker.tsx` | User themes: override fomo's `--color-*` vars (page) + extension tokens (inline on popup root / shadow host). fomo prints white text on `action`, so `action` must keep >= 3:1 contrast with white (tested) |
 | `lib/fomo-dom.ts` | **All FOMO page-structure knowledge** (selectors, balance reading). Update here if FOMO redesigns |
 | `lib/trade.ts` | Trade steps: tab → amount → wait quote → submit → confirm by balance drop / failure notice |
 | `lib/fomo-tab.ts` | Find/open/navigate the FOMO tab, send trade to content script |

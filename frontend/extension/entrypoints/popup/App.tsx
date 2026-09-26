@@ -12,9 +12,12 @@ import { PairingForm } from '@/components/orders/PairingForm';
 import { TokenXCard } from '@/components/panel/TokenXCard';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ThemePicker } from '@/components/ThemePicker';
 import { useBackground } from '@/hooks/use-background';
+import { useTheme } from '@/hooks/use-theme';
 import { useWatchPrice } from '@/hooks/use-watch-price';
 import { mintFromFomoUrl } from '@/lib/format';
+import { applyPanelVars } from '@/lib/themes';
 import type { ConnectionStatus } from '@/lib/server-connection';
 import { cn } from '@/lib/utils';
 
@@ -30,6 +33,8 @@ const STATUS_TEXT: Record<ConnectionStatus, string> = {
 export default function App() {
   const { state, send } = useBackground();
   const [tabMint, setTabMint] = useState<string | null>(null);
+  const [theme] = useTheme();
+  useEffect(() => applyPanelVars(document.documentElement, theme), [theme]);
 
   const priceError = useWatchPrice(tabMint, state?.status === 'connected', send);
 
@@ -70,7 +75,12 @@ export default function App() {
           <TabsContent value="orders" className="pt-2">
             <OrderList orders={state.orders} ticks={state.ticks} showMint onCancel={(id) => send({ type: 'order.cancel', id })} />
           </TabsContent>
-          <TabsContent value="settings" className="pt-2">
+          <TabsContent value="settings" className="space-y-5 pt-2">
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold">Theme</h2>
+              <p className="text-xs text-muted-foreground">Recolors fomo.family and the Limit panel in every open fomo tab.</p>
+              <ThemePicker />
+            </section>
             <PairingForm serverUrl={state.serverUrl} badToken={false} onSave={save} />
           </TabsContent>
         </Tabs>
