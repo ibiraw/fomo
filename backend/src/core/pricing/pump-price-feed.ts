@@ -30,16 +30,9 @@ import {
   DEFAULT_PUBKEY,
 } from './decoders.js';
 import { marketCapUsd, priceFromReserves, pythToNumber, SOL_DECIMALS } from './math.js';
+import { VaultPair } from './vault-pair.js';
 
 const USDC_DECIMALS = 6;
-/** Max wait for the second vault of a pair before emitting anyway (~1 Solana slot). */
-const PAIR_TIMEOUT_MS = 400;
-
-/** Latest balance of one pool vault and the slot it was observed at. */
-interface VaultReading {
-  amount: bigint | null;
-  slot: bigint;
-}
 
 /** How a quote asset converts to USD. */
 interface QuoteAsset {
@@ -172,29 +165,13 @@ export class PumpPriceFeed extends PriceFeedPort {
     const pool = decodePumpPool(poolRaw);
     state.source = 'pump-swap';
     state.quote = quoteAssetFor(pool.quoteMint);
-    // A swap changes both vaults, but they arrive as two separate notifications. Pricing after only
-    // one of them yields a false spike, so emit only when both vaults are at the same slot. If they
-    // stay mismatched (e.g. a stray transfer into one vault), emit after PAIR_TIMEOUT_MS anyway.
-    const base: VaultReading = { amount: null, slot: -1n };
-    const quote: VaultReading = { amount: null, slot: -1n };
-    let pending: NodeJS.Timeout | null = null;
-    const emitNow = (): void => {
-      if (pending) clearTimeout(pending);
-      pending = null;
-      if (base.amount === null || quote.amount === null) return;
-      this.emit(state, priceFromReserves(base.amount, state.decimals, quote.amount + pool.virtualQuoteReserves, state.quote.decimals));
-    };
-    const onVault = (reading: VaultReading, data: Uint8Array, slot: bigint): void => {
-      if (slot < reading.slot) return; // stale, out-of-order notification
-      reading.amount = decodeTokenAccountAmount(data);
-      reading.slot = slot;
-      if (base.slot === quote.slot) emitNow();
-      else if (!pending) pending = setTimeout(() => this.guard(emitNow), PAIR_TIMEOUT_MS);
-    };
+    // Vault updates of one swap arrive separately; VaultPair only prices consistent pairs.
+    const pair = new VaultPair((base, quote) =>
+      this.guard(() => this.emit(state, priceFromReserves(base, state.decimals, quote + pool.virtualQuoteReserves, state.quote.decimals))));
     state.subs.push(
-      this.accounts.subscribe(pool.poolBaseTokenAccount, (d, s) => this.guard(() => onVault(base, d, s))),
-      this.accounts.subscribe(pool.poolQuoteTokenAccount, (d, s) => this.guard(() => onVault(quote, d, s))),
-      { stop: () => { if (pending) clearTimeout(pending); } },
+      this.accounts.subscribe(pool.poolBaseTokenAccount, (d, slot) => this.guard(() => pair.updateA(decodeTokenAccountAmount(d), slot))),
+      this.accounts.subscribe(pool.poolQuoteTokenAccount, (d, slot) => this.guard(() => pair.updateB(decodeTokenAccountAmount(d), slot))),
+      { stop: () => pair.stop() },
     );
   }
 

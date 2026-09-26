@@ -13,7 +13,10 @@ import { OrderEngine } from './core/orders/order-engine.js';
 import { WalletTradeConfirmer } from './core/orders/wallet-trade-confirmer.js';
 import { CompositePriceFeed } from './core/pricing/composite-price-feed.js';
 import { JupiterPriceFeed } from './core/pricing/jupiter-price-feed.js';
+import { PoolDirectory } from './core/pricing/pool-directory.js';
 import { PumpPriceFeed } from './core/pricing/pump-price-feed.js';
+import { RaydiumCpmmPriceFeed } from './core/pricing/raydium-cpmm-price-feed.js';
+import { UsdQuotes } from './core/pricing/usd-quotes.js';
 import { TokenInfoService } from './core/tokens/token-info-service.js';
 
 /** Timestamped console logger. */
@@ -32,9 +35,11 @@ async function main(): Promise<void> {
   const accounts = new KitSolanaAccountsAdapter(cfg.rpcHttp, cfg.rpcWss, logError('rpc'));
   const http = new FetchHttpJsonAdapter();
   const jupiterHttp = new FetchHttpJsonAdapter(cfg.jupiter.apiKey ? { 'x-api-key': cfg.jupiter.apiKey } : {});
+  const quotes = new UsdQuotes(accounts, jupiterHttp, cfg.jupiter.url, 5_000, logError('quotes'));
   // Fast on-chain feeds first; Jupiter covers every other token (slower, polled).
   const feed = new CompositePriceFeed([
     new PumpPriceFeed(accounts, logError('price')),
+    new RaydiumCpmmPriceFeed(accounts, new PoolDirectory(http), quotes, logError('raydium-cpmm')),
     new JupiterPriceFeed(jupiterHttp, accounts, { url: cfg.jupiter.url, pollMs: cfg.jupiter.pollMs }, logError('jupiter')),
   ]);
   const store = new SqliteOrderStoreAdapter(cfg.dbPath);
@@ -46,6 +51,7 @@ async function main(): Promise<void> {
   const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), logError('engine'), confirmer);
   gateway.attach(engine, new TokenInfoService(accounts, http));
 
+  await quotes.start();
   await feed.start();
   await gateway.listen();
   await engine.start();
@@ -58,6 +64,7 @@ async function main(): Promise<void> {
     engine.stop();
     await gateway.close();
     await feed.close();
+    quotes.close();
     store.close();
     process.exit(0);
   };

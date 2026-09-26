@@ -10,7 +10,7 @@ export interface PriceTick {
   readonly priceUsd: number;
   readonly marketCapUsd: number;
   /** Which source produced the tick. On-chain sources are sub-second; 'jupiter' is a polled fallback (seconds). */
-  readonly source: 'pump-curve' | 'pump-swap' | 'jupiter';
+  readonly source: 'pump-curve' | 'pump-swap' | 'raydium-cpmm' | 'jupiter';
   readonly receivedAt: number;
 }
 
