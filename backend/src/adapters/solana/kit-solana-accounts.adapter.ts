@@ -42,7 +42,11 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
+/** Minimum gap between "empty account data" warnings for one address. */
+const EMPTY_WARN_INTERVAL_MS = 5 * 60_000;
+
 export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
+  private readonly lastEmptyWarn = new Map<string, number>();
   private readonly rpc: Rpc<SolanaRpcApi>;
   private readonly subs: RpcSubscriptions<SolanaRpcSubscriptionsApi>;
 
@@ -59,6 +63,14 @@ export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
       .getAccountInfo(address(addr), { encoding: 'base64', commitment: 'processed' })
       .send();
     return res.value ? fromBase64(res.value.data) : null;
+  }
+
+  /** Reports an empty-data notification at most once per address per 5 minutes. */
+  private warnEmpty(addr: string): void {
+    const now = Date.now();
+    if (now - (this.lastEmptyWarn.get(addr) ?? 0) < EMPTY_WARN_INTERVAL_MS) return;
+    this.lastEmptyWarn.set(addr, now);
+    this.onError(new Error(`Skipped an empty account update for ${addr} (RPC glitch; waiting for the next update)`));
   }
 
   /** Fetches mint supply and decimals. */
@@ -94,7 +106,13 @@ export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
           if (current.value) listener(fromBase64(current.value.data), current.context.slot);
           backoff = MIN_BACKOFF_MS;
           for await (const note of stream) {
-            listener(fromBase64(note.value.data), note.context.slot);
+            const data = fromBase64(note.value.data);
+            if (data.length === 0) {
+              // Seen transiently from the RPC at 'processed' commitment; the next update carries real data.
+              this.warnEmpty(addr);
+              continue;
+            }
+            listener(data, note.context.slot);
           }
         } catch (err) {
           if (abort.signal.aborted) return;

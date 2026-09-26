@@ -5,7 +5,7 @@
  * @author Reborn1987
  */
 
-import { executeInFomoTab, type TabsApi } from '@/lib/fomo-tab';
+import { executeInFomoTab, type TabsApi, type WorkerTabStore } from '@/lib/fomo-tab';
 import {
   DEFAULT_SERVER_URL,
   POPUP_PORT,
@@ -51,6 +51,14 @@ export default defineBackground({
     const inject = async (tabId: number): Promise<void> => {
       await browser.scripting.executeScript({ target: { tabId }, files: ['/content-scripts/fomo.js'] });
     };
+    // The extension's own background FOMO tab; kept in session storage to survive worker restarts.
+    const worker: WorkerTabStore = {
+      get: async () => {
+        const s = await browser.storage.session.get('workerTabId');
+        return typeof s.workerTabId === 'number' ? s.workerTabId : null;
+      },
+      set: async (tabId) => { await browser.storage.session.set({ workerTabId: tabId }); },
+    };
     const conn = new ServerConnection((url) => new WebSocket(url), {
       onStatus: (s) => { status = s; push(); },
       onSnapshot: (list, latest) => {
@@ -61,7 +69,7 @@ export default defineBackground({
       },
       onOrder: (o) => { orders.set(o.id, o); push(); },
       onTick: (t) => { ticks[t.mint] = t; push(); },
-      onExecute: (o) => executeInFomoTab(tabs, inject, o),
+      onExecute: (o) => executeInFomoTab(tabs, inject, worker, o),
     });
 
     // Reads X with the user's own session in a background tab (not focused) that is closed right after.

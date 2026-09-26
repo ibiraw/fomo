@@ -9,9 +9,15 @@ import type { ExecutionResult, Order, TradeRequest } from './types';
 /** Subset of the extension tabs API used here (injectable for tests). */
 export interface TabsApi {
   query(q: { url: string }): Promise<{ id?: number; url?: string; active?: boolean }[]>;
-  create(p: { url: string; active: boolean }): Promise<{ id?: number }>;
+  create(p: { url: string; active: boolean }): Promise<{ id?: number; url?: string }>;
   update(id: number, p: { url?: string; autoDiscardable?: boolean }): Promise<unknown>;
   sendMessage(id: number, msg: unknown): Promise<unknown>;
+}
+
+/** Remembers the extension's own background FOMO tab (the only tab it ever navigates). */
+export interface WorkerTabStore {
+  get(): Promise<number | null>;
+  set(tabId: number): Promise<void>;
 }
 
 /**
@@ -60,19 +66,33 @@ function timeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
 }
 
 /**
- * Picks a FOMO tab (one already on the token page if possible), navigates it to the token and waits
- * until the content script reports it is on that page. Returns the tab id.
+ * Picks the tab to trade in and waits until its content script reports the token page. Returns the tab id.
+ * A tab already showing the token is used as-is (the one in front first). Otherwise the extension's own
+ * background worker tab is navigated, or created without focus. The user's other tabs are never navigated.
  */
-export async function prepareTab(tabs: TabsApi, inject: InjectFn, mint: string, t: TabTimings = DEFAULT_TAB_TIMINGS): Promise<number> {
+export async function prepareTab(
+  tabs: TabsApi,
+  inject: InjectFn,
+  mint: string,
+  worker: WorkerTabStore,
+  t: TabTimings = DEFAULT_TAB_TIMINGS,
+): Promise<number> {
   const url = tokenUrl(mint);
   const open = await tabs.query({ url: FOMO_MATCH });
-  // Prefer a tab already on the token (the one in front first) — navigating reloads FOMO, which is slow.
   const onToken = open.filter((x) => isTokenPage(x.url, mint));
-  let tab = onToken.find((x) => x.active) ?? onToken[0] ?? open.find((x) => x.active) ?? open[0];
-  if (!tab?.id) tab = await tabs.create({ url, active: false });
-  const id = tab.id as number;
+  let tab = onToken.find((x) => x.active) ?? onToken[0];
+  if (!tab) {
+    const workerId = await worker.get();
+    tab = open.find((x) => x.id !== undefined && x.id === workerId);
+    if (!tab) {
+      tab = await tabs.create({ url, active: false });
+      if (tab.id !== undefined) await worker.set(tab.id);
+    }
+  }
+  if (tab.id === undefined) throw new Error('Could not open a FOMO tab');
+  const id = tab.id;
   await tabs.update(id, { autoDiscardable: false }); // keep Chrome's Memory Saver from unloading it
-  if (!isTokenPage(tab.url, mint)) await tabs.update(id, { url });
+  if (!isTokenPage(tab.url, mint)) await tabs.update(id, { url }); // only ever the worker tab
 
   const deadline = Date.now() + t.readyMs;
   let injected = false;
@@ -108,11 +128,17 @@ export function toTradeRequest(order: Order): TradeRequest {
 }
 
 /** Runs `order` in a FOMO tab. Never throws. */
-export async function executeInFomoTab(tabs: TabsApi, inject: InjectFn, order: Order, t: TabTimings = DEFAULT_TAB_TIMINGS): Promise<ExecutionResult> {
+export async function executeInFomoTab(
+  tabs: TabsApi,
+  inject: InjectFn,
+  worker: WorkerTabStore,
+  order: Order,
+  t: TabTimings = DEFAULT_TAB_TIMINGS,
+): Promise<ExecutionResult> {
   let id: number;
   const t0 = Date.now();
   try {
-    id = await prepareTab(tabs, inject, order.mint, t);
+    id = await prepareTab(tabs, inject, order.mint, worker, t);
   } catch (err) {
     // Nothing was clicked yet, so this is a definite failure, not an unknown outcome.
     return { ok: false, kind: 'ui_error', message: err instanceof Error ? err.message : String(err) };

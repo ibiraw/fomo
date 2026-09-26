@@ -8,10 +8,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { findPanel, parseUsd, readBalance, setReactInputValue } from '../lib/fomo-dom';
-import { executeTrade, waitFor, type TradeTimings } from '../lib/trade';
+import { executeTrade, waitFor, waitForSettledBalance, type TradeTimings } from '../lib/trade';
 import { mountFakeFomo } from './fake-fomo';
 
-const FAST: TradeTimings = { panelMs: 50, stepMs: 50, readyMs: 50, confirmMs: 100 };
+const FAST: TradeTimings = { panelMs: 50, stepMs: 50, balanceMs: 400, settleMs: 0, readyMs: 50, confirmMs: 100 };
 
 beforeEach(() => {
   document.body.innerHTML = '';
@@ -42,6 +42,14 @@ describe('fomo-dom helpers', () => {
     input.addEventListener('input', () => (seen = input.value));
     setReactInputValue(input, '3.00');
     expect(seen).toBe('3.00');
+  });
+
+  it('waitForSettledBalance needs a stable non-zero value, else returns the last one', async () => {
+    let v: number | null = 0;
+    setTimeout(() => (v = 5), 120);
+    expect(await waitForSettledBalance(() => v, 1000, 150)).toBe(5);
+    expect(await waitForSettledBalance(() => 0, 250, 50)).toBe(0);
+    expect(await waitForSettledBalance(() => null, 150, 50)).toBeNull();
   });
 
   it('waitFor resolves null on timeout', async () => {
@@ -126,6 +134,20 @@ describe('executeTrade', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it('waits for the position to load instead of trusting the $0 placeholder', async () => {
+    const fake = mountFakeFomo(document, { cash: 0, position: 0 });
+    setTimeout(() => { fake.opts.position = 40; document.getElementById('tab-buy')!.click(); document.getElementById('tab-sell')!.click(); }, 150);
+    const r = await executeTrade(document, { side: 'sell', amount: { kind: 'percent', value: 100 } }, FAST);
+    expect(r).toMatchObject({ ok: true });
+    expect(fake.state.submitted).toEqual({ side: 'sell', amount: '40.00' });
+  });
+
+  it('still refuses when the balance stays $0 after waiting', async () => {
+    mountFakeFomo(document, { cash: 0, position: 0 });
+    expect(await executeTrade(document, { side: 'sell', amount: { kind: 'percent', value: 100 } }, FAST))
+      .toMatchObject({ ok: false, kind: 'insufficient_funds', message: expect.stringMatching(/after waiting/) });
   });
 
   it('reports a missing panel as not logged in', async () => {

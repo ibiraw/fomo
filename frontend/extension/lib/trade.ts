@@ -25,11 +25,15 @@ import { MIN_TRADE_USD, type ExecutionResult, type TradeRequest } from './types'
 export interface TradeTimings {
   readonly panelMs: number;
   readonly stepMs: number;
+  /** How long to wait for the balance to load (FOMO shows $0 until the position/cash arrives). */
+  readonly balanceMs: number;
+  /** A balance must stay unchanged this long to count as loaded. */
+  readonly settleMs: number;
   readonly readyMs: number;
   readonly confirmMs: number;
 }
 
-export const DEFAULT_TIMINGS: TradeTimings = { panelMs: 15_000, stepMs: 3_000, readyMs: 10_000, confirmMs: 30_000 };
+export const DEFAULT_TIMINGS: TradeTimings = { panelMs: 15_000, stepMs: 3_000, balanceMs: 8_000, settleMs: 500, readyMs: 10_000, confirmMs: 30_000 };
 
 /** Failure keywords in FOMO notifications. Calibrate once a real failure is observed. */
 const FAILURE_RE = /fail|error|slippage|revert|rejected|insufficient/i;
@@ -53,6 +57,28 @@ export function waitFor<T>(doc: Document, check: () => T | null, timeoutMs: numb
       resolve(v);
     };
     obs.observe(doc.body, { childList: true, subtree: true, characterData: true, attributes: true });
+  });
+}
+
+/**
+ * Waits for the balance to be loaded: above $0 and unchanged for `settleMs`. Right after a page load FOMO
+ * renders the panel with a $0 placeholder before the real cash/position arrives. Returns the last value
+ * seen (possibly 0) when `timeoutMs` passes, or null if no balance was ever readable.
+ */
+export function waitForSettledBalance(read: () => number | null, timeoutMs: number, settleMs: number): Promise<number | null> {
+  return new Promise((resolve) => {
+    let last: number | null = null;
+    let since = Date.now();
+    const deadline = Date.now() + timeoutMs;
+    const check = (): void => {
+      const v = read();
+      if (v !== last) { last = v; since = Date.now(); }
+      if (last !== null && last > 0 && Date.now() - since >= settleMs) return finish(last);
+      if (Date.now() >= deadline) finish(last);
+    };
+    const timer = setInterval(check, 100);
+    const finish = (v: number | null): void => { clearInterval(timer); resolve(v); };
+    check();
   });
 }
 
@@ -96,8 +122,9 @@ async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<E
   const p = (): HTMLElement => findPanel(doc) ?? panel;
 
   // 2. Work out the amount and fill it in.
-  const balance = await waitFor(doc, () => readBalance(p(), req.side), t.stepMs);
+  const balance = await waitForSettledBalance(() => readBalance(p(), req.side), t.balanceMs, t.settleMs);
   if (balance === null) return fail('ui_error', 'Could not read the balance on the trade panel');
+  mark('balance');
   const input = findAmountInput(p());
   if (!input) return fail('ui_error', 'Amount box not found');
 
@@ -109,7 +136,7 @@ async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<E
   else usd = floorCents((balance * req.amount.value) / 100);
 
   if (usd < MIN_TRADE_USD) {
-    return fail('insufficient_funds', `Trade would be $${usd.toFixed(2)}, below FOMO's $${MIN_TRADE_USD} minimum (balance $${balance.toFixed(2)})`);
+    return timed(fail('insufficient_funds', `Trade would be $${usd.toFixed(2)}, below FOMO's $${MIN_TRADE_USD} minimum (balance $${balance.toFixed(2)} after waiting ${t.balanceMs / 1000}s for it to load)`));
   }
   if (usd > balance + 0.005) {
     return fail('insufficient_funds', `Needs $${usd.toFixed(2)} but only $${balance.toFixed(2)} available`);
