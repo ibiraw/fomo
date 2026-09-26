@@ -27,7 +27,7 @@ A Chrome extension clicks Buy/Sell in the user's logged-in FOMO tab. No private 
 | 3 | Order store + engine + extension gateway (WebSocket) | Done — 53 tests, 99% lines; server boots live |
 | 4 | Extension trade executor (content script) | Done — 37 tests; selectors verified on live FOMO |
 | 5 | Extension popup UI | Done — builds; awaiting first live load |
-| 6 | Live test (user triggers real trades) | Todo |
+| 6 | Live test (user triggers real trades) | Done — $3 buy (filled; UI confirm missed it → added on-chain confirmation) and 100% sell (filled in 2.0s) |
 | 7 | Telegram bot | Todo |
 | 8 | Showcase website demonstrating the tech | Todo (requested 2026-09-26) |
 | 9 | Latest tweet for a token (time + optional preview) | Todo — token's own X account (from pump.fun metadata); read via user's logged-in x.com session in the extension; show in popup + on FOMO page |
