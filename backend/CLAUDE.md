@@ -31,7 +31,7 @@ Node 22 + TypeScript (strict). Local server: live prices, order engine, WebSocke
 - One trade at a time.
 
 ## Gateway protocol (JSON over WS)
-Client: `hello{token,executor}`, `order.create{reqId,order}`, `order.cancel{reqId,id}`, `order.list{reqId}`, `token.info{reqId,mint}`, `price.watch{reqId,mint}` (viewer interest, 5 min TTL), `exec.result{execId,result}`, `pong`.
+Client: `hello{token,executor}`, `order.create{reqId,order}`, `order.cancel{reqId,id}`, `order.list{reqId}`, `token.info{reqId,mint}`, `price.watch{reqId,mint}` (viewer interest, 5 min TTL), `wallet.holds{reqId,mint}` → `{holds: boolean|null}`, `exec.result{execId,result}`, `pong`.
 Server: `welcome{orders,ticks}`, `reply{reqId,ok,data|error}`, `order{order}`, `tick{tick}` (≤4/s per mint), `exec.request{execId,order}`, `ping`, `error`.
 Only `chrome-extension://` origins or non-browser clients; wrong token → close 4001.
 

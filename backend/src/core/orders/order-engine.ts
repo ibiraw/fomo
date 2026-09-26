@@ -116,6 +116,15 @@ export class OrderEngine {
   }
 
   /**
+   * Whether the wallet holds `mint` (for the UI to disable selling). Null when no wallet is configured,
+   * so the caller knows it cannot tell rather than being told "no".
+   */
+  async holds(mint: string): Promise<boolean | null> {
+    if (!this.confirmer) return null;
+    return (await this.confirmer.snapshot(mint)) > 0n;
+  }
+
+  /**
    * Sell orders (take profit / stop loss) need a balance to sell. Checked on-chain against the configured
    * wallet; without a wallet there is nothing to check against, so the order is accepted.
    */

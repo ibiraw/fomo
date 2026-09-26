@@ -32,10 +32,12 @@ interface Props {
   readonly lockMint?: boolean;
   /** fomo's displayed supply: market cap is computed with it so it matches the fomo page exactly. */
   readonly mcSupply?: number | null;
+  /** Whether the wallet holds the token (null = unknown). Selling is disabled when false. */
+  readonly holds?: boolean | null;
 }
 
 /** Order entry form. */
-export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, mcSupply = null }: Props) {
+export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, mcSupply = null, holds = null }: Props) {
   const [mint, setMint] = useState(initialMint ?? '');
   const [side, setSide] = useState<OrderSide>('buy');
   const [unit, setUnit] = useState<AmountUnit>('usd');
@@ -85,7 +87,8 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, m
   const amountValue = Number(amount);
   const amountError = unit === 'usd' && amount !== '' && amountValue < MIN_TRADE_USD ? `Minimum $${MIN_TRADE_USD}`
     : unit === 'percent' && amountValue > 100 ? 'Max 100%' : null;
-  const valid = mint.trim().length >= 32 && targetValue > 0 && amountValue > 0 && !amountError;
+  const nothingToSell = side === 'sell' && holds === false;
+  const valid = mint.trim().length >= 32 && targetValue > 0 && amountValue > 0 && !amountError && !nothingToSell;
 
   const create = useMutation({
     mutationFn: () => onCreate({
@@ -173,7 +176,7 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, m
       {create.error && <p className="text-sm text-destructive">{create.error.message}</p>}
       {create.isSuccess && <p className="text-sm text-buy">Order placed.</p>}
       <Button type="submit" className="h-10 w-full rounded-xl font-bold" disabled={!valid || create.isPending}>
-        {create.isPending ? 'Placing…' : `Place ${kind.toLowerCase()}`}
+        {nothingToSell ? "Nothing to sell — you don't hold this token" : create.isPending ? 'Placing…' : `Place ${kind.toLowerCase()}`}
       </Button>
     </form>
   );

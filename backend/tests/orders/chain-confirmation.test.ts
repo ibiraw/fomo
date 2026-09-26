@@ -73,6 +73,15 @@ describe('OrderEngine sell orders need a balance', () => {
     await expect(engine.createOrder(SELL)).resolves.toMatchObject({ side: 'sell' });
   });
 
+  it('reports whether the wallet holds a token (null without a wallet)', async () => {
+    const { accounts, engine } = await setup();
+    expect(await engine.holds(MINT)).toBe(false);
+    accounts.balances.set(KEY, 1n);
+    expect(await engine.holds(MINT)).toBe(true);
+    const bare = new OrderEngine(new SqliteOrderStoreAdapter(':memory:'), new FakePriceFeed(), new FakeExecutor(), () => undefined, () => undefined);
+    expect(await bare.holds(MINT)).toBeNull();
+  });
+
   it('explains when the balance cannot be checked', async () => {
     const { accounts, engine } = await setup();
     accounts.getTokenBalance = async () => { throw new Error('rpc down'); };

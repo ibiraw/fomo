@@ -191,6 +191,8 @@ export class WsGateway extends TradeExecutorPort {
         return this.reply(client, msg.reqId, async () => this.requireEngine().cancelOrder(msg.id));
       case 'order.list':
         return this.reply(client, msg.reqId, async () => this.requireEngine().listOrders());
+      case 'wallet.holds':
+        return this.reply(client, msg.reqId, async () => ({ holds: await this.requireEngine().holds(msg.mint) }));
       case 'price.watch':
         return this.reply(client, msg.reqId, () => this.requireEngine().viewMint(msg.mint));
       case 'token.info':

@@ -86,7 +86,7 @@ export class ServerConnection {
   }
 
   /** Sends a command and resolves with the server's reply data (rejects with ServerCommandError). */
-  request(type: 'order.create' | 'order.cancel' | 'order.list' | 'token.info' | 'price.watch', body: Record<string, unknown>): Promise<unknown> {
+  request(type: 'order.create' | 'order.cancel' | 'order.list' | 'token.info' | 'price.watch' | 'wallet.holds', body: Record<string, unknown>): Promise<unknown> {
     const s = this.socket;
     if (!s || this.status !== 'connected') return Promise.reject(new ServerCommandError('Not connected to the FOMO order server'));
     const reqId = `r${++this.seq}`;

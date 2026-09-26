@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ThemePicker } from '@/components/ThemePicker';
 import { useBackground } from '@/hooks/use-background';
+import { useHolds } from '@/hooks/use-holds';
 import { useTheme } from '@/hooks/use-theme';
 import { useWatchPrice } from '@/hooks/use-watch-price';
 import { mintFromFomoUrl } from '@/lib/format';
@@ -34,6 +35,7 @@ export default function App() {
   const { state, send } = useBackground();
   const [tabMint, setTabMint] = useState<string | null>(null);
   const [theme] = useTheme();
+  const holds = useHolds(tabMint, state?.status === 'connected', send, state?.orders ?? []);
   useEffect(() => applyPanelVars(document.documentElement, theme), [theme]);
 
   const priceError = useWatchPrice(tabMint, state?.status === 'connected', send);
@@ -70,7 +72,7 @@ export default function App() {
             )}
             {tabMint && state.status === 'connected' && <div className="mb-3"><TokenXCard mint={tabMint} send={send} /></div>}
             {priceError && <p className="mb-3 rounded-md bg-card p-2 text-xs text-yellow">This token can't be priced yet: {priceError}</p>}
-            <NewOrderForm ticks={state.ticks} initialMint={tabMint} onCreate={(order) => send({ type: 'order.create', order })} />
+            <NewOrderForm ticks={state.ticks} initialMint={tabMint} holds={holds} onCreate={(order) => send({ type: 'order.create', order })} />
           </TabsContent>
           <TabsContent value="orders" className="pt-2">
             <OrderList orders={state.orders} ticks={state.ticks} showMint onCancel={(id) => send({ type: 'order.cancel', id })} />

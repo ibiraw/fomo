@@ -12,6 +12,7 @@ import { OrderList } from '@/components/orders/OrderList';
 import { ThemePicker } from '@/components/ThemePicker';
 import { useBackground } from '@/hooks/use-background';
 import { useFomoSupply } from '@/hooks/use-fomo-supply';
+import { useHolds } from '@/hooks/use-holds';
 import { useWatchPrice } from '@/hooks/use-watch-price';
 import type { ConnectionStatus } from '@/lib/server-connection';
 
@@ -35,6 +36,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
   const mint = useSyncExternalStore(mintStore.subscribe, mintStore.get);
   const { state, send } = useBackground();
   const supply = useFomoSupply(mint);
+  const holds = useHolds(mint, state?.status === 'connected', send, state?.orders ?? []);
   const priceError = useWatchPrice(mint, state?.status === 'connected', send);
 
   if (!state) return <p className="p-2 text-sm text-muted-foreground">Loading…</p>;
@@ -53,7 +55,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
           <p className="text-xs text-muted-foreground">{priceError}</p>
         </div>
       ) : (
-        <NewOrderForm key={`form:${mint}`} ticks={state.ticks} initialMint={mint} lockMint mcSupply={supply} onCreate={(order) => send({ type: 'order.create', order })} />
+        <NewOrderForm key={`form:${mint}`} ticks={state.ticks} initialMint={mint} lockMint mcSupply={supply} holds={holds} onCreate={(order) => send({ type: 'order.create', order })} />
       )}
       <div className="space-y-2">
         <p className="text-xs font-semibold text-muted-foreground">Orders on this token</p>

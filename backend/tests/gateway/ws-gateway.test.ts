@@ -107,6 +107,12 @@ describe('WsGateway commands', () => {
     await c.next((m) => m.type === 'order' && (m.order as { status: string }).status === 'cancelled');
   });
 
+  it('answers wallet.holds (null when no wallet is configured)', async () => {
+    const c = await authed(false);
+    c.send({ type: 'wallet.holds', reqId: 'h1', mint: MINT });
+    expect((await c.next((m) => m.reqId === 'h1')).data).toEqual({ holds: null });
+  });
+
   it('starts a price stream for viewers via price.watch', async () => {
     const c = await authed(false);
     c.send({ type: 'price.watch', reqId: 'w1', mint: MINT });
