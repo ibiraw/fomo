@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { usePresets, type AmountUnit } from '@/hooks/use-presets';
 import { formatPrice, formatUsdCompact, orderKind } from '@/lib/format';
-import { formatTargetInput, inferDirection, percentFromTarget, targetFromPercent } from '@/lib/target';
+import { inferDirection, percentFromTarget, syncWithLive, targetFromPercent, formatTargetInput, type TargetAnchor } from '@/lib/target';
 import { MIN_TRADE_USD, type NewOrder, type OrderSide, type PriceTick, type TriggerDirection, type TriggerMetric } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -42,8 +42,8 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false }:
   const [target, setTarget] = useState('');
   const [percent, setPercent] = useState(0);
   const [manualDirection, setManualDirection] = useState<TriggerDirection>('below');
-  /** Whether the target has been seeded with the current value (once per metric). */
-  const [seeded, setSeeded] = useState(false);
+  /** Pinned value: a % offset (target follows the live value) or an exact typed target (% follows). */
+  const [anchor, setAnchor] = useState<TargetAnchor>('percent');
   const { presets, save: savePresets } = usePresets(side, unit);
 
   useEffect(() => { if (initialMint) setMint(initialMint); }, [initialMint]);
@@ -51,25 +51,30 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false }:
   useEffect(() => { setUnit(side === 'buy' ? 'usd' : 'percent'); setAmount(''); }, [side]);
 
   // A different token needs a fresh target.
-  useEffect(() => { setTarget(''); setPercent(0); setSeeded(false); }, [mint]);
+  useEffect(() => { setTarget(''); setPercent(0); setAnchor('percent'); }, [mint]);
 
   const tick = ticks[mint.trim()];
   const current = tick ? (metric === 'marketCap' ? tick.marketCapUsd : tick.priceUsd) : null;
 
-  // Start the target at the current value once it is known (again after switching metric).
+  // Follow the live value: keep the pinned % (target moves) or the pinned target (% moves).
   useEffect(() => {
-    if (current !== null && !seeded) { setTarget(formatTargetInput(metric, current)); setPercent(0); setSeeded(true); }
-  }, [current, metric, seeded]);
+    if (current === null) return;
+    const next = syncWithLive(anchor, metric, current, percent, target);
+    if (next.target !== target) setTarget(next.target);
+    if (next.percent !== percent) setPercent(next.percent);
+  }, [current, metric, anchor, percent, target]);
 
   const onTargetChange = (v: string): void => {
     setTarget(v);
+    setAnchor('target');
     if (current !== null && Number(v) > 0) setPercent(percentFromTarget(current, Number(v)));
   };
   const onPercentChange = (p: number): void => {
     setPercent(p);
+    setAnchor('percent');
     if (current !== null) setTarget(formatTargetInput(metric, targetFromPercent(current, p)));
   };
-  const switchMetric = (): void => { setMetric((m) => (m === 'marketCap' ? 'price' : 'marketCap')); setTarget(''); setPercent(0); setSeeded(false); };
+  const switchMetric = (): void => { setMetric((m) => (m === 'marketCap' ? 'price' : 'marketCap')); setTarget(''); setPercent(0); setAnchor('percent'); };
 
   const targetValue = Number(target);
   const direction: TriggerDirection = current !== null && targetValue > 0 ? inferDirection(current, targetValue) : manualDirection;

@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { clampPercent } from '../components/orders/TargetSlider';
 import { DEFAULT_PRESETS, presetKey, sanitizePresets } from '../hooks/use-presets';
-import { formatTargetInput, inferDirection, percentFromTarget, targetFromPercent } from '../lib/target';
+import { formatTargetInput, inferDirection, percentFromTarget, syncWithLive, targetFromPercent } from '../lib/target';
 
 describe('target math', () => {
   it('converts between % change and target', () => {
@@ -49,5 +49,20 @@ describe('presets', () => {
     expect(sanitizePresets([1, 2], fb)).toEqual(fb);
     expect(sanitizePresets(undefined, fb)).toEqual(fb);
     expect(presetKey('sell', 'percent')).toBe('presets.sell.percent');
+  });
+});
+
+describe('syncWithLive', () => {
+  it('moves the target with the live value when a % is pinned', () => {
+    expect(syncWithLive('percent', 'marketCap', 5000, -30, '2800')).toEqual({ target: '3500', percent: -30 });
+    expect(syncWithLive('percent', 'marketCap', 4200, 0, '')).toEqual({ target: '4200', percent: 0 });
+  });
+
+  it('keeps a typed target and updates the % instead', () => {
+    expect(syncWithLive('target', 'marketCap', 5000, -30, '2500')).toEqual({ target: '2500', percent: -50 });
+  });
+
+  it('leaves an empty typed target alone while the user is editing', () => {
+    expect(syncWithLive('target', 'marketCap', 5000, 10, '')).toEqual({ target: '', percent: 10 });
   });
 });

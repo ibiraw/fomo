@@ -28,3 +28,21 @@ export function formatTargetInput(metric: TriggerMetric, v: number): string {
   if (metric === 'marketCap') return String(Math.round(v));
   return v >= 1 ? v.toFixed(4) : Number(v.toPrecision(4)).toString();
 }
+
+/** Which value the user pinned: a % offset (target follows the live value) or an exact target (% follows). */
+export type TargetAnchor = 'percent' | 'target';
+
+/** Target text and % after the live value moves, keeping whichever one the user pinned. */
+export function syncWithLive(
+  anchor: TargetAnchor,
+  metric: TriggerMetric,
+  current: number,
+  percent: number,
+  target: string,
+): { readonly target: string; readonly percent: number } {
+  if (anchor === 'percent') {
+    return { target: formatTargetInput(metric, targetFromPercent(current, percent)), percent };
+  }
+  // A typed target is left alone, even while empty mid-edit.
+  return { target, percent: Number(target) > 0 ? percentFromTarget(current, Number(target)) : percent };
+}
