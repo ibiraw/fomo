@@ -7,6 +7,7 @@ limit showcase site (Mono theme). Next.js 16 static export.
 | Path | Purpose |
 |------|---------|
 | `app/` | layout (splash, share metadata), page, `opengraph-image.tsx` (preview image), `icon.svg` |
+| `app/privacy/`, `app/policies/` | Privacy policy; policies (terms, subscription & payments, refunds, risk). Both use `components/site/PolicyBlock.tsx` |
 | `components/site/` | Sections (hero, features, how it works, holders, FAQ), Walkthrough, TryIt, Themes, Splash |
 | `lib/` | `demo.ts` (walkthrough timeline), `order-kind.ts`, `themes.ts` (mirror of extension themes — keep in sync) |
 | `single/`, `vite.single.config.ts` | Single-file build of the same components (for Claude artifact publishing) |

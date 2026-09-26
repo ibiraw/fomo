@@ -6,6 +6,7 @@
 
 import type { Metadata } from 'next';
 
+import { PolicyBlock } from '@/components/site/PolicyBlock';
 import { SiteFooter, SiteHeader } from '@/components/site/Sections';
 
 export const metadata: Metadata = {
@@ -14,16 +15,6 @@ export const metadata: Metadata = {
 };
 
 const UPDATED = 'September 26, 2026';
-
-/** One titled block of the policy. */
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-      <div className="space-y-3">{children}</div>
-    </section>
-  );
-}
 
 /** Privacy policy page. */
 export default function Privacy() {
@@ -37,16 +28,16 @@ export default function Privacy() {
           <p>Last updated {UPDATED}. This covers the limit Chrome extension and the limit order server it connects to.</p>
         </header>
 
-        <Block title="The short version">
+        <PolicyBlock title="The short version">
           <ul className="list-disc space-y-2 pl-5">
             <li>We never ask for, see or store your private keys, seed phrase, password or fomo login.</li>
             <li>We store only what is needed to run your orders: an anonymous account ID, your public wallet addresses, and your orders.</li>
             <li>We don&apos;t sell data, show ads, or share it with anyone except as described below.</li>
             <li>You can delete your account from the extension&apos;s Settings.</li>
           </ul>
-        </Block>
+        </PolicyBlock>
 
-        <Block title="What we store on the order server">
+        <PolicyBlock title="What we store on the order server">
           <ul className="list-disc space-y-2 pl-5">
             <li><b className="text-foreground">Anonymous account ID.</b> The extension creates a random secret when you install it. The server keeps only a hash of it. There is no name, email or phone number.</li>
             <li><b className="text-foreground">Public wallet addresses.</b> Your fomo Solana and EVM addresses, read from your logged-in fomo tab. These are public on the blockchain anyway; we use them to confirm your trades on-chain and to stop sell orders once you no longer hold a token.</li>
@@ -55,31 +46,31 @@ export default function Privacy() {
             <li><b className="text-foreground">Activity log.</b> A record of account, order and payment events (with your short user ID, e.g. LM-7K3Q2P) that we use to monitor the service and answer support requests; the operator receives these events as private notifications.</li>
             <li><b className="text-foreground">Technical logs.</b> Short-lived server logs (errors, order status changes). Our network provider (Cloudflare) processes IP addresses to deliver and protect the service.</li>
           </ul>
-        </Block>
+        </PolicyBlock>
 
-        <Block title="What stays in your browser">
+        <PolicyBlock title="What stays in your browser">
           <ul className="list-disc space-y-2 pl-5">
             <li><b className="text-foreground">The fomo page.</b> The extension reads the token page you are on (market cap, balance, the trade panel) and clicks fomo&apos;s own Buy and Sell buttons when an order triggers. Page content is not sent to our server beyond the order details above.</li>
             <li><b className="text-foreground">X (Twitter).</b> If you open a token&apos;s latest post, the extension reads it with your own x.com session in a background tab and shows it to you. Nothing from X is sent to our server.</li>
             <li><b className="text-foreground">Settings.</b> Theme, sounds, default tab and your account secret are kept in Chrome&apos;s extension storage on your computer.</li>
           </ul>
-        </Block>
+        </PolicyBlock>
 
-        <Block title="Who else is involved">
+        <PolicyBlock title="Who else is involved">
           <p>Prices are read from public blockchains through our RPC provider and, for some tokens, from DexScreener and Jupiter. Those requests contain token addresses only — never anything about you.</p>
-        </Block>
+        </PolicyBlock>
 
-        <Block title="How long we keep it, and deleting it">
+        <PolicyBlock title="How long we keep it, and deleting it">
           <p>Your account, wallet addresses and orders are kept while you use the service. Settings → <b className="text-foreground">Delete my account</b> removes your account, key and wallet addresses immediately and cancels your open orders; the history of orders you placed, the activity log and records of payments received are kept for bookkeeping, no longer linked to a usable account; uninstalling alone does not, because the server can&apos;t tell an uninstall from a reinstall. Server logs are deleted within 30 days.</p>
-        </Block>
+        </PolicyBlock>
 
-        <Block title="Chrome Web Store user data policy">
+        <PolicyBlock title="Chrome Web Store user data policy">
           <p>limit&apos;s use of information received from Chrome APIs adheres to the Chrome Web Store User Data Policy, including the Limited Use requirements. Data is used only to provide the extension&apos;s single purpose — automated limit, take-profit and stop-loss orders on fomo.family — and is never used for advertising, credit decisions, or sold.</p>
-        </Block>
+        </PolicyBlock>
 
-        <Block title="Contact">
-          <p>Questions or deletion requests: use the contact email on the limit Chrome Web Store listing.</p>
-        </Block>
+        <PolicyBlock title="Contact">
+          <p>Questions or deletion requests: use the contact email on the limit Chrome Web Store listing. Terms of use, payments and refunds are covered in our <a href="/policies" className="text-foreground underline underline-offset-2">policies</a>.</p>
+        </PolicyBlock>
       </main>
       <SiteFooter />
     </>
