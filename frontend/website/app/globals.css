@@ -1,7 +1,7 @@
 /*
  * @file globals.css
- * @description auto fomo site theme — "Mono": black and white only, so the green/red of trades carry
- *              all the color. Semantic tokens: brand (accent), action (main button), buy, sell.
+ * @description auto fomo site theme — "fomo Yellow": fomo's near-black, its yellow as the brand accent, its blue
+ *              for the main button. Semantic tokens: brand (accent), action (main button), buy, sell.
  *              To switch scheme, change the values in :root only.
  * @author Reborn1987
  */
@@ -43,22 +43,22 @@
 
 :root {
   --radius: 0.75rem;
-  /* Mono (picked from the palette gallery, 2026-09-26) */
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #16161a;
-  --secondary: #16161a;
-  --muted: rgba(250, 250, 250, 0.06);
-  --muted-foreground: #9a9aa3;
-  --accent: rgba(250, 250, 250, 0.1);
-  --border: #26262c;
-  --primary: #ffffff;
-  --primary-foreground: #09090b;
-  --action: #ffffff;
-  --on-action: #09090b;
-  --buy: #22c55e;
-  --sell: #f43f5e;
-  --faint: #52525b;
+  /* fomo Yellow — fomo's own palette (chosen over Mono, 2026-09-26) */
+  --background: #060510;
+  --foreground: #f7f7f7;
+  --card: #12111a;
+  --secondary: #12111a;
+  --muted: rgba(203, 208, 235, 0.08);
+  --muted-foreground: #9899a3;
+  --accent: rgba(203, 208, 235, 0.1);
+  --border: rgba(203, 208, 235, 0.1);
+  --primary: #ffbf17;
+  --primary-foreground: #060510;
+  --action: #516af6;
+  --on-action: #ffffff;
+  --buy: #21c95e;
+  --sell: #ff622e;
+  --faint: #474b52;
 }
 
 @layer base {

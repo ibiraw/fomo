@@ -70,7 +70,7 @@ function MiniFomo({ t }: { t: SiteTheme }) {
 /** Themes section body: preview + picker. */
 export function Themes() {
   const reduced = useReducedMotion();
-  const [index, setIndex] = useState(1); // start on Mono, the site's own scheme
+  const [index, setIndex] = useState(0); // start on fomo Default, the site's own scheme
   const [picked, setPicked] = useState(false);
 
   useEffect(() => {
