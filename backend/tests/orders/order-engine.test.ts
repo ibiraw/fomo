@@ -160,6 +160,34 @@ describe('OrderEngine triggering and execution', () => {
   });
 });
 
+describe('OrderEngine.viewMint', () => {
+  it('streams a viewed mint without orders and releases it after the viewer TTL', async () => {
+    let now = 0;
+    const s = new SqliteOrderStoreAdapter(':memory:');
+    const f = new FakePriceFeed();
+    const e = new OrderEngine(s, f, new FakeExecutor(), () => undefined, () => undefined, null, 20_000, () => now);
+    await e.start();
+    expect(await e.viewMint(MINT)).toBeNull();
+    f.tick(MINT, 2);
+    expect((await e.viewMint(MINT))?.priceUsd).toBe(2);
+    expect(f.watchCalls).toBe(1);
+    now = 4 * 60_000;
+    e.sweepViewers();
+    expect(f.listeners.has(MINT)).toBe(true); // still within TTL of the renewal
+    now = 6 * 60_000;
+    e.sweepViewers();
+    expect(f.listeners.has(MINT)).toBe(false);
+    e.stop();
+  });
+
+  it('keeps the stream for a viewer when an order on the mint finishes', async () => {
+    await engine.viewMint(MINT);
+    const o = await engine.createOrder(limitBuy(1));
+    engine.cancelOrder(o.id);
+    expect(feed.listeners.has(MINT)).toBe(true);
+  });
+});
+
 describe('OrderEngine.cancelOrder', () => {
   it('cancels active orders and rejects others', async () => {
     const o = await engine.createOrder(limitBuy(1));

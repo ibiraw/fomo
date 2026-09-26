@@ -10,6 +10,7 @@ import { useSyncExternalStore } from 'react';
 import { NewOrderForm } from '@/components/orders/NewOrderForm';
 import { OrderList } from '@/components/orders/OrderList';
 import { useBackground } from '@/hooks/use-background';
+import { useWatchPrice } from '@/hooks/use-watch-price';
 import type { ConnectionStatus } from '@/lib/server-connection';
 
 import { TokenXCard } from './TokenXCard';
@@ -31,6 +32,7 @@ const OFFLINE_TEXT: Partial<Record<ConnectionStatus, string>> = {
 export function LimitView({ mintStore }: { mintStore: MintStore }) {
   const mint = useSyncExternalStore(mintStore.subscribe, mintStore.get);
   const { state, send } = useBackground();
+  useWatchPrice(mint, state?.status === 'connected', send);
 
   if (!state) return <p className="p-2 text-sm text-muted-foreground">Loading…</p>;
   if (!mint) return <p className="p-2 text-sm text-muted-foreground">Limit orders are available on Solana token pages.</p>;

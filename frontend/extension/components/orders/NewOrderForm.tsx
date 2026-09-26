@@ -1,7 +1,8 @@
 /**
  * @file NewOrderForm.tsx
- * @description Form to create a limit buy / breakout buy / take-profit / stop-loss order.
- *              Used by the popup (editable token) and the on-page panel (token fixed to the page).
+ * @description FOMO-styled limit order form: amount with editable presets ($/%), market cap (or price)
+ *              target with a −100%…+100% slider. The order type (limit buy, breakout, take profit, stop loss)
+ *              is inferred from whether the target is below or above the current value.
  * @author Reborn1987
  */
 
@@ -11,11 +12,16 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { usePresets, type AmountUnit } from '@/hooks/use-presets';
 import { formatPrice, formatUsdCompact, orderKind } from '@/lib/format';
+import { formatTargetInput, inferDirection, percentFromTarget, targetFromPercent } from '@/lib/target';
 import { MIN_TRADE_USD, type NewOrder, type OrderSide, type PriceTick, type TriggerDirection, type TriggerMetric } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
+import { FieldBox } from './FieldBox';
+import { PresetRow } from './PresetRow';
 import { Segmented } from './Segmented';
+import { TargetSlider } from './TargetSlider';
 
 interface Props {
   readonly ticks: Record<string, PriceTick>;
@@ -30,32 +36,60 @@ interface Props {
 export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false }: Props) {
   const [mint, setMint] = useState(initialMint ?? '');
   const [side, setSide] = useState<OrderSide>('buy');
-  const [metric, setMetric] = useState<TriggerMetric>('marketCap');
-  const [direction, setDirection] = useState<TriggerDirection>('below');
-  const [target, setTarget] = useState('');
-  const [amountKind, setAmountKind] = useState<'usd' | 'percent'>('usd');
+  const [unit, setUnit] = useState<AmountUnit>('usd');
   const [amount, setAmount] = useState('');
+  const [metric, setMetric] = useState<TriggerMetric>('marketCap');
+  const [target, setTarget] = useState('');
+  const [percent, setPercent] = useState(0);
+  const [manualDirection, setManualDirection] = useState<TriggerDirection>('below');
+  /** Whether the target has been seeded with the current value (once per metric). */
+  const [seeded, setSeeded] = useState(false);
+  const { presets, save: savePresets } = usePresets(side, unit);
 
   useEffect(() => { if (initialMint) setMint(initialMint); }, [initialMint]);
-  // Sensible defaults per side: buys wait for dips in $, sells wait for pumps in % of the position.
+  // Buys default to $ amounts, sells to % of the position (like FOMO's own panel).
+  useEffect(() => { setUnit(side === 'buy' ? 'usd' : 'percent'); setAmount(''); }, [side]);
+
+  // A different token needs a fresh target.
+  useEffect(() => { setTarget(''); setPercent(0); setSeeded(false); }, [mint]);
+
+  const tick = ticks[mint.trim()];
+  const current = tick ? (metric === 'marketCap' ? tick.marketCapUsd : tick.priceUsd) : null;
+
+  // Start the target at the current value once it is known (again after switching metric).
   useEffect(() => {
-    setDirection(side === 'buy' ? 'below' : 'above');
-    setAmountKind(side === 'buy' ? 'usd' : 'percent');
-  }, [side]);
+    if (current !== null && !seeded) { setTarget(formatTargetInput(metric, current)); setPercent(0); setSeeded(true); }
+  }, [current, metric, seeded]);
+
+  const onTargetChange = (v: string): void => {
+    setTarget(v);
+    if (current !== null && Number(v) > 0) setPercent(percentFromTarget(current, Number(v)));
+  };
+  const onPercentChange = (p: number): void => {
+    setPercent(p);
+    if (current !== null) setTarget(formatTargetInput(metric, targetFromPercent(current, p)));
+  };
+  const switchMetric = (): void => { setMetric((m) => (m === 'marketCap' ? 'price' : 'marketCap')); setTarget(''); setPercent(0); setSeeded(false); };
+
+  const targetValue = Number(target);
+  const direction: TriggerDirection = current !== null && targetValue > 0 ? inferDirection(current, targetValue) : manualDirection;
+  const amountValue = Number(amount);
+  const amountError = unit === 'usd' && amount !== '' && amountValue < MIN_TRADE_USD ? `Minimum $${MIN_TRADE_USD}`
+    : unit === 'percent' && amountValue > 100 ? 'Max 100%' : null;
+  const valid = mint.trim().length >= 32 && targetValue > 0 && amountValue > 0 && !amountError;
 
   const create = useMutation({
     mutationFn: () => onCreate({
       mint: mint.trim(),
       side,
-      trigger: { metric, direction, value: Number(target) },
-      amount: { kind: amountKind, value: Number(amount) },
+      trigger: { metric, direction, value: targetValue },
+      amount: { kind: unit, value: amountValue },
     }),
-    onSuccess: () => { setTarget(''); setAmount(''); },
+    onSuccess: () => setAmount(''),
   });
 
-  const tick = ticks[mint.trim()];
-  const amountError = amountKind === 'usd' && amount !== '' && Number(amount) < MIN_TRADE_USD ? `Minimum $${MIN_TRADE_USD}` : null;
-  const valid = mint.trim().length >= 32 && Number(target) > 0 && Number(amount) > 0 && !amountError;
+  const kind = orderKind({ side, trigger: { metric, direction, value: 0 } });
+  const targetLabel = metric === 'marketCap' ? formatUsdCompact(targetValue) : formatPrice(targetValue);
 
   return (
     <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}>
@@ -65,54 +99,67 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false }:
           <Input id="mint" value={mint} onChange={(e) => setMint(e.target.value)} placeholder="Open a token on FOMO or paste its address" />
         </div>
       )}
-      {tick && (
-        <p className="text-xs text-muted-foreground">
-          Now: MC {formatUsdCompact(tick.marketCapUsd)} · Price {formatPrice(tick.priceUsd)}
-        </p>
-      )}
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-1.5">
         {(['buy', 'sell'] as const).map((s) => (
-          <Button
+          <button
             key={s}
             type="button"
-            variant="secondary"
             onClick={() => setSide(s)}
-            className={cn(side === s && (s === 'buy' ? 'bg-buy/20 text-buy hover:bg-buy/25' : 'bg-sell/20 text-sell hover:bg-sell/25'))}
+            className={cn(
+              'h-9 rounded-lg text-sm font-bold transition-colors',
+              side === s ? (s === 'buy' ? 'bg-buy/20 text-buy' : 'bg-sell/20 text-sell') : 'bg-secondary text-muted-foreground hover:bg-accent',
+            )}
           >
             {s === 'buy' ? 'Buy' : 'Sell'}
-          </Button>
+          </button>
         ))}
       </div>
 
       <div className="space-y-1.5">
-        <Label>When</Label>
-        <div className="grid grid-cols-2 gap-2">
-          <Segmented value={metric} onChange={setMetric} options={[{ value: 'marketCap', label: 'Market cap' }, { value: 'price', label: 'Price' }]} />
-          <Segmented value={direction} onChange={setDirection} options={[{ value: 'below', label: '≤ below' }, { value: 'above', label: '≥ above' }]} />
-        </div>
-        <Input inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} placeholder={metric === 'marketCap' ? 'Market cap in $, e.g. 3000' : 'Price in $, e.g. 0.000004'} />
-        <p className="text-xs text-muted-foreground">
-          {orderKind({ side, trigger: { metric, direction, value: 0 } })}
-          {Number(target) > 0 && ` at ${metric === 'marketCap' ? `MC ${formatUsdCompact(Number(target))}` : formatPrice(Number(target))}`}
-        </p>
+        <FieldBox
+          label="Amount"
+          value={amount}
+          onChange={setAmount}
+          placeholder="0.0"
+          suffix={<span className="text-sm font-semibold text-foreground">{unit === 'usd' ? '$' : '%'}</span>}
+        />
+        <PresetRow
+          presets={presets}
+          unit={unit}
+          selected={amount === '' ? null : amountValue}
+          onPick={(v) => setAmount(String(v))}
+          onUnitToggle={() => { setUnit((u) => (u === 'usd' ? 'percent' : 'usd')); setAmount(''); }}
+          onSave={savePresets}
+        />
+        {amountError && <p className="text-xs text-destructive">{amountError}</p>}
+        {unit === 'percent' && <p className="text-[11px] text-muted-foreground">% of your {side === 'buy' ? 'cash' : 'position'} when the order fires</p>}
       </div>
 
-      <div className="space-y-1.5">
-        <Label>Amount</Label>
-        <Segmented
-          value={amountKind}
-          onChange={setAmountKind}
-          options={[{ value: 'usd', label: '$ amount' }, { value: 'percent', label: `% of ${side === 'buy' ? 'cash' : 'position'}` }]}
+      <div className="space-y-2">
+        <FieldBox
+          label={<button type="button" onClick={switchMetric} title="Switch between market cap and price" className="uppercase hover:text-foreground">{metric === 'marketCap' ? 'Mkt cap' : 'Price'} ⇄</button>}
+          value={target}
+          onChange={onTargetChange}
+          placeholder={current === null ? 'Loading…' : '0'}
+          suffix={<span className="text-sm font-semibold text-foreground">$</span>}
         />
-        <Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={amountKind === 'usd' ? `Dollars (min $${MIN_TRADE_USD})` : 'Percent, e.g. 50'} />
-        {amountError && <p className="text-xs text-destructive">{amountError}</p>}
+        {current !== null ? (
+          <TargetSlider percent={percent} onChange={onPercentChange} />
+        ) : (
+          <Segmented value={manualDirection} onChange={setManualDirection} options={[{ value: 'below', label: '≤ at or below' }, { value: 'above', label: '≥ at or above' }]} />
+        )}
+        <p className="text-xs text-muted-foreground">
+          {current !== null && <>Now {metric === 'marketCap' ? formatUsdCompact(current) : formatPrice(current)} · </>}
+          <span className={cn('font-semibold', side === 'buy' ? 'text-buy' : 'text-sell')}>{kind}</span>
+          {targetValue > 0 && <> at {targetLabel}{current !== null && ` (${percent > 0 ? '+' : ''}${percent}%)`}</>}
+        </p>
       </div>
 
       {create.error && <p className="text-sm text-destructive">{create.error.message}</p>}
       {create.isSuccess && <p className="text-sm text-buy">Order placed.</p>}
-      <Button type="submit" className="w-full" disabled={!valid || create.isPending}>
-        {create.isPending ? 'Placing…' : 'Place order'}
+      <Button type="submit" className="h-10 w-full rounded-xl font-bold" disabled={!valid || create.isPending}>
+        {create.isPending ? 'Placing…' : `Place ${kind.toLowerCase()}`}
       </Button>
     </form>
   );

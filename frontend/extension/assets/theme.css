@@ -28,6 +28,8 @@
   --color-ring: var(--ring);
   --color-buy: var(--buy);
   --color-sell: var(--sell);
+  --color-yellow: var(--yellow);
+  --color-faint: var(--faint);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -36,27 +38,30 @@
 
 :root,
 :host {
-  --radius: 0.625rem;
-  --background: oklch(0.16 0.01 270);
-  --foreground: oklch(0.96 0 0);
-  --card: oklch(0.2 0.01 270);
-  --card-foreground: oklch(0.96 0 0);
-  --popover: oklch(0.2 0.01 270);
-  --popover-foreground: oklch(0.96 0 0);
-  --primary: oklch(0.72 0.17 150);
-  --primary-foreground: oklch(0.16 0.01 270);
-  --secondary: oklch(0.26 0.01 270);
-  --secondary-foreground: oklch(0.96 0 0);
-  --muted: oklch(0.26 0.01 270);
-  --muted-foreground: oklch(0.7 0.01 270);
-  --accent: oklch(0.3 0.01 270);
-  --accent-foreground: oklch(0.96 0 0);
-  --destructive: oklch(0.65 0.2 25);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.72 0.17 150);
-  --buy: oklch(0.75 0.17 150);
-  --sell: oklch(0.68 0.2 25);
+  /* FOMO's own palette (read from fomo.family, 2026-09-26). */
+  --radius: 0.75rem;
+  --background: #060510;
+  --foreground: #f7f7f7;
+  --card: #12111a;
+  --card-foreground: #f7f7f7;
+  --popover: #12111a;
+  --popover-foreground: #f7f7f7;
+  --primary: #516af6;
+  --primary-foreground: #f7f7f7;
+  --secondary: #12111a;
+  --secondary-foreground: #f7f7f7;
+  --muted: rgba(203, 208, 235, 0.1);
+  --muted-foreground: #9899a3;
+  --accent: rgba(203, 208, 235, 0.1);
+  --accent-foreground: #f7f7f7;
+  --destructive: #ff622e;
+  --border: rgba(203, 208, 235, 0.1);
+  --input: rgba(203, 208, 235, 0.1);
+  --ring: #516af6;
+  --buy: #21c95e;
+  --sell: #ff622e;
+  --yellow: #ffbf17;
+  --faint: #474b52;
 }
 
 @layer base {

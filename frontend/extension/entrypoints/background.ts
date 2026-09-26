@@ -103,6 +103,10 @@ export default defineBackground({
           data = await conn.request('order.cancel', { id: req.id });
         } else if (req.type === 'token.info') {
           data = await conn.request('token.info', { mint: req.mint });
+        } else if (req.type === 'price.watch') {
+          const tick = (await conn.request('price.watch', { mint: req.mint })) as PriceTick | null;
+          if (tick) { ticks[tick.mint] = tick; push(); }
+          data = tick;
         } else {
           data = await xLatest.get(req.url, req.force ?? false);
         }

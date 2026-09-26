@@ -27,12 +27,17 @@ export type EngineEvent =
 
 /** Orders in these statuses need a live price stream. */
 const ACTIVE = ['open', 'triggered'] as const;
+/** How long a viewer's interest keeps a mint's price stream alive without orders. */
+export const VIEW_TTL_MS = 5 * 60_000;
 
 export class OrderEngine {
   private readonly watches = new Map<string, PriceWatch>();
   private readonly pendingWatches = new Map<string, Promise<PriceWatch>>();
   private readonly lastTick = new Map<string, PriceTick>();
   private readonly queue: string[] = [];
+  /** mint -> time until which someone is viewing it (keeps the price stream open without orders). */
+  private readonly viewers = new Map<string, number>();
+  private sweepTimer: NodeJS.Timeout | null = null;
   private busy = false;
 
   /**
@@ -49,6 +54,7 @@ export class OrderEngine {
     private readonly onError: (err: unknown) => void,
     private readonly confirmer: TradeConfirmerPort | null = null,
     private readonly chainGraceMs = 20_000,
+    private readonly now: () => number = Date.now,
   ) {
     executor.onReady(() => void this.pump());
   }
@@ -71,7 +77,27 @@ export class OrderEngine {
       }
     }
     for (const o of this.store.list(['triggered']).reverse()) this.queue.push(o.id);
+    this.sweepTimer = setInterval(() => this.sweepViewers(), 60_000);
     void this.pump();
+  }
+
+  /**
+   * Streams a mint's price for someone viewing it (the on-page Limit view), even without orders.
+   * Interest lasts VIEW_TTL_MS; call again to renew. Returns the latest tick if one is known.
+   */
+  async viewMint(mint: string): Promise<PriceTick | null> {
+    await this.ensureWatch(mint);
+    this.viewers.set(mint, this.now() + VIEW_TTL_MS);
+    return this.lastTick.get(mint) ?? null;
+  }
+
+  /** Drops expired viewer interest and closes streams nobody needs. */
+  sweepViewers(): void {
+    for (const [mint, until] of this.viewers) {
+      if (until > this.now()) continue;
+      this.viewers.delete(mint);
+      this.releaseWatchIfIdle(mint);
+    }
   }
 
   /** Validates input, confirms the token can be priced, then persists the order. */
@@ -114,6 +140,7 @@ export class OrderEngine {
 
   /** Stops all price streams. */
   stop(): void {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
     this.watches.forEach((w) => w.stop());
     this.watches.clear();
   }
@@ -137,6 +164,7 @@ export class OrderEngine {
 
   /** Stops watching a mint when no active orders remain on it. */
   private releaseWatchIfIdle(mint: string): void {
+    if ((this.viewers.get(mint) ?? 0) > this.now()) return;
     if (this.store.list([...ACTIVE]).some((o) => o.mint === mint)) return;
     this.watches.get(mint)?.stop();
     this.watches.delete(mint);

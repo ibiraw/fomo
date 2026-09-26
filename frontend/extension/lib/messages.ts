@@ -33,6 +33,7 @@ export type PopupRequest =
   | { readonly type: 'order.create'; readonly reqId: string; readonly order: NewOrder }
   | { readonly type: 'order.cancel'; readonly reqId: string; readonly id: string }
   | { readonly type: 'token.info'; readonly reqId: string; readonly mint: string }
+  | { readonly type: 'price.watch'; readonly reqId: string; readonly mint: string }
   | { readonly type: 'x.latest'; readonly reqId: string; readonly url: string; readonly force?: boolean };
 
 export type BackgroundMessage =

@@ -30,8 +30,8 @@ const PAGE_CSS = `
 [${ACTIVE_ATTR}] > :not([data-fomo-limit-keep]):not([${VIEW_ATTR}]) { display: none !important; }
 :not([${ACTIVE_ATTR}]) > [${VIEW_ATTR}] { display: none !important; }
 #${LIMIT_TAB_ID}[data-active] {
-  background: rgba(250, 204, 21, 0.16) !important;
-  color: #facc15 !important;
+  background: color-mix(in srgb, var(--color-yellow, #ffbf17) 20%, transparent) !important;
+  color: var(--color-yellow, #ffbf17) !important;
 }
 [${ACTIVE_ATTR}] [data-fomo-limit-keep] > button:not(#${LIMIT_TAB_ID}) {
   background: var(--color-bg-secondary, rgba(255,255,255,0.06)) !important;

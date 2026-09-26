@@ -107,6 +107,14 @@ describe('WsGateway commands', () => {
     await c.next((m) => m.type === 'order' && (m.order as { status: string }).status === 'cancelled');
   });
 
+  it('starts a price stream for viewers via price.watch', async () => {
+    const c = await authed(false);
+    c.send({ type: 'price.watch', reqId: 'w1', mint: MINT });
+    expect((await c.next((m) => m.reqId === 'w1')).ok).toBe(true);
+    feed.tick(MINT, 3);
+    await c.next((m) => m.type === 'tick');
+  });
+
   it('answers token.info, or explains when it is unavailable', async () => {
     const c = await authed(false);
     c.send({ type: 'token.info', reqId: 't1', mint: MINT });

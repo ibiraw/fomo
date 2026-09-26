@@ -13,6 +13,7 @@ import { TokenXCard } from '@/components/panel/TokenXCard';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBackground } from '@/hooks/use-background';
+import { useWatchPrice } from '@/hooks/use-watch-price';
 import { mintFromFomoUrl } from '@/lib/format';
 import type { ConnectionStatus } from '@/lib/server-connection';
 import { cn } from '@/lib/utils';
@@ -29,6 +30,8 @@ const STATUS_TEXT: Record<ConnectionStatus, string> = {
 export default function App() {
   const { state, send } = useBackground();
   const [tabMint, setTabMint] = useState<string | null>(null);
+
+  useWatchPrice(tabMint, state?.status === 'connected', send);
 
   useEffect(() => {
     void browser.tabs.query({ active: true, currentWindow: true }).then(([tab]) => setTabMint(mintFromFomoUrl(tab?.url)));
