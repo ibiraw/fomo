@@ -58,6 +58,7 @@ export default defineBackground({
         return typeof s.workerTabId === 'number' ? s.workerTabId : null;
       },
       set: async (tabId) => { await browser.storage.session.set({ workerTabId: tabId }); },
+      clear: async () => { await browser.storage.session.remove('workerTabId'); },
     };
     const conn = new ServerConnection((url) => new WebSocket(url), {
       onStatus: (s) => { status = s; push(); },

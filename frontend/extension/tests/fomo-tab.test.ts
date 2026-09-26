@@ -15,7 +15,7 @@ const noInject = async (): Promise<void> => undefined;
 
 /** In-memory worker-tab store. */
 function workerStore(initial: number | null = null): WorkerTabStore & { id: number | null } {
-  const w = { id: initial, get: async () => w.id, set: async (id: number) => { w.id = id; } };
+  const w = { id: initial, get: async () => w.id, set: async (id: number) => { w.id = id; }, clear: async () => { w.id = null; } };
   return w;
 }
 const ORDER = { id: 'o', mint: MINT, side: 'sell', amount: { kind: 'percent', value: 50 } } as unknown as Order;
@@ -26,6 +26,7 @@ function fakeTabs(tabs: { id: number; url: string; active?: boolean }[], opts: {
     query: vi.fn(async () => tabs),
     create: vi.fn(async ({ url }: { url: string }) => { const t = { id: 99, url }; tabs.push(t); return t; }),
     update: vi.fn(async (_id: number, _p: object) => ({})),
+    remove: vi.fn(async (id: number) => { const i = tabs.findIndex((t) => t.id === id); if (i >= 0) tabs.splice(i, 1); }),
     sendMessage: vi.fn(async (_id: number, msg: { type: string }) => {
       if (msg.type === 'fomo.ping') return { onMint: opts.onMint ? opts.onMint() : true };
       return opts.trade ? opts.trade() : { ok: true, detail: 'sold' };
@@ -121,5 +122,38 @@ describe('executeInFomoTab', () => {
     expect(await executeInFomoTab(dead, noInject, workerStore(), ORDER, FAST)).toMatchObject({ ok: false, kind: 'unknown' });
     const hung = fakeTabs([{ id: 1, url: tokenUrl(MINT) }], { trade: () => new Promise(() => undefined) });
     expect(await executeInFomoTab(hung, noInject, workerStore(), ORDER, FAST)).toMatchObject({ ok: false, kind: 'unknown', message: expect.stringMatching(/did not answer/) });
+  });
+});
+
+describe('background tab clean-up', () => {
+  it('closes the background tab it opened once the trade is done', async () => {
+    const tabs = fakeTabs([{ id: 1, url: 'https://fomo.family/tokens/solana/OtherMint1111111111111111111111111111111', active: true }]);
+    const worker = workerStore();
+    const res = await executeInFomoTab(tabs, noInject, worker, ORDER, FAST);
+    expect(res.ok).toBe(true);
+    expect(tabs.create).toHaveBeenCalledWith({ url: tokenUrl(MINT), active: false });
+    expect(tabs.remove).toHaveBeenCalledWith(99);
+    expect(worker.id).toBeNull();
+  });
+
+  it("never closes the user's own tab on that token", async () => {
+    const tabs = fakeTabs([{ id: 5, url: tokenUrl(MINT), active: true }]);
+    await executeInFomoTab(tabs, noInject, workerStore(), ORDER, FAST);
+    expect(tabs.remove).not.toHaveBeenCalled();
+  });
+
+  it('keeps the background tab open when the outcome is unknown, and tolerates it already being closed', async () => {
+    const unknown = fakeTabs([], { trade: async () => undefined });
+    const w1 = workerStore();
+    const r1 = await executeInFomoTab(unknown, noInject, w1, ORDER, FAST);
+    expect(r1).toMatchObject({ ok: false, kind: 'unknown' });
+    expect(unknown.remove).not.toHaveBeenCalled();
+    expect(w1.id).toBe(99);
+
+    const gone = fakeTabs([], { trade: async () => ({ ok: false, kind: 'slippage', message: 'slipped' }) });
+    gone.remove.mockRejectedValueOnce(new Error('No tab with id: 99'));
+    const w2 = workerStore();
+    expect(await executeInFomoTab(gone, noInject, w2, ORDER, FAST)).toMatchObject({ kind: 'slippage' });
+    expect(w2.id).toBeNull();
   });
 });

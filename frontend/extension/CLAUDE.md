@@ -16,7 +16,7 @@ Chrome MV3 extension built with WXT. Connects to the local backend (ws://127.0.0
 | `lib/themes.ts`, `hooks/use-theme.ts`, `components/ThemePicker.tsx` | User themes: override fomo's `--color-*` vars (page) + extension tokens (inline on popup root / shadow host). fomo prints white text on `action`, so `action` must keep >= 3:1 contrast with white (tested) |
 | `lib/fomo-dom.ts` | **All FOMO page-structure knowledge** (selectors, balance reading). Update here if FOMO redesigns |
 | `lib/trade.ts` | Trade steps: tab → amount → wait quote → submit → confirm by balance drop / failure notice |
-| `lib/fomo-tab.ts` | Find/open/navigate the FOMO tab, send trade to content script |
+| `lib/fomo-tab.ts` | Find/open/navigate the FOMO tab, send trade to content script. The background tab it opens is closed after the trade (kept only when the outcome is unknown); the user's own tabs are never navigated or closed |
 | `lib/token-key.ts` | Token keys shared with the server: Solana mint or `<chain>:<0xaddress>` (ethereum, base, bnb, robinhood, arc). Maps keys ↔ fomo paths `/tokens/<chain>/<address>`. Mirror of backend `core/chains/token-key.ts` |
 | `lib/server-connection.ts` | WS client: hello, reconnect w/ backoff, request/reply, exec relay |
 | `lib/format.ts`, `lib/types.ts`, `lib/messages.ts` | Display helpers, shared types (mirror backend), popup⇄background messages |

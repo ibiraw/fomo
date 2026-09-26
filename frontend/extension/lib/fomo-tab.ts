@@ -13,12 +13,14 @@ export interface TabsApi {
   create(p: { url: string; active: boolean }): Promise<{ id?: number; url?: string }>;
   update(id: number, p: { url?: string; autoDiscardable?: boolean }): Promise<unknown>;
   sendMessage(id: number, msg: unknown): Promise<unknown>;
+  remove(id: number): Promise<unknown>;
 }
 
 /** Remembers the extension's own background FOMO tab (the only tab it ever navigates). */
 export interface WorkerTabStore {
   get(): Promise<number | null>;
   set(tabId: number): Promise<void>;
+  clear(): Promise<void>;
 }
 
 /**
@@ -128,7 +130,19 @@ export function toTradeRequest(order: Order): TradeRequest {
   return { side: order.side, amount: order.amount };
 }
 
-/** Runs `order` in a FOMO tab. Never throws. */
+/**
+ * Closes the extension's background tab once a trade is over, so trades on other tokens don't leave tabs
+ * behind. Kept open when the outcome is unknown, so the user can look at what happened. The user's own
+ * tabs are never closed.
+ */
+async function closeWorkerTab(tabs: TabsApi, worker: WorkerTabStore, id: number, result: ExecutionResult): Promise<void> {
+  if (!result.ok && result.kind === 'unknown') return;
+  if ((await worker.get()) !== id) return;
+  await worker.clear();
+  await tabs.remove(id).catch(() => undefined); // already closed by the user
+}
+
+/** Runs `order` in a FOMO tab, then closes the background tab if one was used. Never throws. */
 export async function executeInFomoTab(
   tabs: TabsApi,
   inject: InjectFn,
@@ -136,14 +150,32 @@ export async function executeInFomoTab(
   order: Order,
   t: TabTimings = DEFAULT_TAB_TIMINGS,
 ): Promise<ExecutionResult> {
+  const result = await runInFomoTab(tabs, inject, worker, order, t);
+  if (result.tabId !== null) await closeWorkerTab(tabs, worker, result.tabId, result.result).catch(() => undefined);
+  return result.result;
+}
+
+/** Prepares the tab and runs the trade; reports which tab was used (null when none got ready). */
+async function runInFomoTab(
+  tabs: TabsApi,
+  inject: InjectFn,
+  worker: WorkerTabStore,
+  order: Order,
+  t: TabTimings = DEFAULT_TAB_TIMINGS,
+): Promise<{ tabId: number | null; result: ExecutionResult }> {
   let id: number;
   const t0 = Date.now();
   try {
     id = await prepareTab(tabs, inject, order.mint, worker, t);
   } catch (err) {
     // Nothing was clicked yet, so this is a definite failure, not an unknown outcome.
-    return { ok: false, kind: 'ui_error', message: err instanceof Error ? err.message : String(err) };
+    return { tabId: null, result: { ok: false, kind: 'ui_error', message: err instanceof Error ? err.message : String(err) } };
   }
+  return { tabId: id, result: await trade(tabs, id, order, t, t0) };
+}
+
+/** Sends the trade to the prepared tab's content script. */
+async function trade(tabs: TabsApi, id: number, order: Order, t: TabTimings, t0: number): Promise<ExecutionResult> {
   try {
     const result = await timeout(
       tabs.sendMessage(id, { type: 'fomo.trade', mint: order.mint, request: toTradeRequest(order) }) as Promise<ExecutionResult | undefined>,
