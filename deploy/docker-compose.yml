@@ -1,0 +1,21 @@
+# auto fomo — server + Cloudflare Tunnel (Reborn1987)
+# Usage (on the VPS, in this folder): docker compose up -d --build
+# No ports are published: the tunnel connects out to Cloudflare, so the server's IP stays hidden.
+services:
+  server:
+    build: ../backend
+    restart: unless-stopped
+    env_file: server.env
+    volumes:
+      - ./data:/app/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in deploy/.env}
+    depends_on: [server]
