@@ -16,6 +16,7 @@ import { JupiterPriceFeed } from './core/pricing/jupiter-price-feed.js';
 import { PoolDirectory } from './core/pricing/pool-directory.js';
 import { PumpPriceFeed } from './core/pricing/pump-price-feed.js';
 import { RaydiumCpmmPriceFeed } from './core/pricing/raydium-cpmm-price-feed.js';
+import { RaydiumLaunchLabPriceFeed } from './core/pricing/raydium-launchlab-price-feed.js';
 import { UsdQuotes } from './core/pricing/usd-quotes.js';
 import { TokenInfoService } from './core/tokens/token-info-service.js';
 
@@ -36,10 +37,12 @@ async function main(): Promise<void> {
   const http = new FetchHttpJsonAdapter();
   const jupiterHttp = new FetchHttpJsonAdapter(cfg.jupiter.apiKey ? { 'x-api-key': cfg.jupiter.apiKey } : {});
   const quotes = new UsdQuotes(accounts, jupiterHttp, cfg.jupiter.url, 5_000, logError('quotes'));
+  const cpmm = new RaydiumCpmmPriceFeed(accounts, new PoolDirectory(http), quotes, logError('raydium-cpmm'));
   // Fast on-chain feeds first; Jupiter covers every other token (slower, polled).
   const feed = new CompositePriceFeed([
     new PumpPriceFeed(accounts, logError('price')),
-    new RaydiumCpmmPriceFeed(accounts, new PoolDirectory(http), quotes, logError('raydium-cpmm')),
+    new RaydiumLaunchLabPriceFeed(accounts, quotes, cpmm, logError('raydium-launchlab')),
+    cpmm,
     new JupiterPriceFeed(jupiterHttp, accounts, { url: cfg.jupiter.url, pollMs: cfg.jupiter.pollMs }, logError('jupiter')),
   ]);
   const store = new SqliteOrderStoreAdapter(cfg.dbPath);
