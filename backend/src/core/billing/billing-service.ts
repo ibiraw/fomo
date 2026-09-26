@@ -52,9 +52,20 @@ export interface PaymentMethod {
   readonly amount: string;
 }
 
+/** An account's orders as the trial sees them. */
+export interface OrderCounts {
+  /** Orders that filled (each uses one free order). */
+  readonly filled: number;
+  /** Orders placed and not finished yet (open / triggered / executing). */
+  readonly waiting: number;
+}
+
 export interface BillingStatus {
   readonly unlocked: boolean;
+  /** Free orders not yet used by a fill. */
   readonly freeOrdersLeft: number;
+  /** Of those, how many are taken by orders still waiting to fill. */
+  readonly freeOrdersWaiting: number;
   readonly creditUsd: number;
   readonly priceUsd: number;
   readonly tokenPriceUsd: number;
@@ -92,7 +103,7 @@ export class BillingService {
    * @param plan prices and trial @param treasury receiving wallets
    * @param stables accepted stablecoins @param token the platform token once launched (null before)
    * @param tokenUsd live USD price of the token (null when unknown)
-   * @param usedOrders orders an account has used toward the trial (active + filled)
+   * @param orderCounts an account's filled and waiting orders (only fills use up free orders)
    * @param onChange called with the account id whenever its billing changes
    */
   constructor(
@@ -103,24 +114,37 @@ export class BillingService {
     private readonly stables: readonly PaymentAsset[],
     private readonly token: PaymentAsset | null,
     private readonly tokenUsd: () => number | null,
-    private readonly usedOrders: (userId: string) => number,
+    private readonly orderCounts: (userId: string) => OrderCounts,
     private readonly onChange: (userId: string) => void = () => undefined,
     private readonly now: () => number = Date.now,
   ) {}
 
-  /** Throws PaymentRequiredError when the account may not place another order. */
+  /**
+   * Throws PaymentRequiredError when the account may not place another order. Only fills use up free orders, but
+   * waiting orders reserve one each, so the trial can never fill more than its free orders.
+   */
   assertCanPlaceOrder(userId: string): void {
     if (this.store.unlockedAt(userId) !== null) return;
-    if (this.usedOrders(userId) < this.plan.freeOrders) return;
-    throw new PaymentRequiredError(`You've used your ${this.plan.freeOrders} free orders. Unlock auto fomo in Settings to keep placing orders.`);
+    const { filled, waiting } = this.orderCounts(userId);
+    if (filled + waiting < this.plan.freeOrders) return;
+    if (filled >= this.plan.freeOrders) {
+      throw new PaymentRequiredError(`You've used your ${this.plan.freeOrders} free orders. Unlock auto fomo in Settings to keep placing orders.`);
+    }
+    const left = this.plan.freeOrders - filled;
+    throw new PaymentRequiredError(
+      `Your ${left} free ${left === 1 ? 'order is' : 'orders are'} waiting to fill. Cancel one or unlock auto fomo in Settings to place more.`,
+    );
   }
 
   /** Unlock state and credit. */
   status(userId: string): BillingStatus {
     const unlocked = this.store.unlockedAt(userId) !== null;
+    const { filled, waiting } = unlocked ? { filled: 0, waiting: 0 } : this.orderCounts(userId);
+    const left = unlocked ? 0 : Math.max(0, this.plan.freeOrders - filled);
     return {
       unlocked,
-      freeOrdersLeft: unlocked ? 0 : Math.max(0, this.plan.freeOrders - this.usedOrders(userId)),
+      freeOrdersLeft: left,
+      freeOrdersWaiting: Math.min(left, waiting),
       creditUsd: this.store.creditUsd(userId),
       priceUsd: this.plan.priceUsd,
       tokenPriceUsd: this.plan.tokenPriceUsd,

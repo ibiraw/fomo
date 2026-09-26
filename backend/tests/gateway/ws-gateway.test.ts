@@ -314,7 +314,7 @@ describe('WsGateway paywall', () => {
     const billing = new BillingService(
       new SqliteBillingStoreAdapter(':memory:'), accountStore, { priceUsd: 50, tokenPriceUsd: 35, freeOrders: 1 },
       { solana: 'JDY8BeQUPmcRZnYJGVBiU7x71SMbdUECW6NMUdGGKQDg', evm: '0x' + 'a'.repeat(40) }, STABLE_ASSETS, null, () => null,
-      (id) => store.list(['open', 'triggered', 'executing', 'filled'], id).length, (id) => gateway.pushBilling(id),
+      (id) => ({ filled: store.list(['filled'], id).length, waiting: store.list(['open', 'triggered', 'executing'], id).length }), (id) => gateway.pushBilling(id),
     );
     const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), () => undefined, () => null, 20_000, Date.now, 25, (id) => billing.assertCanPlaceOrder(id));
     gateway.attach(engine, accounts, confirmers, null, billing);
@@ -325,9 +325,9 @@ describe('WsGateway paywall', () => {
     expect(c.msgs.find((m) => m.type === 'welcome')!.billing).toMatchObject({ unlocked: false, freeOrdersLeft: 1 });
     c.send({ type: 'order.create', reqId: 'a', order: ORDER });
     expect((await c.next((m) => m.reqId === 'a')).ok).toBe(true);
-    await c.next((m) => m.type === 'billing' && (m.status as { freeOrdersLeft: number }).freeOrdersLeft === 0);
+    await c.next((m) => m.type === 'billing' && (m.status as { freeOrdersWaiting: number }).freeOrdersWaiting === 1);
     c.send({ type: 'order.create', reqId: 'b', order: ORDER });
-    expect((await c.next((m) => m.reqId === 'b')).error).toMatch(/free orders/);
+    expect((await c.next((m) => m.reqId === 'b')).error).toMatch(/waiting to fill/);
     c.send({ type: 'billing.quote', reqId: 'q' });
     expect(((await c.next((m) => m.reqId === 'q')).data as { methods: unknown[] }).methods).toHaveLength(6);
     billing.grant(c.userId);

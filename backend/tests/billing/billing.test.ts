@@ -34,12 +34,12 @@ function setup(opts: { token?: boolean; tokenPrice?: number | null } = {}) {
   let t = 1_000;
   const accounts = new SqliteAccountStoreAdapter(':memory:', () => t);
   const store = new SqliteBillingStoreAdapter(':memory:');
-  const used = new Map<string, number>();
+  const used = new Map<string, { filled: number; waiting: number }>();
   const changed: string[] = [];
   let price: number | null = opts.tokenPrice === undefined ? 0.01 : opts.tokenPrice;
   const svc = new BillingService(
     store, accounts, PLAN, { solana: SOL_TREASURY, evm: EVM_TREASURY }, STABLE_ASSETS, opts.token ? TOKEN : null,
-    () => price, (id) => used.get(id) ?? 0, (id) => changed.push(id), () => t,
+    () => price, (id) => used.get(id) ?? { filled: 0, waiting: 0 }, (id) => changed.push(id), () => t,
   );
   const alice = accounts.create('h1', { solana: USER_SOL, evm: USER_EVM });
   const bob = accounts.create('h2', { solana: null, evm: null });
@@ -49,13 +49,19 @@ function setup(opts: { token?: boolean; tokenPrice?: number | null } = {}) {
 }
 
 describe('BillingService trial', () => {
-  it('allows the free orders, then asks for payment; unlocked accounts are never blocked', () => {
+  it('uses a free order per fill, holds one per waiting order, then asks for payment; unlocked accounts are never blocked', () => {
     const { svc, used, alice } = setup();
-    expect(svc.status(alice.id)).toEqual({ unlocked: false, freeOrdersLeft: 3, creditUsd: 0, priceUsd: 50, tokenPriceUsd: 35 });
-    used.set(alice.id, 2);
+    expect(svc.status(alice.id)).toEqual({ unlocked: false, freeOrdersLeft: 3, freeOrdersWaiting: 0, creditUsd: 0, priceUsd: 50, tokenPriceUsd: 35 });
+    used.set(alice.id, { filled: 1, waiting: 1 });
+    expect(svc.status(alice.id)).toMatchObject({ freeOrdersLeft: 2, freeOrdersWaiting: 1 });
     expect(() => svc.assertCanPlaceOrder(alice.id)).not.toThrow();
-    used.set(alice.id, 3);
+    used.set(alice.id, { filled: 1, waiting: 2 }); // the two free orders left are both waiting
+    expect(() => svc.assertCanPlaceOrder(alice.id)).toThrow(/2 free orders are waiting to fill/);
+    used.set(alice.id, { filled: 2, waiting: 1 });
+    expect(() => svc.assertCanPlaceOrder(alice.id)).toThrow(/1 free order is waiting/);
+    used.set(alice.id, { filled: 3, waiting: 0 });
     expect(() => svc.assertCanPlaceOrder(alice.id)).toThrow(PaymentRequiredError);
+    expect(() => svc.assertCanPlaceOrder(alice.id)).toThrow(/used your 3 free orders/);
     svc.grant(alice.id);
     expect(() => svc.assertCanPlaceOrder(alice.id)).not.toThrow();
     expect(svc.status(alice.id)).toMatchObject({ unlocked: true, freeOrdersLeft: 0 });

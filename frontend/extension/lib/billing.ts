@@ -7,7 +7,10 @@
 /** Unlock state of the account. */
 export interface BillingStatus {
   readonly unlocked: boolean;
+  /** Free orders not yet used by a fill (only fills use them up). */
   readonly freeOrdersLeft: number;
+  /** Of those, how many are held by orders still waiting to fill. */
+  readonly freeOrdersWaiting: number;
   readonly creditUsd: number;
   readonly priceUsd: number;
   readonly tokenPriceUsd: number;

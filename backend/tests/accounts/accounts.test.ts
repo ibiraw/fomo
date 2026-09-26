@@ -202,6 +202,8 @@ describe('HoldingsGuard per account', () => {
     await guard.sweep();
     w1.balance = 0n;
     await guard.sweep();
+    await guard.sweep(); // a zero must be read twice in a row
+    guard.stop();
     expect(store.get(s1.id)).toMatchObject({ status: 'cancelled', lastError: SOLD_OUT_REASON });
     expect(store.get(s2.id)?.status).toBe('open');
   });

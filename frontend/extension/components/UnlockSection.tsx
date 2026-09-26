@@ -158,7 +158,7 @@ export function UnlockBanner({ status, where }: { status: BillingStatus | null; 
     >
       {locked
         ? `Free orders used — unlock for $${status.priceUsd} USDC in ${hint}.`
-        : `${status.freeOrdersLeft} free ${status.freeOrdersLeft === 1 ? 'order' : 'orders'} left, then $${status.priceUsd} USDC once (${hint}).`}
+        : `${status.freeOrdersLeft} free ${status.freeOrdersLeft === 1 ? 'order' : 'orders'} left${status.freeOrdersWaiting > 0 ? ` (${status.freeOrdersWaiting} waiting to fill)` : ''}, then $${status.priceUsd} USDC once (${hint}).`}
     </p>
   );
 }

@@ -138,7 +138,7 @@ describe('ServerConnection', () => {
     s.recv({ type: 'welcome', orders: [], ticks: [], account: { id: 'a1', wallets: { solana: null, evm: null } } });
     expect(handlers.onSnapshot).toHaveBeenCalledWith([], [], { id: 'a1', wallets: { solana: null, evm: null } });
     expect(handlers.onBilling).toHaveBeenLastCalledWith(null);
-    s.recv({ type: 'billing', status: { unlocked: true, freeOrdersLeft: 0, creditUsd: 50, priceUsd: 50, tokenPriceUsd: 35 } });
+    s.recv({ type: 'billing', status: { unlocked: true, freeOrdersLeft: 0, freeOrdersWaiting: 0, creditUsd: 50, priceUsd: 50, tokenPriceUsd: 35 } });
     expect(handlers.onBilling).toHaveBeenLastCalledWith(expect.objectContaining({ unlocked: true }));
     s.drop(4003);
     expect(conn.getStatus()).toBe('deleted');

@@ -8,7 +8,7 @@
 import { KitSolanaTransfersAdapter } from './adapters/solana/kit-solana-transfers.adapter.js';
 import { SqliteBillingStoreAdapter } from './adapters/storage/sqlite-billing-store.adapter.js';
 import type { AppConfig } from './config.js';
-import { BillingService } from './core/billing/billing-service.js';
+import { BillingService, type OrderCounts } from './core/billing/billing-service.js';
 import { EvmPaymentWatcher } from './core/billing/evm-payment-watcher.js';
 import { STABLE_ASSETS, type PaymentAsset } from './core/billing/payment-assets.js';
 import { SolanaPaymentWatcher } from './core/billing/solana-payment-watcher.js';
@@ -33,7 +33,7 @@ interface Deps {
   readonly solana: SolanaAccountsPort;
   readonly evm: ReadonlyMap<EvmChain, { readonly rpc: EvmRpcPort; readonly erc20: Erc20Reader }>;
   readonly feed: PriceFeedPort;
-  readonly usedOrders: (userId: string) => number;
+  readonly orderCounts: (userId: string) => OrderCounts;
   readonly onChange: (userId: string) => void;
   readonly log: (msg: string) => void;
   readonly logError: (ctx: string) => (err: unknown) => void;
@@ -68,7 +68,7 @@ export async function buildBilling(d: Deps): Promise<BillingParts> {
     STABLE_ASSETS.filter((a) => a.chain === 'solana' || d.evm.has(a.chain as EvmChain)),
     token,
     () => tokenPrice,
-    d.usedOrders,
+    d.orderCounts,
     d.onChange,
   );
 

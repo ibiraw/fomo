@@ -96,13 +96,16 @@ async function main(): Promise<void> {
     return byChain.size > 0 ? new ChainRouterConfirmer(byChain) : null;
   });
   const confirmerFor = (userId: string) => walletConfirmers.for(userId);
-  // Orders that count toward the free trial: anything placed that wasn't cancelled or failed.
-  const usedOrders = (userId: string): number => store.list(['open', 'triggered', 'executing', 'filled'], userId).length;
+  // The free trial: fills use up free orders; waiting orders hold one each.
+  const orderCounts = (userId: string) => ({
+    filled: store.list(['filled'], userId).length,
+    waiting: store.list(['open', 'triggered', 'executing'], userId).length,
+  });
   const billing = cfg.paywall
     ? await buildBilling({
       cfg, paywall: cfg.paywall, accounts: accountStore, solana: accounts,
       evm: new Map([...evm].map(([c, p]) => [c, { rpc: p.rpc, erc20: p.erc20 }] as const)),
-      feed, usedOrders, onChange: (userId) => gateway.pushBilling(userId), log, logError,
+      feed, orderCounts, onChange: (userId) => gateway.pushBilling(userId), log, logError,
     })
     : null;
   // The owner never pays.
