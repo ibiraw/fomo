@@ -30,4 +30,5 @@ A Chrome extension clicks Buy/Sell in the user's logged-in FOMO tab. No private 
 | 6 | Live test (user triggers real trades) | Done — $3 buy (filled; UI confirm missed it → added on-chain confirmation) and 100% sell (filled in 2.0s) |
 | 7 | Telegram bot | Todo |
 | 8 | Showcase website demonstrating the tech | Todo (requested 2026-09-26) |
-| 9 | Latest tweet for a token (time + optional preview) | Todo — token's own X account (from pump.fun metadata); read via user's logged-in x.com session in the extension; show in popup + on FOMO page |
+| 9 | Latest tweet for a token (time + optional preview) | Done — X link from on-chain metadata; latest post read via user's x.com session (minimized window); age colored green→red |
+| 10 | On-page Limit tab + FOMO-style form (presets, MC slider, inferred order type) | Done — verified live |
