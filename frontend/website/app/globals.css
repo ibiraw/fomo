@@ -1,7 +1,8 @@
 /*
  * @file globals.css
- * @description auto fomo site theme: fomo-style near-black surfaces, yellow brand accent,
- *              green/red for buy/sell. Tailwind v4 + shadcn tokens.
+ * @description auto fomo site theme — "Mono": black and white only, so the green/red of trades carry
+ *              all the color. Semantic tokens: brand (accent), action (main button), buy, sell.
+ *              To switch scheme, change the values in :root only.
  * @author Reborn1987
  */
 @import "tailwindcss";
@@ -26,10 +27,11 @@
   --color-border: var(--border);
   --color-input: var(--border);
   --color-ring: var(--primary);
-  --color-yellow: var(--primary);
+  --color-brand: var(--primary);
   --color-buy: var(--buy);
   --color-sell: var(--sell);
-  --color-blue: var(--blue);
+  --color-action: var(--action);
+  --color-on-action: var(--on-action);
   --color-faint: var(--faint);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -41,20 +43,22 @@
 
 :root {
   --radius: 0.75rem;
-  --background: #060510;
-  --foreground: #f7f7f7;
-  --card: #12111a;
-  --secondary: #12111a;
-  --muted: rgba(203, 208, 235, 0.08);
-  --muted-foreground: #9899a3;
-  --accent: rgba(203, 208, 235, 0.1);
-  --border: rgba(203, 208, 235, 0.1);
-  --primary: #ffbf17;
-  --primary-foreground: #060510;
-  --buy: #21c95e;
-  --sell: #ff622e;
-  --blue: #516af6;
-  --faint: #474b52;
+  /* Mono (picked from the palette gallery, 2026-09-26) */
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #16161a;
+  --secondary: #16161a;
+  --muted: rgba(250, 250, 250, 0.06);
+  --muted-foreground: #9a9aa3;
+  --accent: rgba(250, 250, 250, 0.1);
+  --border: #26262c;
+  --primary: #ffffff;
+  --primary-foreground: #09090b;
+  --action: #ffffff;
+  --on-action: #09090b;
+  --buy: #22c55e;
+  --sell: #f43f5e;
+  --faint: #52525b;
 }
 
 @layer base {

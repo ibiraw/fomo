@@ -87,7 +87,7 @@ export function TryIt() {
         {' — '}
         {orderExplainer(side, pct, usdK(target)).split(': ')[1]}
       </p>
-      <div className="rounded-xl bg-blue py-2.5 text-center text-sm font-bold text-white opacity-90">
+      <div className="rounded-xl bg-action py-2.5 text-center text-sm font-bold text-on-action opacity-90">
         Place {kind.toLowerCase()} · {PRESETS[side].unit === '$' ? `$${amount}` : `${amount}%`}
       </div>
     </div>

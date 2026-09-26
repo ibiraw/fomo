@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   description: 'Set a market-cap target and auto fomo clicks Buy or Sell in your fomo tab when it hits. Dip buys, take profits and stop losses. Unofficial, no private keys.',
 };
 
-export const viewport: Viewport = { themeColor: '#060510', colorScheme: 'dark' };
+export const viewport: Viewport = { themeColor: '#09090b', colorScheme: 'dark' };
 
 /** Root layout. */
 export default function RootLayout({ children }: LayoutProps<'/'>) {

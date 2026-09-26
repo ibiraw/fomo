@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button';
 export function Wordmark({ className = '' }: { className?: string }) {
   return (
     <span className={`font-bold tracking-tight ${className}`}>
-      auto <span className="text-yellow">fomo</span>
+      auto <span className="text-brand">fomo</span>
     </span>
   );
 }
@@ -44,7 +44,7 @@ export function SiteHeader() {
           <a href="#holders" className="hover:text-foreground">Holders</a>
           <a href="#faq" className="hover:text-foreground">FAQ</a>
         </nav>
-        <Badge variant="outline" className="border-yellow/40 text-yellow">Unofficial</Badge>
+        <Badge variant="outline" className="border-brand/40 text-brand">Unofficial</Badge>
       </div>
     </header>
   );
@@ -54,18 +54,18 @@ export function SiteHeader() {
 export function Hero() {
   return (
     <section id="top" className="relative overflow-hidden">
-      <div className="pointer-events-none absolute inset-x-0 -top-40 mx-auto h-[28rem] max-w-3xl rounded-full bg-yellow/10 blur-3xl" />
+      <div className="pointer-events-none absolute inset-x-0 -top-40 mx-auto h-[28rem] max-w-3xl rounded-full bg-brand/10 blur-3xl" />
       <div className="relative mx-auto max-w-4xl px-5 pb-16 pt-20 text-center md:pt-28">
         <Badge variant="outline" className="mb-6 border-border text-muted-foreground">Unofficial · not affiliated with fomo.family</Badge>
         <h1 className="text-balance text-4xl font-bold tracking-tight md:text-6xl">
-          Limit orders for <span className="text-yellow">fomo</span>.
+          Limit orders for <span className="text-brand">fomo</span>.
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-balance text-lg text-muted-foreground">
           Set a market-cap target. <Wordmark /> clicks Buy or Sell in your own fomo tab the moment it hits —
           dip buys, take profits and stop losses, without watching the chart.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Button asChild size="lg" className="rounded-xl bg-yellow font-bold text-primary-foreground hover:bg-yellow/90">
+          <Button asChild size="lg" className="rounded-xl bg-brand font-bold text-primary-foreground hover:bg-brand/90">
             <a href="#demo">See it work</a>
           </Button>
           <Button asChild size="lg" variant="outline" className="rounded-xl">
@@ -94,7 +94,7 @@ export function Hero() {
 export function SectionHead({ eyebrow, title, sub }: { eyebrow: string; title: string; sub?: string }) {
   return (
     <div className="mx-auto mb-10 max-w-2xl text-center">
-      <p className="text-sm font-semibold uppercase tracking-widest text-yellow">{eyebrow}</p>
+      <p className="text-sm font-semibold uppercase tracking-widest text-brand">{eyebrow}</p>
       <h2 className="mt-2 text-balance text-3xl font-bold tracking-tight md:text-4xl">{title}</h2>
       {sub && <p className="mt-3 text-balance text-muted-foreground">{sub}</p>}
     </div>
@@ -118,7 +118,7 @@ export function Features() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {FEATURES.map((f) => (
           <div key={f.title} className="rounded-2xl border bg-card p-5">
-            <f.icon className="size-5 text-yellow" aria-hidden />
+            <f.icon className="size-5 text-brand" aria-hidden />
             <h3 className="mt-3 font-semibold">{f.title}</h3>
             <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{f.body}</p>
           </div>
@@ -144,7 +144,7 @@ export function HowItWorks() {
           {PARTS.map((p, i) => (
             <div key={p.name} className="contents">
               <div className="rounded-2xl border bg-background p-5">
-                <p.icon className="size-5 text-yellow" aria-hidden />
+                <p.icon className="size-5 text-brand" aria-hidden />
                 <h3 className="mt-3 font-semibold">{p.name}</h3>
                 <p className="text-xs text-muted-foreground">{p.where}</p>
                 <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
@@ -178,10 +178,10 @@ export function HowItWorks() {
 export function Holders() {
   return (
     <section id="holders" className="mx-auto max-w-6xl px-5 py-24">
-      <div className="relative overflow-hidden rounded-3xl border border-yellow/30 bg-card p-8 md:p-12">
-        <div className="pointer-events-none absolute -right-20 -top-20 size-72 rounded-full bg-yellow/10 blur-3xl" />
+      <div className="relative overflow-hidden rounded-3xl border border-brand/30 bg-card p-8 md:p-12">
+        <div className="pointer-events-none absolute -right-20 -top-20 size-72 rounded-full bg-brand/10 blur-3xl" />
         <div className="relative max-w-2xl">
-          <Badge className="bg-yellow/15 text-yellow">Coming soon</Badge>
+          <Badge className="bg-brand/15 text-brand">Coming soon</Badge>
           <h2 className="mt-4 text-3xl font-bold tracking-tight md:text-4xl">Early access for token holders</h2>
           <p className="mt-3 text-muted-foreground">
             <Wordmark /> opens to token holders first. Connect your wallet and holding the token unlocks the download.

@@ -55,8 +55,8 @@ function useLoopClock(paused: boolean): [number, (t: number) => void] {
 
 const STATUS_LABEL: Record<Exclude<DemoStatus, 'none'>, { text: string; cls: string }> = {
   open: { text: 'Waiting', cls: 'bg-accent text-muted-foreground' },
-  triggered: { text: 'Triggered', cls: 'bg-yellow/15 text-yellow' },
-  trading: { text: 'Trading…', cls: 'bg-yellow/15 text-yellow' },
+  triggered: { text: 'Triggered', cls: 'bg-brand/15 text-brand' },
+  trading: { text: 'Trading…', cls: 'bg-brand/15 text-brand' },
   filled: { text: 'Filled', cls: 'bg-buy/15 text-buy' },
 };
 
@@ -108,8 +108,8 @@ function Panel({ t }: { t: number }) {
             key={tab}
             className={cn(
               'flex-1 rounded-lg p-2 text-center text-sm font-bold transition-colors',
-              tab === 'Limit' && step >= 0 ? 'bg-yellow/20 text-yellow' : 'bg-secondary text-muted-foreground',
-              tab === 'Limit' && t < 700 && 'ring-2 ring-yellow/60',
+              tab === 'Limit' && step >= 0 ? 'bg-brand/20 text-brand' : 'bg-secondary text-muted-foreground',
+              tab === 'Limit' && t < 700 && 'ring-2 ring-brand/60',
             )}
           >
             {tab}
@@ -139,7 +139,7 @@ function Panel({ t }: { t: number }) {
         <p className="px-1 text-xs text-muted-foreground">
           <span className="font-semibold text-buy">Limit buy</span> at {usdK(target)} ({pct}%)
         </p>
-        <div className={cn('rounded-xl bg-blue py-2.5 text-center text-sm font-bold text-white transition-transform', pressed && 'scale-95 opacity-80')}>
+        <div className={cn('rounded-xl bg-action py-2.5 text-center text-sm font-bold text-on-action transition-transform', pressed && 'scale-95 opacity-80')}>
           Place limit buy
         </div>
       </div>
@@ -196,11 +196,11 @@ export function Walkthrough() {
               onClick={() => jump(s.at + 1)}
               className={cn(
                 'w-full rounded-xl border px-4 py-3 text-left transition-colors',
-                i === step ? 'border-yellow/50 bg-yellow/5' : 'border-transparent hover:bg-muted',
+                i === step ? 'border-brand/50 bg-brand/5' : 'border-transparent hover:bg-muted',
               )}
             >
               <div className="flex items-center gap-3">
-                <span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold', i === step ? 'bg-yellow text-primary-foreground' : 'bg-accent text-muted-foreground')}>
+                <span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold', i === step ? 'bg-brand text-primary-foreground' : 'bg-accent text-muted-foreground')}>
                   {i + 1}
                 </span>
                 <span className={cn('font-semibold', i === step ? 'text-foreground' : 'text-muted-foreground')}>{s.title}</span>
@@ -212,7 +212,7 @@ export function Walkthrough() {
               <div className={cn('ml-9 mt-1 h-0.5 overflow-hidden rounded', i === step && !reduced ? 'bg-accent' : 'bg-transparent')}>
                 {i === step && !reduced && (
                   <div
-                    className="h-full bg-yellow"
+                    className="h-full bg-brand"
                     style={{ width: `${Math.min(100, ((t - s.at) / ((STEPS[i + 1]?.at ?? LOOP_MS) - s.at)) * 100)}%` }}
                   />
                 )}
