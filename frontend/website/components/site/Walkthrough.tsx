@@ -34,15 +34,16 @@ function useLoopClock(paused: boolean): [number, (t: number) => void] {
   useEffect(() => {
     if (paused) return;
     let raf = 0;
-    base.current.start = performance.now();
+    const clock = base.current; // same object for the hook's lifetime; jump() mutates it in place
+    clock.start = performance.now();
     const tick = (now: number): void => {
-      setT(loopTime(base.current.offset + now - base.current.start));
+      setT(loopTime(clock.offset + now - clock.start));
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(raf);
-      base.current.offset += performance.now() - base.current.start;
+      clock.offset += performance.now() - clock.start;
     };
   }, [paused]);
   const jump = (to: number): void => {
