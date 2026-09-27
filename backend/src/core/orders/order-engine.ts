@@ -285,7 +285,7 @@ export class OrderEngine {
     try {
       const q = this.queues.get(userId);
       while (q && q.length > 0 && this.executor.isReady(userId)) {
-        await this.executeOne(q.shift() as string);
+        if (!(await this.executeOne(q.shift() as string))) break; // layout pause: wait for the executor's ready signal
       }
       if (q?.length === 0) this.queues.delete(userId);
     } catch (err) {
@@ -295,22 +295,36 @@ export class OrderEngine {
     }
   }
 
-  /** Re-checks the trigger, marks the order executing, runs it and records the outcome. */
-  private async executeOne(id: string): Promise<void> {
+  /**
+   * Re-checks the trigger, marks the order executing, runs it and records the outcome. False when the account's
+   * trades must pause (fomo's layout wasn't recognised); the order is back in front of the queue.
+   */
+  private async executeOne(id: string): Promise<boolean> {
     const order = this.store.get(id);
-    if (!order || order.status !== 'triggered') return;
+    if (!order || order.status !== 'triggered') return true;
     const tick = this.lastTick.get(order.mint);
     if (tick && !isTriggered(order, tick)) {
       // Price moved back while waiting for the executor; wait for the condition again.
       this.publish(this.store.transition(id, ['triggered'], 'open'));
-      return;
+      return true;
     }
     const executing = this.store.transition(id, ['triggered'], 'executing', { attempts: order.attempts + 1 });
-    if (!executing) return;
+    if (!executing) return true;
     this.publish(executing);
     const result = await this.executeWithConfirmation(executing);
+    if (!result.ok && result.kind === 'layout') {
+      // fomo's page wasn't recognised and nothing was clicked: wait in front of the queue, attempt not spent.
+      // The executor reports itself not ready until the layout works again, so the pump stops here.
+      const back = this.store.transition(id, ['executing'], 'triggered', { attempts: order.attempts, lastError: `layout: ${result.message}` });
+      if (back) {
+        this.queues.get(order.userId)?.unshift(id) ?? this.enqueue(back);
+        this.publish(back);
+      }
+      return false;
+    }
     this.publish(this.recordResult(executing, result));
     this.releaseWatchIfIdle(order.mint);
+    return true;
   }
 
   /**

@@ -15,7 +15,7 @@ const ExecutionResultSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), detail: z.string() }),
   z.object({
     ok: z.literal(false),
-    kind: z.enum(['slippage', 'not_logged_in', 'insufficient_funds', 'ui_error', 'timeout', 'unknown']),
+    kind: z.enum(['layout', 'slippage', 'not_logged_in', 'insufficient_funds', 'ui_error', 'timeout', 'unknown']),
     message: z.string(),
   }),
 ]);
@@ -37,6 +37,16 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('billing.quote'), reqId: z.string() }),
   z.object({ type: z.literal('billing.claim'), reqId: z.string(), tx: z.string().max(300) }),
   z.object({ type: z.literal('exec.result'), execId: z.string(), result: ExecutionResultSchema }),
+  /** The extension's fomo self-check (token page, logged in) and fomo's "new version" prompt. */
+  z.object({
+    type: z.literal('layout.status'),
+    reqId: z.string(),
+    /** Self-check result; omitted when only reporting fomo's "new version" prompt. */
+    ok: z.boolean().optional(),
+    missing: z.array(z.string().max(120)).max(20).default([]),
+    newVersion: z.boolean().default(false),
+    snapshot: z.string().max(20_000).optional(),
+  }),
   z.object({ type: z.literal('pong') }),
 ]);
 

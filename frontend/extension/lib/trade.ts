@@ -18,6 +18,7 @@ import {
   submitBlocker,
   submitReady,
 } from './fomo-dom';
+import { readFomoUserId } from './account';
 import { containsAnyWord, fomoDom } from './fomo-dom-config';
 import { MIN_TRADE_USD, type ExecutionResult, type TradeRequest } from './types';
 
@@ -99,6 +100,15 @@ export async function executeTrade(doc: Document, req: TradeRequest, t: TradeTim
   }
 }
 
+/** True when fomo's own storage has a logged-in user (independent of the page layout). */
+function loggedIn(): boolean {
+  try {
+    return readFomoUserId(localStorage) !== null;
+  } catch {
+    return false;
+  }
+}
+
 /** The trade steps. Records how long each step took (appended to the result for diagnosis). */
 async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<ExecutionResult> {
   const t0 = Date.now();
@@ -110,21 +120,26 @@ async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<E
     return r.ok ? { ...r, detail: r.detail + timing } : { ...r, message: r.message + timing };
   };
   const panel = await waitFor(doc, () => findPanel(doc), t.panelMs);
-  if (!panel) return fail('not_logged_in', 'FOMO trade panel not found — is the tab logged in and on a token page?');
+  if (!panel) {
+    // Logged in (fomo's own storage says so) but no panel → fomo's layout changed; nothing was clicked.
+    return loggedIn()
+      ? fail('layout', 'FOMO trade panel not recognised (fomo layout changed?) — nothing was clicked')
+      : fail('not_logged_in', 'FOMO trade panel not found — is the tab logged in and on a token page?');
+  }
 
   // 1. Select the Buy/Sell tab.
   if (activeSide(panel) !== req.side) findTab(panel, req.side)?.click();
   if (!(await waitFor(doc, () => (activeSide(findPanel(doc) ?? panel) === req.side ? true : null), t.stepMs))) {
-    return fail('ui_error', `Could not switch to the ${req.side} tab`);
+    return fail('layout', `Could not switch to the ${req.side} tab (fomo layout changed?) — nothing was bought or sold`);
   }
   const p = (): HTMLElement => findPanel(doc) ?? panel;
 
   // 2. Work out the amount and fill it in.
   const balance = await waitForSettledBalance(() => readBalance(p(), req.side), t.balanceMs, t.settleMs);
-  if (balance === null) return fail('ui_error', 'Could not read the balance on the trade panel');
+  if (balance === null) return fail('layout', 'Could not read the balance on the trade panel (fomo layout changed?) — nothing was clicked');
   mark('balance');
   const input = findAmountInput(p());
-  if (!input) return fail('ui_error', 'Amount box not found');
+  if (!input) return fail('layout', 'Amount box not found (fomo layout changed?) — nothing was clicked');
 
   let usd: number;
   const preset = req.side === 'sell' && req.amount.kind === 'percent' && fomoDom().sellPresets.includes(req.amount.value)

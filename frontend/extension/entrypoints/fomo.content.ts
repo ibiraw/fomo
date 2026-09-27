@@ -8,6 +8,7 @@
 import { readFomoUserId, readFomoWallets } from '@/lib/account';
 import { readOwnFomoUsername } from '@/lib/fomo-dom';
 import { followFomoDom } from '@/lib/fomo-dom-config';
+import { FomoHealthWatcher, type FomoHealthMessage } from '@/lib/fomo-health-watch';
 import type { WalletsDetectedMessage } from '@/lib/messages';
 import { keyFromPath, tokenPath } from '@/lib/token-key';
 import { executeTrade } from '@/lib/trade';
@@ -37,8 +38,24 @@ export default defineContentScript({
     // copy is orphaned (its runtime.id is gone) and this new copy must take over.
     const flagged = window as unknown as { __fomoLimitOrdersAlive?: () => boolean };
     if (flagged.__fomoLimitOrdersAlive?.()) return;
-    // Page-layout knowledge: built-ins now, the server's overrides as soon as storage answers.
-    void followFomoDom();
+    // fomo self-check: new-version prompt + layout check on token pages; reports go to the background worker.
+    const health = new FomoHealthWatcher({
+      doc: document,
+      path: () => location.pathname,
+      isTokenPage: (path) => keyFromPath(path) !== null,
+      loggedIn: () => {
+        try {
+          return readFomoUserId(localStorage) !== null;
+        } catch {
+          return false;
+        }
+      },
+      send: (msg: FomoHealthMessage) => void browser.runtime.sendMessage(msg).catch(() => undefined),
+      now: () => Date.now(),
+    });
+    health.start();
+    // Page-layout knowledge: built-ins now, the server's overrides as soon as storage answers; re-check on changes.
+    void followFomoDom(() => health.recheck());
     flagged.__fomoLimitOrdersAlive = () => {
       try {
         return !!browser.runtime?.id;

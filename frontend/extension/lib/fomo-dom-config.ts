@@ -40,6 +40,10 @@ export interface FomoDomConfig {
   /** fomo's tab classes, copied onto our Limit tab so it looks native. */
   readonly tabBaseClasses: string;
   readonly tabInactiveClasses: string;
+  /** Label(s) of the button on fomo's "new version available" toast. */
+  readonly reloadLabels: readonly string[];
+  /** Words on that toast that tell it apart from other Reload buttons. */
+  readonly newVersionWords: readonly string[];
 }
 
 /** Built-in values (what fomo.family looked like when this version shipped). */
@@ -58,6 +62,9 @@ export const DEFAULT_FOMO_DOM: FomoDomConfig = {
   profilePathPrefix: '/profile/',
   tabBaseClasses: 'flex-1 p-2 rounded-lg text-base font-bold transition-colors',
   tabInactiveClasses: 'bg-bg-secondary hover:bg-bg-tertiary text-text-secondary',
+  // Not observed yet (the owner describes "a small pop up at the bottom with a Reload button"); calibrate from the server.
+  reloadLabels: ['Reload', 'Refresh', 'Update'],
+  newVersionWords: ['new version', 'update available', 'updated', 'new update'],
 };
 
 /** Checks that a string is a usable CSS selector (injectable; content scripts pass a DOM-backed check). */
@@ -114,6 +121,8 @@ export function parseFomoDomConfig(raw: unknown, isSelector: SelectorCheck = dom
     profilePathPrefix: txt('profilePathPrefix') ?? d.profilePathPrefix,
     tabBaseClasses: cls('tabBaseClasses') ?? d.tabBaseClasses,
     tabInactiveClasses: cls('tabInactiveClasses') ?? d.tabInactiveClasses,
+    reloadLabels: words('reloadLabels') ?? d.reloadLabels,
+    newVersionWords: words('newVersionWords') ?? d.newVersionWords,
   };
 }
 
@@ -138,8 +147,8 @@ export function containsAnyWord(text: string, words: readonly string[]): boolean
 /** storage.local key the background writes the server's overrides to. */
 export const FOMO_DOM_STORAGE_KEY = 'fomoDom';
 
-/** Content scripts: load the overrides the background saved and follow later changes. */
-export async function followFomoDom(): Promise<void> {
+/** Content scripts: load the overrides the background saved and follow later changes (`onChange` after each). */
+export async function followFomoDom(onChange: () => void = () => undefined): Promise<void> {
   try {
     const s = await browser.storage.local.get(FOMO_DOM_STORAGE_KEY);
     setFomoDom(s[FOMO_DOM_STORAGE_KEY] ?? null);
@@ -147,6 +156,9 @@ export async function followFomoDom(): Promise<void> {
     // storage unavailable (extension reloading) — built-ins stay in effect
   }
   browser.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && FOMO_DOM_STORAGE_KEY in changes) setFomoDom(changes[FOMO_DOM_STORAGE_KEY]?.newValue ?? null);
+    if (area === 'local' && FOMO_DOM_STORAGE_KEY in changes) {
+      setFomoDom(changes[FOMO_DOM_STORAGE_KEY]?.newValue ?? null);
+      onChange();
+    }
   });
 }

@@ -21,6 +21,7 @@ import type { Order, OrderStatus } from '../../core/orders/order.js';
 import type { EngineEvent, OrderEngine } from '../../core/orders/order-engine.js';
 import type { TokenInfoService } from '../../core/tokens/token-info-service.js';
 import type { Account } from '../../ports/account-store.js';
+import type { LayoutReport } from '../../core/monitoring/layout-report.js';
 import { TradeExecutorPort, type ExecutionResult } from '../../ports/trade-executor.js';
 import { ClientMessageSchema, type ClientMessage } from './protocol.js';
 
@@ -50,10 +51,18 @@ export interface GatewayOptions {
   readonly trustProxy?: boolean;
   /** Monitoring sink for account events (new, deleted, wallets, payment claims). */
   readonly onActivity?: (kind: 'account' | 'payment', text: string) => void;
+  /** fomo self-check reports: layout broken / working again, fomo shipped a new version (with a layout snapshot). */
+  readonly onLayout?: (report: LayoutReport) => void;
+  /** How long a paused (layout-broken) executor waits before trying again on its own. Default 10 min. */
+  readonly layoutRetryMs?: number;
   readonly limits?: GatewayLimits;
   /** A connection that hasn't logged in within this time is closed (default 10 s). */
   readonly helloTimeoutMs?: number;
 }
+
+/** Default wait before a layout-paused executor retries by itself. Nothing is clicked when the layout is wrong, so
+ * retrying is safe. */
+export const DEFAULT_LAYOUT_RETRY_MS = 10 * 60_000;
 
 /** Default login deadline for new connections. */
 export const DEFAULT_HELLO_TIMEOUT_MS = 10_000;
@@ -72,6 +81,8 @@ interface Client {
   helloTimer: NodeJS.Timeout | null;
   /** Logged in as a trade executor (an extension that can click Buy/Sell). */
   executor: boolean;
+  /** Paused because fomo's layout wasn't recognised (until a check passes, the settings change, or the retry). */
+  layoutPausedUntil: number | null;
 }
 
 /** An execution awaiting the extension's answer. */
@@ -137,6 +148,27 @@ export class WsGateway extends TradeExecutorPort {
   setFomoDom(overrides: unknown): void {
     this.fomoDom = overrides ?? null;
     for (const c of this.clients) if (c.userId !== null) this.send(c, { type: 'fomoDom', overrides: this.fomoDom });
+    // New settings: every layout-paused account tries again (nothing is clicked if it's still wrong).
+    for (const c of this.clients) if (c.layoutPausedUntil !== null && c.userId) this.resumeLayout(c, c.userId);
+  }
+
+  /** Pauses an executor's trades after a layout miss and schedules the automatic retry. */
+  private pauseLayout(client: Client, userId: string): boolean {
+    const wasPaused = client.layoutPausedUntil !== null;
+    const retryMs = this.opts.layoutRetryMs ?? DEFAULT_LAYOUT_RETRY_MS;
+    client.layoutPausedUntil = this.now() + retryMs;
+    setTimeout(() => {
+      if (client.layoutPausedUntil !== null && this.now() >= client.layoutPausedUntil) this.resumeLayout(client, userId);
+    }, retryMs).unref?.();
+    return !wasPaused;
+  }
+
+  /** Lifts a layout pause and lets queued trades run. True when it was paused. */
+  private resumeLayout(client: Client, userId: string): boolean {
+    if (client.layoutPausedUntil === null) return false;
+    client.layoutPausedUntil = null;
+    if (this.executors.get(userId) === client) for (const cb of this.readyCbs) cb(userId);
+    return true;
   }
 
   /** Billing sink: sends the account's new unlock status to its open connections. */
@@ -196,7 +228,10 @@ export class WsGateway extends TradeExecutorPort {
 
   /** Ready when the account has an executor connection open. */
   isReady(userId: string): boolean {
-    return this.executors.has(userId);
+    const c = this.executors.get(userId);
+    if (!c) return false;
+    if (c.layoutPausedUntil !== null && this.now() < c.layoutPausedUntil) return false;
+    return true;
   }
 
   /** Stores a readiness callback. */
@@ -237,7 +272,7 @@ export class WsGateway extends TradeExecutorPort {
   /** Registers a new socket; it must send a valid hello before anything else. */
   private onConnection(ws: WebSocket, req: IncomingMessage): void {
     const burst = this.limits.messagesPerSecond * 2;
-    const client: Client = { ws, ip: this.clientIp(req), userId: null, viewed: new Set(), tokens: burst, refilledAt: this.now(), helloTimer: null, executor: false };
+    const client: Client = { ws, ip: this.clientIp(req), userId: null, viewed: new Set(), tokens: burst, refilledAt: this.now(), helloTimer: null, executor: false, layoutPausedUntil: null };
     client.helloTimer = setTimeout(() => {
       client.helloTimer = null;
       if (client.userId === null) ws.close(4001, 'Log in first');
@@ -407,9 +442,24 @@ export class WsGateway extends TradeExecutorPort {
       case 'exec.result': {
         const p = this.pending.get(msg.execId);
         this.log(`exec result ${userId.slice(0, 8)}: ${msg.result.ok ? msg.result.detail : `${msg.result.kind}: ${msg.result.message}`}`);
-        if (p && p.client === client) this.settle(msg.execId, p, msg.result);
+        if (!p || p.client !== client) return;
+        // Pause before the engine sees the result, so it stops pumping this account's queue.
+        if (!msg.result.ok && msg.result.kind === 'layout' && this.pauseLayout(client, userId)) {
+          this.opts.onLayout?.({ account: this.requireAccounts().get(userId), ok: false, missing: [msg.result.message], newVersion: false, snapshot: null, paused: true });
+        }
+        this.settle(msg.execId, p, msg.result);
         return;
       }
+      case 'layout.status':
+        return this.reply(client, msg.reqId, async () => {
+          let paused: boolean | null = null;
+          if (msg.ok === false && client.executor) paused = this.pauseLayout(client, userId) ? true : null;
+          if (msg.ok === true && this.resumeLayout(client, userId)) paused = false;
+          this.opts.onLayout?.({
+            account: this.requireAccounts().get(userId), ok: msg.ok ?? null, missing: msg.missing, newVersion: msg.newVersion, snapshot: msg.snapshot ?? null, paused,
+          });
+          return { paused: client.layoutPausedUntil !== null };
+        });
       case 'hello':
       case 'pong':
         return;

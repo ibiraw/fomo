@@ -111,11 +111,11 @@ describe('executeTrade', () => {
       .toMatchObject({ ok: false, kind: 'ui_error', message: expect.stringMatching(/Minimum amount/) });
   });
 
-  it('reports when the tab cannot be switched', async () => {
+  it('reports a tab it cannot switch to as a layout change (nothing bought or sold)', async () => {
     mountFakeFomo(document, { cash: 100, position: 0 });
     document.getElementById('tab-sell')!.replaceWith(Object.assign(document.createElement('span'), { textContent: 'x' }));
     expect(await executeTrade(document, { side: 'sell', amount: { kind: 'usd', value: 5 } }, FAST))
-      .toMatchObject({ ok: false, kind: 'ui_error', message: expect.stringMatching(/sell tab/) });
+      .toMatchObject({ ok: false, kind: 'layout', message: expect.stringMatching(/sell tab/) });
   });
 
   it('reports a missing balance', async () => {
@@ -150,8 +150,14 @@ describe('executeTrade', () => {
       .toMatchObject({ ok: false, kind: 'insufficient_funds', message: expect.stringMatching(/after waiting/) });
   });
 
-  it('reports a missing panel as not logged in', async () => {
+  it('reports a missing panel as not logged in — or as a layout change when fomo says the user is logged in', async () => {
     expect(await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST)).toMatchObject({ ok: false, kind: 'not_logged_in' });
+    localStorage.setItem('ph_phc_test_posthog', JSON.stringify({ $stored_person_properties: { privyId: 'did:privy:cmabc123def456ghi789jkl0m' } }));
+    try {
+      expect(await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST)).toMatchObject({ ok: false, kind: 'layout' });
+    } finally {
+      localStorage.removeItem('ph_phc_test_posthog');
+    }
   });
 });
 

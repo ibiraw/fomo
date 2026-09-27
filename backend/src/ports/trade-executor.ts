@@ -6,8 +6,13 @@
 
 import type { Order } from '../core/orders/order.js';
 
-/** Why a trade failed. `slippage` is retryable; `unknown` means the outcome could not be confirmed. */
+/**
+ * Why a trade failed. `slippage` is retryable; `unknown` means the outcome could not be confirmed; `layout` means
+ * fomo's page wasn't recognised and nothing was clicked — the order goes back to waiting and the account's trades
+ * pause until the layout settings work again.
+ */
 export type ExecutionErrorKind =
+  | 'layout'
   | 'slippage'
   | 'not_logged_in'
   | 'insufficient_funds'

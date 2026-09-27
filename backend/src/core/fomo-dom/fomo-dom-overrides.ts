@@ -34,6 +34,8 @@ export const FomoDomOverridesSchema = z
     profilePathPrefix: Text,
     tabBaseClasses: Classes,
     tabInactiveClasses: Classes,
+    reloadLabels: Words,
+    newVersionWords: Words,
   })
   .partial()
   .strict();

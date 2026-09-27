@@ -69,12 +69,12 @@ async function authed(executor: boolean, secret = TOKEN): Promise<TestClient & {
 }
 
 /** Fresh gateway + engine + accounts. */
-async function start(limits?: GatewayLimits, helloTimeoutMs?: number): Promise<void> {
+async function start(limits?: GatewayLimits, helloTimeoutMs?: number, layoutRetryMs?: number): Promise<void> {
   feed = new FakePriceFeed();
   store = new SqliteOrderStoreAdapter(':memory:');
   accounts = new AccountService(new SqliteAccountStoreAdapter(':memory:'));
   confirmers = new WalletConfirmers((id) => accounts.wallets(id), () => null);
-  gateway = new WsGateway({ host: '127.0.0.1', port: 0, execTimeoutMs: 300, tickThrottleMs: 250, pingIntervalMs: 50, ...(limits ? { limits } : {}), ...(helloTimeoutMs ? { helloTimeoutMs } : {}) }, () => undefined);
+  gateway = new WsGateway({ host: '127.0.0.1', port: 0, execTimeoutMs: 300, tickThrottleMs: 250, pingIntervalMs: 50, ...(limits ? { limits } : {}), ...(helloTimeoutMs ? { helloTimeoutMs } : {}), ...(layoutRetryMs ? { layoutRetryMs } : {}) }, () => undefined);
   const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), () => undefined);
   gateway.attach(engine, accounts, confirmers);
   await gateway.listen();
@@ -292,6 +292,41 @@ describe('WsGateway accounts', () => {
     expect((await c.next((m) => m.reqId === 'i')).data).toMatchObject({ id: c.userId });
     c.send({ type: 'wallets.set', reqId: 'bad', wallets: { solana: 'nope', evm: null } });
     expect((await c.next((m) => m.reqId === 'bad')).error).toMatch(/Not a valid Solana address/);
+  });
+
+  it('pauses an account after a layout miss (order waits, attempt kept) and resumes on a passing self-check', async () => {
+    const ext = await authed(true);
+    ext.send({ type: 'order.create', reqId: 'a', order: ORDER });
+    const id = ((await ext.next((m) => m.reqId === 'a')).data as { id: string }).id;
+    feed.tick(MINT, 1);
+    const req = await ext.next((m) => m.type === 'exec.request');
+    ext.send({ type: 'exec.result', execId: req.execId, result: { ok: false, kind: 'layout', message: 'Amount box not found' } });
+    await vi.waitFor(() => expect(store.get(id)?.status).toBe('triggered'));
+    expect(gateway.isReady(ext.userId)).toBe(false);
+    expect(store.get(id)?.attempts).toBe(0);
+    ext.msgs.length = 0;
+    ext.send({ type: 'layout.status', reqId: 'l', ok: true, missing: [] });
+    expect((await ext.next((m) => m.reqId === 'l')).data).toEqual({ paused: false });
+    const again = await ext.next((m) => m.type === 'exec.request');
+    expect((again.order as { id: string }).id).toBe(id);
+  });
+
+  it('pauses on a failing self-check, resumes when the layout settings change, and retries on its own', async () => {
+    sockets.splice(0).forEach((s) => s.terminate());
+    await gateway.close();
+    await start(undefined, undefined, 150);
+    const ext = await authed(true);
+    ext.send({ type: 'layout.status', reqId: 'l', ok: false, missing: ['amount input'], snapshot: 'div.panel' });
+    expect((await ext.next((m) => m.reqId === 'l')).data).toEqual({ paused: true });
+    expect(gateway.isReady(ext.userId)).toBe(false);
+    gateway.setFomoDom({ amountInput: 'input.amount' });
+    expect(gateway.isReady(ext.userId)).toBe(true);
+    ext.send({ type: 'layout.status', reqId: 'm', ok: false, missing: ['amount input'] });
+    await ext.next((m) => m.reqId === 'm');
+    expect(gateway.isReady(ext.userId)).toBe(false);
+    ext.send({ type: 'layout.status', reqId: 'v', newVersion: true }); // a "new version" report doesn't resume
+    expect((await ext.next((m) => m.reqId === 'v')).data).toEqual({ paused: true });
+    await vi.waitFor(() => expect(gateway.isReady(ext.userId)).toBe(true)); // automatic retry after layoutRetryMs
   });
 
   it('sends the fomo layout overrides in the welcome and pushes changes to logged-in clients', async () => {

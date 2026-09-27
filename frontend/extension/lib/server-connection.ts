@@ -97,7 +97,7 @@ export class ServerConnection {
 
   /** Sends a command and resolves with the server's reply data (rejects with ServerCommandError). */
   request(
-    type: 'order.create' | 'order.cancel' | 'order.list' | 'token.info' | 'price.watch' | 'wallet.holds' | 'wallets.set' | 'profile.set' | 'account.info' | 'account.delete' | 'billing.quote' | 'billing.claim',
+    type: 'order.create' | 'order.cancel' | 'order.list' | 'token.info' | 'price.watch' | 'wallet.holds' | 'wallets.set' | 'profile.set' | 'layout.status' | 'account.info' | 'account.delete' | 'billing.quote' | 'billing.claim',
     body: Record<string, unknown>,
   ): Promise<unknown> {
     const s = this.socket;

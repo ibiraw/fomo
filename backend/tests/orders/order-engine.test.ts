@@ -69,6 +69,21 @@ describe('OrderEngine.createOrder', () => {
 });
 
 describe('OrderEngine triggering and execution', () => {
+  it("puts an order back in front of the queue on a layout miss, without spending an attempt, until the executor is ready again", async () => {
+    const o = await engine.createOrder('u1', limitBuy(1));
+    exec.results.push({ ok: false, kind: 'layout', message: 'Amount box not found' });
+    feed.tick(MINT, 1);
+    await settle();
+    let now = store.get(o.id)!;
+    expect(now).toMatchObject({ status: 'triggered', attempts: 0, lastError: 'layout: Amount box not found' });
+    expect(exec.executed).toHaveLength(1); // the pump stopped instead of looping
+    exec.connect('u1'); // executor ready again (settings fixed / self-check passed)
+    await settle();
+    now = store.get(o.id)!;
+    expect(now.status).toBe('filled');
+    expect(exec.executed).toHaveLength(2);
+  });
+
   it('fills a limit buy when price drops to target, and stops watching afterwards', async () => {
     const o = await engine.createOrder('u1', limitBuy(1));
     feed.tick(MINT, 1.5);

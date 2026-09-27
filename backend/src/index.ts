@@ -4,6 +4,7 @@
  * @author Reborn1987
  */
 
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { WsGateway } from './adapters/gateway/ws-gateway.js';
@@ -18,6 +19,7 @@ import { FileFomoDomAdapter } from './adapters/config/file-fomo-dom.adapter.js';
 import { TelegramNotifierAdapter } from './adapters/telegram/telegram-notifier.adapter.js';
 import { ActivityRelay } from './core/monitoring/activity-relay.js';
 import { ErrorLog } from './core/monitoring/error-log.js';
+import { LayoutAlerts } from './core/monitoring/layout-alerts.js';
 import { OutageTracker } from './core/monitoring/outage-tracker.js';
 import { describeOrder } from './core/monitoring/describe.js';
 import { AccountService } from './core/accounts/account-service.js';
@@ -113,11 +115,20 @@ async function main(): Promise<void> {
   };
   // The pre-accounts owner keeps working: their pairing code is the key of the "legacy" account, whose wallets come from .env.
   accountService.ensureLegacy(LEGACY_ACCOUNT_ID, cfg.pairingToken, { solana: cfg.fomoWallet, evm: cfg.fomoEvmWallet });
+  // fomo self-check reports → one alert per redesign; snapshots saved next to the database for fixing fomo-dom.json.
+  const layoutDir = join(dirname(cfg.dbPath), 'layout-reports');
+  const layoutAlerts = new LayoutAlerts((kind, text) => relay.record(kind, text), (label, snapshot) => {
+    mkdirSync(layoutDir, { recursive: true });
+    const file = join(layoutDir, `${new Date().toISOString().replace(/[:.]/g, '-')}-${label}.txt`);
+    writeFileSync(file, snapshot);
+    return file;
+  });
   const gateway = new WsGateway(
     {
       host: cfg.gatewayHost, port: cfg.gatewayPort, execTimeoutMs: cfg.execTimeoutMs, tickThrottleMs: 250, pingIntervalMs: 20_000,
       trustProxy: cfg.trustProxy,
       onActivity: (kind, text) => relay.record(kind, text),
+      onLayout: (report) => layoutAlerts.handle(report),
     },
     log,
   );

@@ -18,6 +18,7 @@ import {
 } from '@/lib/messages';
 import { ServerConnection, type ConnectionStatus } from '@/lib/server-connection';
 import { FOMO_DOM_STORAGE_KEY } from '@/lib/fomo-dom-config';
+import type { FomoHealthMessage } from '@/lib/fomo-health-watch';
 import { XLatestService } from '@/lib/x-latest';
 import { scrapeLatestPost } from '@/lib/x-scraper';
 import { loadSoundSettings, soundForUpdate, type PlaySoundMessage, type SoundEvent } from '@/lib/sounds';
@@ -129,7 +130,14 @@ export default defineBackground({
         const op = overrides ? browser.storage.local.set({ [FOMO_DOM_STORAGE_KEY]: overrides }) : browser.storage.local.remove(FOMO_DOM_STORAGE_KEY);
         void op.catch((err: unknown) => console.error('[limit] could not save fomo layout overrides', err));
       },
-      onExecute: (o) => executeInFomoTab(tabs, inject, worker, o),
+      onExecute: async (o) => {
+        trading = true;
+        try {
+          return await executeInFomoTab(tabs, inject, worker, o);
+        } finally {
+          trading = false;
+        }
+      },
     });
 
     // Reads X with the user's own session in a background tab (not focused) that is closed right after.
@@ -193,6 +201,32 @@ export default defineBackground({
         console.error('[limit] could not save fomo username', err);
       }
     };
+
+    // fomo self-check reports from content scripts → server (state changes, failures at most every 10 min).
+    let lastLayoutOk: boolean | null = null;
+    let lastLayoutFailAt = 0;
+    let trading = false;
+    browser.runtime.onMessage.addListener((msg: unknown, sender) => {
+      const m = msg as Partial<FomoHealthMessage> | undefined;
+      if (m?.type === 'fomo.newVersion') {
+        void conn.request('layout.status', { newVersion: true }).catch(() => undefined);
+        // Reload fomo's new version in limit's own background tab (never in the user's tabs, never mid-trade).
+        void worker.get().then((id) => {
+          if (id !== null && id === sender.tab?.id && !trading) void browser.tabs.reload(id).catch(() => undefined);
+        });
+        return;
+      }
+      if (m?.type !== 'fomo.layout' || typeof m.ok !== 'boolean') return;
+      const now = Date.now();
+      if (m.ok === lastLayoutOk && (m.ok || now - lastLayoutFailAt < 10 * 60_000)) return;
+      if (!m.ok) lastLayoutFailAt = now;
+      lastLayoutOk = m.ok;
+      void conn.request('layout.status', { ok: m.ok, missing: m.missing ?? [], ...(m.snapshot ? { snapshot: m.snapshot } : {}) })
+        .catch((err: unknown) => {
+          lastLayoutOk = null; // not delivered: send again next time
+          console.error('[limit] could not report the fomo layout check', err);
+        });
+    });
 
     // The fomo content script reports the wallets it reads from the page's own storage.
     browser.runtime.onMessage.addListener((msg: unknown) => {
