@@ -78,7 +78,8 @@ export async function buildBilling(d: Deps): Promise<BillingParts> {
 
   const receive = (t: Parameters<BillingService['receive']>[0]): void => {
     const amount = Number(t.amountRaw) / 10 ** t.asset.decimals;
-    const userId = service.receive(t);
+    const { recorded, userId } = service.receive(t);
+    if (!recorded) return; // seen before (e.g. a watcher rescan): already credited and announced
     const to = userId ? d.who(userId) : 'UNMATCHED (review / claim)';
     d.log(`payment ${t.chain} ${t.asset.symbol} from ${t.from.slice(0, 8)} → ${userId ? `account ${userId.slice(0, 8)}` : 'UNMATCHED (review)'}`);
     d.activity('payment', `${amount.toFixed(2)} ${t.asset.symbol} on ${t.chain} from ${t.from} → ${to} · tx ${t.txId}`);

@@ -13,9 +13,9 @@ import { SqliteBillingStoreAdapter } from '../../src/adapters/storage/sqlite-bil
 import { BillingService, INVOICE_TTL_MS, PaymentRequiredError, transactionIdIn, type IncomingTransfer } from '../../src/core/billing/billing-service.js';
 import { EvmPaymentWatcher, TRANSFER_TOPIC } from '../../src/core/billing/evm-payment-watcher.js';
 import { STABLE_ASSETS, type PaymentAsset } from '../../src/core/billing/payment-assets.js';
-import { SolanaPaymentWatcher } from '../../src/core/billing/solana-payment-watcher.js';
+import { slotCursor, SolanaPaymentWatcher } from '../../src/core/billing/solana-payment-watcher.js';
 import type { EvmLog, Hex } from '../../src/ports/evm-rpc.js';
-import { SolanaTransfersPort, type SolanaTransfer } from '../../src/ports/solana-transfers.js';
+import { SolanaTransfersPort, type SolanaIncoming, type SolanaTransfer } from '../../src/ports/solana-transfers.js';
 import { FakeEvmRpc } from '../helpers/fake-evm.js';
 
 const SOL_TREASURY = 'TreasuryXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX1';
@@ -45,7 +45,7 @@ function setup(opts: { token?: boolean; tokenPrice?: number | null } = {}) {
   const alice = accounts.create('h1', { solana: USER_SOL, evm: USER_EVM });
   const bob = accounts.create('h2', { solana: null, evm: null });
   const pay = (p: Partial<IncomingTransfer> & { amount: number; asset: PaymentAsset }): string | null =>
-    svc.receive({ chain: p.asset.chain, txId: p.txId ?? `tx${Math.random()}`, from: p.from ?? STRANGER, asset: p.asset, amountRaw: raw(p.amount, p.asset.decimals) });
+    svc.receive({ chain: p.asset.chain, txId: p.txId ?? `tx${Math.random()}`, from: p.from ?? STRANGER, asset: p.asset, amountRaw: raw(p.amount, p.asset.decimals) }).userId;
   return { svc, store, accounts, used, changed, alice, bob, pay, advance: (ms: number) => { t += ms; }, setPrice: (v: number | null) => { price = v; } };
 }
 
@@ -144,6 +144,15 @@ describe('BillingService quotes', () => {
 });
 
 describe('BillingService payments', () => {
+  it('reports a payment seen again as not recorded, without crediting it twice', () => {
+    const { svc, alice } = setup();
+    const t = { chain: 'solana' as const, txId: 'sigA', from: USER_SOL, asset: asset('solana'), amountRaw: raw(20, asset('solana').decimals) };
+    expect(svc.receive(t)).toEqual({ recorded: true, userId: alice.id });
+    expect(svc.receive(t)).toEqual({ recorded: false, userId: null });
+    expect(svc.status(alice.id).creditUsd).toBe(20);
+    expect(svc.receive({ ...t, txId: 'sigB', from: STRANGER })).toEqual({ recorded: true, userId: null }); // unmatched
+  });
+
   it("credits payments from a user's fomo wallet on any chain and unlocks at the price", () => {
     const { svc, pay, alice, changed } = setup();
     expect(pay({ asset: asset('solana'), amount: 20, from: USER_SOL })).toBe(alice.id);
@@ -283,36 +292,76 @@ describe('EvmPaymentWatcher', () => {
 });
 
 class FakeTransfers extends SolanaTransfersPort {
-  latest: string | null = 'sig0';
+  latest: bigint | null = 100n;
   queue: SolanaTransfer[] = [];
-  afters: (string | null)[] = [];
-  async latestSignature(): Promise<string | null> { return this.latest; }
-  async incoming(_o: string, _m: string, after: string | null): Promise<SolanaTransfer[]> { this.afters.push(after); return this.queue.splice(0); }
+  /** Newest slot the next scan reports (defaults to the newest queued transfer). */
+  newest: bigint | null = null;
+  afters: bigint[] = [];
+  async latestSlot(): Promise<bigint | null> { return this.latest; }
+  async incoming(_o: string, _m: string, after: bigint): Promise<SolanaIncoming> {
+    this.afters.push(after);
+    const transfers = this.queue.splice(0);
+    const newestSlot = this.newest ?? transfers.at(-1)?.slot ?? null;
+    this.newest = null;
+    return { transfers, newestSlot };
+  }
 }
 
 describe('SolanaPaymentWatcher', () => {
-  it('starts from the newest signature, then passes new transfers on in order', async () => {
+  const key = () => `solana:${asset('solana').address}`;
+
+  it('starts from the newest slot, then passes new transfers on in order and advances by slot', async () => {
     const port = new FakeTransfers();
     const store = new SqliteBillingStoreAdapter(':memory:');
     const got: IncomingTransfer[] = [];
     const w = new SolanaPaymentWatcher(port, [asset('solana')], SOL_TREASURY, store, (t) => got.push(t), () => undefined, 60_000);
     await w.poll();
-    expect(store.cursor(`solana:${asset('solana').address}`)).toBe('sig0');
-    port.queue = [{ signature: 'sig1', from: USER_SOL, amountRaw: 50_000_000n }];
+    expect(store.cursor(key())).toBe('100');
+    port.queue = [
+      { signature: 'sig1', slot: 105n, from: USER_SOL, amountRaw: 50_000_000n },
+      { signature: 'sig2', slot: 107n, from: USER_SOL, amountRaw: 1n },
+    ];
     await w.poll();
-    expect(port.afters).toEqual(['sig0']);
+    expect(port.afters).toEqual([100n]);
+    expect(got.map((t) => t.txId)).toEqual(['sig1', 'sig2']);
     expect(got[0]).toMatchObject({ chain: 'solana', txId: 'sig1', from: USER_SOL, amountRaw: 50_000_000n });
-    expect(store.cursor(`solana:${asset('solana').address}`)).toBe('sig1');
+    expect(store.cursor(key())).toBe('107');
+    await w.poll();
+    expect(port.afters).toEqual([100n, 107n]);
   });
 
-  it('reads an empty wallet from its first transfer', async () => {
+  it('reads an empty wallet from its first transfer (slot 0)', async () => {
     const port = new FakeTransfers();
     port.latest = null;
     const store = new SqliteBillingStoreAdapter(':memory:');
     const w = new SolanaPaymentWatcher(port, [asset('solana')], SOL_TREASURY, store, () => undefined, () => undefined);
     await w.poll();
     await w.poll();
-    expect(port.afters).toEqual([null]);
+    expect(port.afters).toEqual([0n]);
+  });
+
+  it('rescans once from slot 0 when an old signature cursor is stored (it may have expired on the RPC)', async () => {
+    const port = new FakeTransfers();
+    const store = new SqliteBillingStoreAdapter(':memory:');
+    store.setCursor(key(), 'ntJJEe5gYmHTjmHnTmCjpNZ351mdKC3r9dBAruFP1sSMdtmRgHmfTTwNXgTzvbKctCY5T7sKJZMut27ECzvb4vK');
+    const w = new SolanaPaymentWatcher(port, [asset('solana')], SOL_TREASURY, store, () => undefined, () => undefined);
+    port.queue = [{ signature: 'sig9', slot: 900n, from: USER_SOL, amountRaw: 1n }];
+    await w.poll();
+    expect(port.afters).toEqual([0n]);
+    expect(store.cursor(key())).toBe('900');
+    expect(slotCursor('123')).toBe(123n);
+  });
+
+  it('moves the cursor past scanned transactions that are not payments', async () => {
+    const port = new FakeTransfers();
+    const store = new SqliteBillingStoreAdapter(':memory:');
+    store.setCursor(key(), 'an-old-signature-the-rpc-no-longer-has');
+    const w = new SolanaPaymentWatcher(port, [asset('solana')], SOL_TREASURY, store, () => undefined, () => undefined);
+    port.newest = 5_000n; // only fees / pruned txs in the scan
+    await w.poll();
+    expect(store.cursor(key())).toBe('5000');
+    await w.poll();
+    expect(port.afters).toEqual([0n, 5_000n]);
   });
 });
 

@@ -93,6 +93,14 @@ export interface BillingQuote extends BillingStatus {
 }
 
 /** Thrown when an account has no free orders left and no paid-up access. */
+/** Outcome of recording an incoming transfer. */
+export interface ReceiveResult {
+  /** False when the payment was already recorded (seen before). */
+  readonly recorded: boolean;
+  /** Credited account; null when unmatched or already recorded. */
+  readonly userId: string | null;
+}
+
 export class PaymentRequiredError extends FomoError {}
 
 /** Codes run 1..9999 (the last 4 digits after the price). */
@@ -223,9 +231,10 @@ export class BillingService {
 
   /**
    * Records a transfer into the treasury and credits the matching account (unlocking it at the price).
-   * Returns the credited account id, or null when unmatched or already recorded.
+   * `recorded` is false when this payment was already recorded (a watcher re-read it); `userId` is the credited
+   * account, or null when the payment is unmatched (or was already recorded).
    */
-  receive(t: IncomingTransfer): string | null {
+  receive(t: IncomingTransfer): ReceiveResult {
     const now = this.now();
     const userId = this.matchUser(t, now);
     const creditUsd = userId ? this.creditFor(t, userId, now) : 0;
@@ -239,10 +248,11 @@ export class BillingService {
       userId: creditUsd === null ? null : userId,
       receivedAt: now,
     });
-    if (!stored || !userId || creditUsd === null) return null;
+    if (!stored) return { recorded: false, userId: null };
+    if (!userId || creditUsd === null) return { recorded: true, userId: null };
     this.settle(userId, now);
     this.onChange(userId);
-    return userId;
+    return { recorded: true, userId };
   }
 
   /**

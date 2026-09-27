@@ -8,7 +8,7 @@
 
 import { address, createSolanaRpc, signature as toSignature } from '@solana/kit';
 
-import { SolanaTransfersPort, type SolanaTransfer } from '../../ports/solana-transfers.js';
+import { SolanaTransfersPort, type SolanaIncoming, type SolanaTransfer } from '../../ports/solana-transfers.js';
 
 /** Token balance entry of a parsed transaction. */
 interface TokenBalance {
@@ -18,8 +18,10 @@ interface TokenBalance {
   uiTokenAmount: { amount: string };
 }
 
-/** Transactions read per poll per token account. */
+/** Signatures read per request per token account. */
 const PAGE = 50;
+/** Pages read back per token account in one poll (a first scan from slot 0 stops here). */
+const MAX_PAGES = 20;
 
 /** Received amount and sender from a transaction's token balances, or null when nothing was received. */
 export function transferFrom(pre: TokenBalance[], post: TokenBalance[], owner: string, mint: string): { from: string; amountRaw: bigint } | null {
@@ -49,32 +51,45 @@ export class KitSolanaTransfersAdapter extends SolanaTransfersPort {
     this.rpc = createSolanaRpc(httpUrl);
   }
 
-  /** Newest signature over the wallet's token accounts for the mint. */
-  async latestSignature(owner: string, mint: string): Promise<string | null> {
-    let best: { sig: string; slot: bigint } | null = null;
+  /** Slot of the newest signature over the wallet's token accounts for the mint. */
+  async latestSlot(owner: string, mint: string): Promise<bigint | null> {
+    let best: bigint | null = null;
     for (const ata of await this.tokenAccounts(owner, mint)) {
       const [first] = await this.rpc.getSignaturesForAddress(address(ata), { limit: 1, commitment: 'confirmed' }).send();
-      if (first && (!best || first.slot > best.slot)) best = { sig: first.signature, slot: first.slot };
+      if (first && (best === null || first.slot > best)) best = first.slot;
     }
-    return best?.sig ?? null;
+    return best;
   }
 
-  /** Incoming transfers newer than `afterSignature`. */
-  async incoming(owner: string, mint: string, afterSignature: string | null): Promise<SolanaTransfer[]> {
-    const out: SolanaTransfer[] = [];
+  /** Incoming transfers in slots after `afterSlot`, oldest first (pages back from the newest, never by an old signature). */
+  async incoming(owner: string, mint: string, afterSlot: bigint): Promise<SolanaIncoming> {
+    const fresh: { signature: string; slot: bigint }[] = [];
+    let newestSlot: bigint | null = null;
     for (const ata of await this.tokenAccounts(owner, mint)) {
-      const sigs = await this.rpc
-        .getSignaturesForAddress(address(ata), { limit: PAGE, commitment: 'confirmed', ...(afterSignature ? { until: toSignature(afterSignature) } : {}) })
-        .send();
-      for (const s of [...sigs].reverse()) {
-        if (s.err) continue;
-        const tx = await this.rpc.getTransaction(s.signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0, commitment: 'confirmed' }).send();
-        const meta = tx?.meta as { preTokenBalances?: TokenBalance[]; postTokenBalances?: TokenBalance[] } | null | undefined;
-        const t = meta ? transferFrom(meta.preTokenBalances ?? [], meta.postTokenBalances ?? [], owner, mint) : null;
-        if (t) out.push({ signature: s.signature, ...t });
+      let before: string | undefined;
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const sigs = await this.rpc
+          .getSignaturesForAddress(address(ata), { limit: PAGE, commitment: 'confirmed', ...(before ? { before: toSignature(before) } : {}) })
+          .send();
+        for (const s of sigs) {
+          if (s.slot <= afterSlot) continue;
+          if (newestSlot === null || s.slot > newestSlot) newestSlot = s.slot;
+          if (!s.err) fresh.push({ signature: s.signature, slot: s.slot });
+        }
+        const oldest = sigs.at(-1);
+        if (sigs.length < PAGE || !oldest || oldest.slot <= afterSlot) break;
+        before = oldest.signature;
       }
     }
-    return out;
+    fresh.sort((x, y) => (x.slot < y.slot ? -1 : x.slot > y.slot ? 1 : 0));
+    const out: SolanaTransfer[] = [];
+    for (const s of fresh) {
+      const tx = await this.rpc.getTransaction(toSignature(s.signature), { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0, commitment: 'confirmed' }).send();
+      const meta = tx?.meta as { preTokenBalances?: TokenBalance[]; postTokenBalances?: TokenBalance[] } | null | undefined;
+      const t = meta ? transferFrom(meta.preTokenBalances ?? [], meta.postTokenBalances ?? [], owner, mint) : null;
+      if (t) out.push({ signature: s.signature, slot: s.slot, ...t });
+    }
+    return { transfers: out, newestSlot };
   }
 
   /** The wallet's token account addresses for a mint. */
