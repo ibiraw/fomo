@@ -102,8 +102,12 @@ async function main(): Promise<void> {
   const store = new SqliteOrderStoreAdapter(cfg.dbPath, Date.now, LEGACY_ACCOUNT_ID);
   const accountStore = new SqliteAccountStoreAdapter(cfg.dbPath);
   const accountService = new AccountService(accountStore);
-  /** Short id of an account for monitoring messages. */
-  const who = (userId: string): string => accountStore.get(userId)?.shortId ?? userId.slice(0, 8);
+  /** Short id of an account for monitoring messages, with the fomo username once known ("LM-7K3Q2P (@name)"). */
+  const who = (userId: string): string => {
+    const a = accountStore.get(userId);
+    if (!a) return userId.slice(0, 8);
+    return a.fomoUsername ? `${a.shortId} (@${a.fomoUsername})` : a.shortId;
+  };
   // The pre-accounts owner keeps working: their pairing code is the key of the "legacy" account, whose wallets come from .env.
   accountService.ensureLegacy(LEGACY_ACCOUNT_ID, cfg.pairingToken, { solana: cfg.fomoWallet, evm: cfg.fomoEvmWallet });
   const gateway = new WsGateway(

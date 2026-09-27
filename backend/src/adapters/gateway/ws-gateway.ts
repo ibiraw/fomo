@@ -85,7 +85,10 @@ interface PendingExec {
 const ACTIVE_STATUSES: readonly OrderStatus[] = ['open', 'triggered', 'executing'];
 
 /** What a client sees about its account. */
-const accountView = (a: Account) => ({ id: a.id, shortId: a.shortId, wallets: a.wallets });
+/** Account label for monitoring: short id plus the fomo username once known ("LM-7K3Q2P (@name)"). */
+const label = (a: Account): string => (a.fomoUsername ? `${a.shortId} (@${a.fomoUsername})` : a.shortId);
+
+const accountView = (a: Account) => ({ id: a.id, shortId: a.shortId, wallets: a.wallets, fomoUsername: a.fomoUsername });
 
 export class WsGateway extends TradeExecutorPort {
   private wss: WebSocketServer | null = null;
@@ -344,7 +347,13 @@ export class WsGateway extends TradeExecutorPort {
         return this.reply(client, msg.reqId, async () => {
           const account = this.requireAccounts().setWallets(userId, msg.wallets);
           this.confirmers?.invalidate(userId);
-          this.opts.onActivity?.('account', `${account.shortId} wallets: SOL ${account.wallets.solana ?? '-'} · EVM ${account.wallets.evm ?? '-'}`);
+          this.opts.onActivity?.('account', `${label(account)} wallets: SOL ${account.wallets.solana ?? '-'} · EVM ${account.wallets.evm ?? '-'}`);
+          return accountView(account);
+        });
+      case 'profile.set':
+        return this.reply(client, msg.reqId, async () => {
+          const { account, changed } = this.requireAccounts().setFomoUsername(userId, msg.fomoUsername);
+          if (changed) this.opts.onActivity?.('account', `${account.shortId} is @${account.fomoUsername} on fomo`);
           return accountView(account);
         });
       case 'account.info':
@@ -361,7 +370,7 @@ export class WsGateway extends TradeExecutorPort {
       case 'billing.claim':
         return this.reply(client, msg.reqId, async () => {
           if (!this.billing) throw new FomoError('This server has no paywall');
-          const who = this.requireAccounts().get(userId).shortId;
+          const who = label(this.requireAccounts().get(userId));
           try {
             const status = this.billing.claim(userId, msg.tx);
             this.opts.onActivity?.('payment', `${who} claimed ${msg.tx.slice(0, 120)}`);
@@ -373,7 +382,7 @@ export class WsGateway extends TradeExecutorPort {
         });
       case 'account.delete':
         await this.reply(client, msg.reqId, async () => {
-          const who = this.requireAccounts().get(userId).shortId;
+          const who = label(this.requireAccounts().get(userId));
           const orders = engine.closeUserOrders(userId);
           this.billing?.forget(userId);
           this.requireAccounts().delete(userId);

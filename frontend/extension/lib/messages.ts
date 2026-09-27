@@ -52,10 +52,12 @@ export type PopupRequest =
   | { readonly type: 'wallet.holds'; readonly reqId: string; readonly mint: string }
   | { readonly type: 'x.latest'; readonly reqId: string; readonly url: string; readonly force?: boolean };
 
-/** Sent by the fomo content script when it reads the user's wallet addresses from the page's storage. */
+/** Sent by the fomo content script when it reads the user's wallets (page storage) and/or username (top bar). */
 export interface WalletsDetectedMessage {
   readonly type: 'fomo.wallets';
   readonly wallets: Wallets;
+  /** The logged-in user's fomo username, when the top bar shows it. */
+  readonly fomoUsername?: string | null;
 }
 
 export type BackgroundMessage =

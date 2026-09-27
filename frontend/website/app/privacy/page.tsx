@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description: 'What the limit extension and its order server collect, why, and how to delete it.',
 };
 
-const UPDATED = 'September 26, 2026';
+const UPDATED = 'September 27, 2026';
 
 /** Privacy policy page. */
 export default function Privacy() {
@@ -31,7 +31,7 @@ export default function Privacy() {
         <PolicyBlock title="The short version">
           <ul className="list-disc space-y-2 pl-5">
             <li>We never ask for, see or store your private keys, seed phrase, password or fomo login.</li>
-            <li>We store only what is needed to run your orders: an anonymous account ID, your public wallet addresses, and your orders.</li>
+            <li>We store only what is needed to run your orders: an anonymous account ID, your public wallet addresses, your fomo username, and your orders.</li>
             <li>We don&apos;t sell data, show ads, or share it with anyone except as described below.</li>
             <li>You can delete your account from the extension&apos;s Settings.</li>
           </ul>
@@ -41,6 +41,7 @@ export default function Privacy() {
           <ul className="list-disc space-y-2 pl-5">
             <li><b className="text-foreground">Anonymous account ID.</b> The extension creates a random secret when you install it. The server keeps only a hash of it. There is no name, email or phone number.</li>
             <li><b className="text-foreground">Public wallet addresses.</b> Your fomo Solana and EVM addresses, read from your logged-in fomo tab. These are public on the blockchain anyway; we use them to confirm your trades on-chain and to stop sell orders once you no longer hold a token.</li>
+            <li><b className="text-foreground">Your fomo username.</b> Read from your own profile link on fomo.family (the one next to your avatar), so support can match your account ID to your fomo profile. Your fomo username is already public on fomo.</li>
             <li><b className="text-foreground">Your orders.</b> Token, trigger (price or market cap), amount, status and timestamps, so the server can watch prices and tell the extension when to trade.</li>
             <li><b className="text-foreground">Subscription payments.</b> For the monthly subscription we record payments received by our wallets: chain, coin, amount, the sending wallet address and the transaction id — all public on the blockchain — which account they paid for, and until when.</li>
             <li><b className="text-foreground">Activity log.</b> A record of account, order and payment events (with your short user ID, e.g. LM-7K3Q2P) that we use to monitor the service and answer support requests; the operator receives these events as private notifications.</li>
@@ -61,7 +62,7 @@ export default function Privacy() {
         </PolicyBlock>
 
         <PolicyBlock title="How long we keep it, and deleting it">
-          <p>Your account, wallet addresses and orders are kept while you use the service. Settings → <b className="text-foreground">Delete my account</b> removes your account, key and wallet addresses immediately and cancels your open orders; the history of orders you placed, the activity log and records of payments received are kept for bookkeeping, no longer linked to a usable account; uninstalling alone does not, because the server can&apos;t tell an uninstall from a reinstall. Server logs are deleted within 30 days.</p>
+          <p>Your account, wallet addresses and orders are kept while you use the service. Settings → <b className="text-foreground">Delete my account</b> removes your account, key, wallet addresses and fomo username immediately and cancels your open orders; the history of orders you placed, the activity log and records of payments received are kept for bookkeeping, no longer linked to a usable account; uninstalling alone does not, because the server can&apos;t tell an uninstall from a reinstall. Server logs are deleted within 30 days.</p>
         </PolicyBlock>
 
         <PolicyBlock title="Chrome Web Store user data policy">

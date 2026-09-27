@@ -294,6 +294,16 @@ describe('WsGateway accounts', () => {
     expect((await c.next((m) => m.reqId === 'bad')).error).toMatch(/Not a valid Solana address/);
   });
 
+  it('saves the fomo username and returns it with the account', async () => {
+    const c = await authed(false);
+    c.send({ type: 'profile.set', reqId: 'p', fomoUsername: 'ibiraw' });
+    expect((await c.next((m) => m.reqId === 'p')).data).toMatchObject({ id: c.userId, fomoUsername: 'ibiraw' });
+    c.send({ type: 'account.info', reqId: 'i' });
+    expect((await c.next((m) => m.reqId === 'i')).data).toMatchObject({ fomoUsername: 'ibiraw' });
+    c.send({ type: 'profile.set', reqId: 'bad', fomoUsername: 'no spaces allowed' });
+    expect((await c.next((m) => m.reqId === 'bad')).error).toMatch(/Not a fomo username/);
+  });
+
   it("keeps accounts apart: no one sees or cancels another account's orders", async () => {
     const a = await authed(false, TOKEN);
     const b = await authed(false, OTHER);

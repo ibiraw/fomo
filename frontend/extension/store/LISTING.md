@@ -70,7 +70,8 @@ Everything to paste into the Chrome Web Store developer dashboard. Visibility: *
 **Data usage — collected:**
 - ☑ Financial and payment information — public wallet addresses, the user's orders (token, target, amount) and on-chain unlock payments (amount, sender address, transaction id).
 - ☑ Website content — market cap and balance read from fomo.family to place and confirm orders.
-- ☐ Everything else (personally identifiable info, health, authentication info, personal communications, location, web history, user activity) — not collected.
+- ☑ Personally identifiable information — the user's public fomo.family username, read from their own profile link, to match their account ID for support. Deleted with the account.
+- ☐ Everything else (health, authentication info, personal communications, location, web history, user activity) — not collected.
 
 **Certifications (all three checked):** not sold to third parties; not used or transferred for purposes unrelated to the single purpose; not used to determine creditworthiness or for lending.
 

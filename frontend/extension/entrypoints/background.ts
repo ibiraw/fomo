@@ -67,6 +67,8 @@ export default defineBackground({
     let billing: BillingStatus | null = null;
     /** Latest wallets read from a fomo tab (sent to the server once connected). */
     let detected: Wallets | null = null;
+    /** fomo username last read from the top bar by the content script. */
+    let detectedUsername: string | null = null;
     const orders = new Map<string, Order>();
     const ticks: Record<string, PriceTick> = {};
     const ports = new Set<Browser.runtime.Port>();
@@ -155,16 +157,29 @@ export default defineBackground({
       conn.start(serverUrl, token);
     };
 
-    /** Sends newly detected wallet addresses to the server when they differ from the account's. */
+    /** Sends newly detected wallet addresses (and the fomo username) to the server when they differ from the account's. */
     const syncWallets = async (): Promise<void> => {
-      if (!account || !detected || conn.getStatus() !== 'connected') return;
-      const next = walletsUpdate(account.wallets, detected);
-      if (!next) return;
+      if (!account || conn.getStatus() !== 'connected') return;
+      const next = detected ? walletsUpdate(account.wallets, detected) : null;
+      if (next) {
+        try {
+          account = (await conn.request('wallets.set', { wallets: next })) as AccountView;
+          push();
+        } catch (err) {
+          console.error('[limit] could not save wallets', err);
+        }
+      }
+      await syncUsername();
+    };
+
+    /** Sends the detected fomo username when the account doesn't have it yet (or it changed). */
+    const syncUsername = async (): Promise<void> => {
+      if (!account || !detectedUsername || account.fomoUsername === detectedUsername || conn.getStatus() !== 'connected') return;
       try {
-        account = (await conn.request('wallets.set', { wallets: next })) as AccountView;
+        account = (await conn.request('profile.set', { fomoUsername: detectedUsername })) as AccountView;
         push();
       } catch (err) {
-        console.error('[limit] could not save wallets', err);
+        console.error('[limit] could not save fomo username', err);
       }
     };
 
@@ -173,6 +188,7 @@ export default defineBackground({
       const m = msg as Partial<WalletsDetectedMessage> | undefined;
       if (m?.type !== 'fomo.wallets' || !m.wallets) return;
       detected = m.wallets;
+      if (m.fomoUsername) detectedUsername = m.fomoUsername;
       void syncWallets();
     });
 

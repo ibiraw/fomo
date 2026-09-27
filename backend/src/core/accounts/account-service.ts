@@ -16,6 +16,9 @@ import type { Account, AccountStorePort, UserWallets } from '../../ports/account
 /** Secrets are ≥ 32 characters of base64url (the extension sends 43: 32 random bytes). */
 const SECRET = /^[A-Za-z0-9_-]{32,128}$/;
 
+/** fomo usernames as they appear in profile links (/profile/<name>). */
+const FomoUsernameSchema = z.string().regex(/^[A-Za-z0-9_.-]{1,40}$/, 'Not a fomo username');
+
 const WalletsSchema = z.object({
   solana: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, 'Not a valid Solana address').nullable(),
   evm: z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'Not a valid EVM address').nullable(),
@@ -54,6 +57,20 @@ export class AccountService {
     const updated = this.store.setWallets(id, wallets);
     if (!updated) throw new AuthError('Account no longer exists');
     return updated;
+  }
+
+  /**
+   * Saves the user's fomo username (read by the extension from their own profile link). Returns the account and
+   * whether the name changed, so callers only announce real changes.
+   */
+  setFomoUsername(id: string, input: unknown): { account: Account; changed: boolean } {
+    const parsed = FomoUsernameSchema.safeParse(input);
+    if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => i.message).join('; '));
+    const current = this.get(id);
+    if (current.fomoUsername === parsed.data) return { account: current, changed: false };
+    const updated = this.store.setFomoUsername(id, parsed.data);
+    if (!updated) throw new AuthError('Account no longer exists');
+    return { account: updated, changed: true };
   }
 
   /** The account; AuthError when it no longer exists. */

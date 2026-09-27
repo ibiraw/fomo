@@ -16,6 +16,7 @@ interface AccountRow {
   secret_hash: string;
   solana_wallet: string | null;
   evm_wallet: string | null;
+  fomo_username: string | null;
   created_at: number;
   last_seen_at: number;
 }
@@ -40,6 +41,7 @@ function toAccount(r: AccountRow): Account {
     id: r.id,
     shortId: r.short_id,
     wallets: { solana: r.solana_wallet, evm: r.evm_wallet as `0x${string}` | null },
+    fomoUsername: r.fomo_username ?? null,
     createdAt: r.created_at,
     lastSeenAt: r.last_seen_at,
   };
@@ -60,6 +62,9 @@ export class SqliteAccountStoreAdapter extends AccountStorePort {
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_short_id ON accounts(short_id)');
     // v1.2.0: product renamed (auto fomo → limit): "AF-" ids become "LM-".
     this.db.exec("UPDATE accounts SET short_id = 'LM-' || substr(short_id, 4) WHERE short_id LIKE 'AF-%'");
+    // v1.3.0: the user's fomo username (monitoring shows "LM-7K3Q2P (@name)").
+    if (!cols.includes('fomo_username')) this.db.exec('ALTER TABLE accounts ADD COLUMN fomo_username TEXT');
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_accounts_fomo_username ON accounts(fomo_username)');
     for (const { id } of this.db.prepare('SELECT id FROM accounts WHERE short_id IS NULL').all() as { id: string }[]) {
       this.insertWithShortId((shortId) => this.db.prepare('UPDATE accounts SET short_id = ? WHERE id = ?').run(shortId, id));
     }
@@ -103,6 +108,12 @@ export class SqliteAccountStoreAdapter extends AccountStorePort {
   /** Replaces the wallets. */
   setWallets(id: string, wallets: UserWallets): Account | null {
     const res = this.db.prepare('UPDATE accounts SET solana_wallet = ?, evm_wallet = ? WHERE id = ?').run(wallets.solana, wallets.evm, id);
+    return res.changes === 1 ? this.get(id) : null;
+  }
+
+  /** Sets the fomo username. */
+  setFomoUsername(id: string, username: string): Account | null {
+    const res = this.db.prepare('UPDATE accounts SET fomo_username = ? WHERE id = ?').run(username, id);
     return res.changes === 1 ? this.get(id) : null;
   }
 

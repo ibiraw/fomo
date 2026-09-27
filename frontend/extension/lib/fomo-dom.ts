@@ -124,6 +124,22 @@ export function readSupply(doc: Document): number | null {
   return n !== null && n > 0 ? n : null;
 }
 
+/** fomo usernames as they appear in profile links. Mirror of the server's check. */
+export const FOMO_USERNAME_RE = /^[A-Za-z0-9_.-]{1,40}$/;
+
+/**
+ * The logged-in user's own fomo username, from their profile link in the top bar (the avatar with the 24h PnL:
+ * `ul > li > button > a[href="/profile/<name>"]`, observed 2026-09-27). Profile links elsewhere on the page (feed,
+ * holders) aren't inside a button in a list, so they are ignored. Null when logged out or not rendered yet.
+ */
+export function readOwnFomoUsername(doc: Document): string | null {
+  for (const a of doc.querySelectorAll<HTMLAnchorElement>('ul li button a[href^="/profile/"]')) {
+    const name = decodeURIComponent((a.getAttribute('href') ?? '').slice('/profile/'.length).split(/[/?#]/)[0] ?? '');
+    if (FOMO_USERNAME_RE.test(name)) return name;
+  }
+  return null;
+}
+
 /** Texts of FOMO's trade notifications currently on screen ("Buying $3.00 X", "Selling 1.2M X", ...). */
 export function notificationTexts(doc: Document): string[] {
   return [...doc.querySelectorAll('div.bg-bg-primary.rounded-xl.outline')].map((el) => text(el).replace(/\n/g, ' '));

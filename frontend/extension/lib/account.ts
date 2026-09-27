@@ -18,6 +18,8 @@ export interface AccountView {
   /** Short readable id ("LM-7K3Q2P") to quote to support. */
   readonly shortId: string;
   readonly wallets: Wallets;
+  /** fomo username read from the user's own profile link (null until seen). */
+  readonly fomoUsername?: string | null;
 }
 
 const KEY_RE = /^[A-Za-z0-9_-]{32,128}$/;

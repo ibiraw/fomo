@@ -64,6 +64,31 @@ describe('AccountService', () => {
     expect(svc.delete(account.id)).toBe(false);
   });
 
+  it('saves the fomo username, reports whether it changed, and rejects anything that is not a username', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'limit-acct-'));
+    try {
+      const path = join(dir, 'a.db');
+      const store = new SqliteAccountStoreAdapter(path);
+      const svc = new AccountService(store);
+      const { account } = svc.login(SECRET_A, true);
+      expect(account.fomoUsername).toBeNull();
+      expect(svc.setFomoUsername(account.id, 'ibiraw')).toMatchObject({ changed: true, account: { fomoUsername: 'ibiraw' } });
+      expect(svc.setFomoUsername(account.id, 'ibiraw').changed).toBe(false);
+      expect(svc.setFomoUsername(account.id, 'new.name_2').changed).toBe(true);
+      for (const bad of ['', 'has space', "x' OR '1'='1", 'a'.repeat(41), '@name', 7, null]) {
+        expect(() => svc.setFomoUsername(account.id, bad)).toThrow(ValidationError);
+      }
+      expect(() => svc.setFomoUsername('gone', 'x')).toThrow(AuthError);
+      // Survives a reopen (column added by the v1.3.0 migration).
+      store.close();
+      const reopened = new SqliteAccountStoreAdapter(path);
+      expect(reopened.get(account.id)?.fomoUsername).toBe('new.name_2');
+      reopened.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('makes short ids from an alphabet without look-alikes', () => {
     expect(newShortId(() => 0)).toBe('LM-222222');
     expect(newShortId(() => 0.999)).toBe('LM-ZZZZZZ');

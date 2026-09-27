@@ -126,6 +126,12 @@ export function AccountSection({ account, serverUrl, send }: Props) {
           <span className="text-[11px] text-muted-foreground">— mention it if you contact support</span>
         </p>
       )}
+      {account?.fomoUsername && (
+        <p className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">fomo</span>
+          <span className="font-semibold">@{account.fomoUsername}</span>
+        </p>
+      )}
       <WalletsBlock account={account} send={send} />
 
       <div className="space-y-1.5">
