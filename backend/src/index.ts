@@ -4,6 +4,8 @@
  * @author Reborn1987
  */
 
+import { dirname, join } from 'node:path';
+
 import { WsGateway } from './adapters/gateway/ws-gateway.js';
 import { FetchHttpJsonAdapter } from './adapters/http/fetch-http-json.adapter.js';
 import { KitSolanaAccountsAdapter } from './adapters/solana/kit-solana-accounts.adapter.js';
@@ -12,6 +14,7 @@ import { SqliteOrderStoreAdapter } from './adapters/storage/sqlite-order-store.a
 import { buildBilling } from './billing-setup.js';
 import { loadConfig } from './config.js';
 import { SqliteActivityStoreAdapter } from './adapters/storage/sqlite-activity-store.adapter.js';
+import { FileFomoDomAdapter } from './adapters/config/file-fomo-dom.adapter.js';
 import { TelegramNotifierAdapter } from './adapters/telegram/telegram-notifier.adapter.js';
 import { ActivityRelay } from './core/monitoring/activity-relay.js';
 import { ErrorLog } from './core/monitoring/error-log.js';
@@ -160,6 +163,16 @@ async function main(): Promise<void> {
 
   await quotes.start();
   await feed.start();
+  // fomo page-layout overrides: edit DATA_DIR/fomo-dom.json and every extension picks it up within seconds.
+  const fomoDomFile = join(dirname(cfg.dbPath), 'fomo-dom.json');
+  const fomoDom = new FileFomoDomAdapter(fomoDomFile, logError('fomo-dom'));
+  gateway.setFomoDom(fomoDom.current());
+  fomoDom.start((overrides) => {
+    gateway.setFomoDom(overrides);
+    const n = overrides ? Object.keys(overrides).length : 0;
+    log(`fomo layout overrides ${n ? `updated (${n} fields)` : 'cleared'} → pushed to extensions`);
+    relay.record('server', `fomo layout overrides ${n ? `updated: ${Object.keys(overrides!).join(', ')}` : 'cleared (built-ins)'}`);
+  });
   await gateway.listen();
   await engine.start();
   guard.start();
@@ -176,6 +189,7 @@ async function main(): Promise<void> {
     log('shutting down');
     guard?.stop();
     relay.stop();
+    fomoDom.stop();
     outages.stop();
     await relay.deliver(); // flush what's queued
     billing?.stop();

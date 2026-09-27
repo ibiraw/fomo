@@ -14,6 +14,7 @@ import ReactDOM from 'react-dom/client';
 import { LimitView, type MintStore } from '@/components/panel/LimitView';
 import { loadDefaultTab, onDefaultTabChange, type DefaultTab } from '@/hooks/use-default-tab';
 import { loadTheme, onThemeChange } from '@/hooks/use-theme';
+import { followFomoDom } from '@/lib/fomo-dom-config';
 import { appendViewAfter, ensureLimitTab, ensurePageStyle, LIMIT_HOST_TAG, setLimitActive, setPageTheme, VIEW_ATTR } from '@/lib/fomo-inject';
 import { applyPanelVars, fomoOverrideCss, type Theme } from '@/lib/themes';
 import { mintFromFomoUrl } from '@/lib/format';
@@ -39,6 +40,8 @@ export default defineContentScript({
 
   /** Keeps the Limit tab and view attached to FOMO's trade panel. */
   async main(ctx) {
+    // Page-layout knowledge (selectors, labels): the server's overrides if any, before the first attach.
+    await followFomoDom();
     ensurePageStyle(document);
     // Theme: recolor fomo's page (its CSS variables) and our view; follow changes from the popup live.
     let theme: Theme = await loadTheme();

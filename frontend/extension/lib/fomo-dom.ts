@@ -1,18 +1,13 @@
 /**
  * @file fomo-dom.ts
- * @description Finds and reads FOMO's trade panel. All knowledge of FOMO's page structure lives here,
- *              so a FOMO redesign only needs changes in this file. Verified against fomo.family 2026-09-26.
+ * @description Finds and reads FOMO's trade panel. The page-structure facts (labels, selectors, classes) come from
+ *              fomo-dom-config.ts — built in, overridable from the server — so a FOMO redesign is usually fixed by
+ *              editing the server's fomo-dom.json; this file holds the logic that uses them.
  * @author Reborn1987
  */
 
+import { fomoDom } from './fomo-dom-config';
 import type { OrderSide } from './types';
-
-/** Label of the Buy/Sell tab buttons. */
-const TAB_LABEL: Record<OrderSide, string> = { buy: 'Buy', sell: 'Sell' };
-/** Last preset shown before the balance line on each tab. */
-const LAST_PRESET: Record<OrderSide, string> = { buy: '$100', sell: '100%' };
-/** Sell-tab percentage presets (they only fill the amount; they do not submit). */
-export const SELL_PRESETS = [10, 25, 50, 100] as const;
 
 /** Visible, trimmed text of an element. */
 function text(el: Element): string {
@@ -27,29 +22,30 @@ export function parseUsd(s: string): number | null {
 
 /** Returns the trade panel: the smallest element holding the Buy tab and the amount input. */
 export function findPanel(doc: Document): HTMLElement | null {
-  const buyTab = [...doc.querySelectorAll('button')].find((b) => text(b) === TAB_LABEL.buy);
+  const { tabLabels, amountInput } = fomoDom();
+  const buyTab = [...doc.querySelectorAll('button')].find((b) => text(b) === tabLabels.buy);
   let el: HTMLElement | null = buyTab ?? null;
-  while (el && !el.querySelector('input[placeholder="0"]')) el = el.parentElement;
+  while (el && !el.querySelector(amountInput)) el = el.parentElement;
   return el;
 }
 
 /** The Buy or Sell tab button inside the panel. */
 export function findTab(panel: HTMLElement, side: OrderSide): HTMLButtonElement | null {
-  return [...panel.querySelectorAll('button')].find((b) => text(b) === TAB_LABEL[side]) ?? null;
+  return [...panel.querySelectorAll('button')].find((b) => text(b) === fomoDom().tabLabels[side]) ?? null;
 }
 
-/** Which tab is selected. Inactive tabs carry the neutral `bg-bg-secondary` class. */
+/** Which tab is selected. Inactive tabs carry the neutral class (`bg-bg-secondary`). */
 export function activeSide(panel: HTMLElement): OrderSide | null {
   for (const side of ['buy', 'sell'] as const) {
     const tab = findTab(panel, side);
-    if (tab && !tab.classList.contains('bg-bg-secondary')) return side;
+    if (tab && !tab.classList.contains(fomoDom().inactiveTabClass)) return side;
   }
   return null;
 }
 
 /** The amount input. */
 export function findAmountInput(panel: HTMLElement): HTMLInputElement | null {
-  return panel.querySelector('input[placeholder="0"]');
+  return panel.querySelector(fomoDom().amountInput);
 }
 
 /** Sets a React-controlled input's value so React sees the change. */
@@ -66,7 +62,8 @@ export function setReactInputValue(input: HTMLInputElement, value: string): void
  */
 export function readBalance(panel: HTMLElement, side: OrderSide): number | null {
   const all = [...panel.querySelectorAll('*')];
-  const presetIdx = all.findIndex((el) => el.tagName === 'BUTTON' && (el.textContent ?? '').trim() === LAST_PRESET[side]);
+  const last = fomoDom().lastPreset[side];
+  const presetIdx = all.findIndex((el) => el.tagName === 'BUTTON' && (el.textContent ?? '').trim() === last);
   if (presetIdx < 0) return null;
   for (const el of all.slice(presetIdx + 1)) {
     if (el.tagName === 'BUTTON') continue; // skip nested preset content / Max
@@ -79,15 +76,14 @@ export function readBalance(panel: HTMLElement, side: OrderSide): number | null 
 /** The submit button ("Buy <symbol>" / "Sell <symbol>", or a status label like "Fetching quote..."). */
 export function findSubmit(panel: HTMLElement): HTMLButtonElement | null {
   const tabs = new Set([findTab(panel, 'buy'), findTab(panel, 'sell')]);
-  return [...panel.querySelectorAll('button')].find(
-    (b) => !tabs.has(b) && b.classList.contains('py-2') && b.classList.contains('text-center'),
-  ) ?? null;
+  const classes = fomoDom().submitClasses;
+  return [...panel.querySelectorAll('button')].find((b) => !tabs.has(b) && classes.every((c) => b.classList.contains(c))) ?? null;
 }
 
 /** True when the submit button is enabled and labelled for `side`. */
 export function submitReady(panel: HTMLElement, side: OrderSide): boolean {
   const b = findSubmit(panel);
-  return !!b && !b.disabled && text(b).startsWith(`${TAB_LABEL[side]} `);
+  return !!b && !b.disabled && text(b).startsWith(`${fomoDom().tabLabels[side]} `);
 }
 
 /** The sell preset button for a percentage, if FOMO has one. */
@@ -116,10 +112,12 @@ export function parseCompact(s: string): number | null {
  * differ from the on-chain mint supply (e.g. after burns), so MC orders use it to match what the user sees.
  */
 export function readSupply(doc: Document): number | null {
-  const label = [...doc.querySelectorAll('span')].find((e) => e.childElementCount === 0 && e.textContent?.trim() === 'Supply');
+  const supply = fomoDom().supplyLabel;
+  const label = [...doc.querySelectorAll('span')].find((e) => e.childElementCount === 0 && e.textContent?.trim() === supply);
   const row = label?.parentElement;
   if (!row) return null;
-  const value = (row.textContent ?? '').trim().replace(/^Supply/, '');
+  const full = (row.textContent ?? '').trim();
+  const value = full.startsWith(supply) ? full.slice(supply.length) : full;
   const n = parseCompact(value);
   return n !== null && n > 0 ? n : null;
 }
@@ -133,8 +131,16 @@ export const FOMO_USERNAME_RE = /^[A-Za-z0-9_.-]{1,40}$/;
  * holders) aren't inside a button in a list, so they are ignored. Null when logged out or not rendered yet.
  */
 export function readOwnFomoUsername(doc: Document): string | null {
-  for (const a of doc.querySelectorAll<HTMLAnchorElement>('ul li button a[href^="/profile/"]')) {
-    const name = decodeURIComponent((a.getAttribute('href') ?? '').slice('/profile/'.length).split(/[/?#]/)[0] ?? '');
+  const { ownProfileLink, profilePathPrefix } = fomoDom();
+  for (const a of doc.querySelectorAll<HTMLAnchorElement>(ownProfileLink)) {
+    const href = a.getAttribute('href') ?? '';
+    if (!href.startsWith(profilePathPrefix)) continue;
+    let name: string;
+    try {
+      name = decodeURIComponent(href.slice(profilePathPrefix.length).split(/[/?#]/)[0] ?? '');
+    } catch {
+      continue; // malformed %-escape
+    }
     if (FOMO_USERNAME_RE.test(name)) return name;
   }
   return null;
@@ -142,5 +148,5 @@ export function readOwnFomoUsername(doc: Document): string | null {
 
 /** Texts of FOMO's trade notifications currently on screen ("Buying $3.00 X", "Selling 1.2M X", ...). */
 export function notificationTexts(doc: Document): string[] {
-  return [...doc.querySelectorAll('div.bg-bg-primary.rounded-xl.outline')].map((el) => text(el).replace(/\n/g, ' '));
+  return [...doc.querySelectorAll(fomoDom().notification)].map((el) => text(el).replace(/\n/g, ' '));
 }

@@ -58,7 +58,7 @@ Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), 
 
 ## Gateway protocol (JSON over WS)
 Client: `hello{token,executor,create?}`, `order.create{reqId,order}`, `order.cancel{reqId,id}`, `order.list{reqId}`, `token.info{reqId,mint}`, `price.watch{reqId,mint}` (viewer interest, 5 min TTL; newest `viewedTokens` per connection), `wallet.holds{reqId,mint}` → `{holds: boolean|null}`, `wallets.set{reqId,wallets:{solana,evm}}`, `profile.set{reqId,fomoUsername?,fomoUserId?}`, `account.info{reqId}`, `account.delete{reqId}`, `billing.status{reqId}`, `billing.quote{reqId}`, `billing.claim{reqId,tx}`, `exec.result{execId,result}`, `pong`.
-Server: `welcome{account,orders,ticks,billing}`, `billing{status}` (on change), `reply{reqId,ok,data|error}`, `order{order}` (owner only), `tick{tick}` (≤4/s per mint, only to clients viewing it or with orders on it), `exec.request{execId,order}` (owner's executor), `ping`, `error`.
+Server: `welcome{account,orders,ticks,billing,fomoDom}`, `billing{status}` (on change), `fomoDom{overrides}` (on change), `reply{reqId,ok,data|error}`, `order{order}` (owner only), `tick{tick}` (≤4/s per mint, only to clients viewing it or with orders on it), `exec.request{execId,order}` (owner's executor), `ping`, `error`.
 Close codes: 4001 bad/unknown key or account limit, 4003 account deleted, 4008 too many messages. Only `chrome-extension://` origins or non-browser clients.
 
 ## Load testing
@@ -67,6 +67,11 @@ Close codes: 4001 bad/unknown key or account limit, 4003 account deleted, 4008 t
 - Hot paths must never load all orders: per-tick evaluation reads only open orders on that mint (`idx_orders_mint_status`), a new order is checked alone, and the holdings guard queries open sells per (account, mint).
 - 2026-09-27 fuzz: 2,318/2,318 checks. Non-token addresses give readable errors: Solana `getMintSupply` maps RPC invalid-params to `AccountNotFoundError`; EVM `readContract` treats empty `0x` results as "No contract"; empty (SOL-dusted) accounts at pump/LaunchLab PDAs count as absent.
 - Every socket has an `error` listener (a frame over 64 KB used to crash the server) and must log in within 10 s.
+
+## fomo layout overrides (fix a fomo redesign without a store update)
+- The extension's knowledge of fomo's page (tab labels, amount input, balance marker, submit classes, notification box, failure words, Supply label, own-profile link, tab classes) is data in `frontend/extension/lib/fomo-dom-config.ts` (`DEFAULT_FOMO_DOM`, built in).
+- To override: write only the changed fields to `DATA_DIR/fomo-dom.json`, e.g. `{"amountInput":"input[name=amount]","tabLabels":{"buy":"Buy","sell":"Sell"}}`. Checked every 3 s (`FileFomoDomAdapter`), validated (`core/fomo-dom/fomo-dom-overrides.ts`: strict, bounded, one-line, class names only where classes go), sent in `welcome.fomoDom` and pushed as `{type:'fomoDom', overrides}`; extensions store it (`storage.local.fomoDom`) and content scripts apply it live. A bad edit is reported (Telegram) and the previous version stays; deleting the file → built-ins.
+- Data only (selectors → querySelector, words → plain substring match), never code — within Chrome Web Store policy. The extension re-validates every field and ignores invalid ones one by one.
 
 ## Remote access (until the VPS)
 - Quick tunnel: `data/bin/cloudflared.exe tunnel --no-autoupdate --url http://127.0.0.1:8787` (official signed binary, log in `data/tunnel.log`); random `https://*.trycloudflare.com` that changes on every restart. Build the remote extension with `WXT_SERVER_URL=wss://<that host> npm run zip`. `GATEWAY_TRUST_PROXY=true` so per-IP limits see CF-Connecting-IP. Measured ~100 ms round trip vs 1 ms local.

@@ -42,6 +42,7 @@ beforeEach(() => {
     onOrder: vi.fn(),
     onTick: vi.fn(),
     onBilling: vi.fn(),
+    onFomoDom: vi.fn(),
     onExecute: vi.fn(async (): Promise<ExecutionResult> => ({ ok: true, detail: 'done' })),
   };
   conn = new ServerConnection((url) => {
@@ -140,6 +141,9 @@ describe('ServerConnection', () => {
     expect(handlers.onBilling).toHaveBeenLastCalledWith(null);
     s.recv({ type: 'billing', status: { unlocked: true, permanent: false, paidUntil: 1, everPaid: true, periodDays: 30, freeOrdersLeft: 0, freeOrdersWaiting: 0, creditUsd: 50, priceUsd: 50, tokenPriceUsd: 35 } });
     expect(handlers.onBilling).toHaveBeenLastCalledWith(expect.objectContaining({ unlocked: true }));
+    expect(handlers.onFomoDom).toHaveBeenLastCalledWith(null);
+    s.recv({ type: 'fomoDom', overrides: { amountInput: 'input.amount' } });
+    expect(handlers.onFomoDom).toHaveBeenLastCalledWith({ amountInput: 'input.amount' });
     s.drop(4003);
     expect(conn.getStatus()).toBe('deleted');
     vi.advanceTimersByTime(60_000);

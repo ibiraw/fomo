@@ -97,6 +97,8 @@ export class WsGateway extends TradeExecutorPort {
   private accounts: AccountService | null = null;
   private confirmers: WalletConfirmers | null = null;
   private billing: BillingService | null = null;
+  /** fomo page-layout overrides sent to extensions (null: they use their built-ins). */
+  private fomoDom: unknown = null;
   private readonly clients = new Set<Client>();
   /** Newest executor connection per account. */
   private readonly executors = new Map<string, Client>();
@@ -126,6 +128,15 @@ export class WsGateway extends TradeExecutorPort {
     this.confirmers = confirmers;
     this.tokenInfo = tokenInfo;
     this.billing = billing;
+  }
+
+  /**
+   * Sets the fomo page-layout overrides (null: none) and pushes them to every logged-in connection; new connections
+   * get them in the welcome. Extensions apply them within seconds, so a fomo redesign needs no store update.
+   */
+  setFomoDom(overrides: unknown): void {
+    this.fomoDom = overrides ?? null;
+    for (const c of this.clients) if (c.userId !== null) this.send(c, { type: 'fomoDom', overrides: this.fomoDom });
   }
 
   /** Billing sink: sends the account's new unlock status to its open connections. */
@@ -300,7 +311,7 @@ export class WsGateway extends TradeExecutorPort {
     const orders = this.requireEngine().listOrders(account.id);
     const ticks = this.requireEngine().latestTicks().filter((t) => this.wants(client, t.mint));
     const billing = this.billing?.status(account.id) ?? null;
-    this.send(client, { type: 'welcome', account: accountView(account), orders, ticks, billing });
+    this.send(client, { type: 'welcome', account: accountView(account), orders, ticks, billing, fomoDom: this.fomoDom });
   }
 
   /** True when `ip` is still under its hourly account-creation limit. */

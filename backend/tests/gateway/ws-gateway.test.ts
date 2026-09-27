@@ -294,6 +294,17 @@ describe('WsGateway accounts', () => {
     expect((await c.next((m) => m.reqId === 'bad')).error).toMatch(/Not a valid Solana address/);
   });
 
+  it('sends the fomo layout overrides in the welcome and pushes changes to logged-in clients', async () => {
+    gateway.setFomoDom({ amountInput: 'input[name=amount]' });
+    const c = await authed(false);
+    expect(c.msgs.find((m) => m.type === 'welcome')).toMatchObject({ fomoDom: { amountInput: 'input[name=amount]' } });
+    const anon = await connect();
+    gateway.setFomoDom(null);
+    await c.next((m) => m.type === 'fomoDom' && m.overrides === null);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(anon.msgs.some((m) => m.type === 'fomoDom')).toBe(false); // not logged in → nothing
+  });
+
   it("saves the fomo username and fomo's user id and returns them with the account", async () => {
     const c = await authed(false);
     const DID = 'did:privy:cmabc123def456ghi789jkl0m';

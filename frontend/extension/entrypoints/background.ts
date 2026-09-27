@@ -17,6 +17,7 @@ import {
   type WalletsDetectedMessage,
 } from '@/lib/messages';
 import { ServerConnection, type ConnectionStatus } from '@/lib/server-connection';
+import { FOMO_DOM_STORAGE_KEY } from '@/lib/fomo-dom-config';
 import { XLatestService } from '@/lib/x-latest';
 import { scrapeLatestPost } from '@/lib/x-scraper';
 import { loadSoundSettings, soundForUpdate, type PlaySoundMessage, type SoundEvent } from '@/lib/sounds';
@@ -123,6 +124,11 @@ export default defineBackground({
       },
       onTick: (t) => { ticks[t.mint] = t; push(); },
       onBilling: (b) => { billing = b; push(); },
+      // fomo page-layout overrides: the content scripts on fomo tabs follow this storage key.
+      onFomoDom: (overrides) => {
+        const op = overrides ? browser.storage.local.set({ [FOMO_DOM_STORAGE_KEY]: overrides }) : browser.storage.local.remove(FOMO_DOM_STORAGE_KEY);
+        void op.catch((err: unknown) => console.error('[limit] could not save fomo layout overrides', err));
+      },
       onExecute: (o) => executeInFomoTab(tabs, inject, worker, o),
     });
 

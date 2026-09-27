@@ -6,6 +6,7 @@
  */
 
 import { findPanel, findTab } from './fomo-dom';
+import { fomoDom } from './fomo-dom-config';
 
 export const LIMIT_TAB_ID = 'fomo-limit-tab';
 export const LIMIT_HOST_TAG = 'fomo-limit-orders';
@@ -16,11 +17,8 @@ export const VIEW_ATTR = 'data-fomo-limit-view';
 export const ACTIVE_ATTR = 'data-fomo-limit';
 const STYLE_ID = 'fomo-limit-style';
 
-/** FOMO's tab classes (observed 2026-09-26). */
-const TAB_BASE = 'flex-1 p-2 rounded-lg text-base font-bold transition-colors';
-const TAB_INACTIVE = 'bg-bg-secondary hover:bg-bg-tertiary text-text-secondary';
-/** Active look is a yellow tint (like FOMO's green Buy / red Sell), applied via PAGE_CSS on [data-active]. */
-const TAB_ACTIVE = '';
+/** FOMO's tab classes come from fomo-dom-config (tabBaseClasses / tabInactiveClasses). The active look is a tint
+ * (like FOMO's green Buy / red Sell), applied via PAGE_CSS on [data-active]. */
 
 /**
  * Page-level CSS: while active, hide every panel child except the tab row and our view, and render
@@ -41,7 +39,8 @@ const PAGE_CSS = `
 
 /** Applies FOMO's tab classes and our active marker. */
 function styleTab(tab: HTMLButtonElement, active: boolean): void {
-  tab.className = `${TAB_BASE} ${active ? TAB_ACTIVE : TAB_INACTIVE}`.trim();
+  const { tabBaseClasses, tabInactiveClasses } = fomoDom();
+  tab.className = `${tabBaseClasses} ${active ? '' : tabInactiveClasses}`.trim();
   tab.toggleAttribute('data-active', active);
 }
 

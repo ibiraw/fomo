@@ -20,6 +20,8 @@ export interface ConnectionHandlers {
   onTick(tick: PriceTick): void;
   /** Unlock status (null when the server has no paywall); sent on login and whenever it changes. */
   onBilling(status: BillingStatus | null): void;
+  /** fomo page-layout overrides from the server (null: use the built-ins); sent on login and whenever they change. */
+  onFomoDom(overrides: unknown): void;
   /** Execute a trade and resolve with its result. */
   onExecute(order: Order): Promise<ExecutionResult>;
 }
@@ -30,8 +32,9 @@ export type SocketLike = Pick<WebSocket, 'readyState' | 'onopen' | 'onclose' | '
 export type SocketFactory = (url: string) => SocketLike;
 
 type ServerMessage =
-  | { type: 'welcome'; orders: Order[]; ticks: PriceTick[]; account?: AccountView; billing?: BillingStatus | null }
+  | { type: 'welcome'; orders: Order[]; ticks: PriceTick[]; account?: AccountView; billing?: BillingStatus | null; fomoDom?: unknown }
   | { type: 'billing'; status: BillingStatus }
+  | { type: 'fomoDom'; overrides: unknown }
   | { type: 'reply'; reqId: string; ok: true; data: unknown }
   | { type: 'reply'; reqId: string; ok: false; error: string }
   | { type: 'order'; order: Order }
@@ -148,9 +151,12 @@ export class ServerConnection {
         this.backoff = MIN_BACKOFF_MS;
         this.setStatus('connected');
         this.handlers.onBilling(msg.billing ?? null);
+        this.handlers.onFomoDom(msg.fomoDom ?? null);
         return this.handlers.onSnapshot(msg.orders, msg.ticks, msg.account ?? null);
       case 'billing':
         return this.handlers.onBilling(msg.status);
+      case 'fomoDom':
+        return this.handlers.onFomoDom(msg.overrides ?? null);
       case 'reply': {
         const p = this.pending.get(msg.reqId);
         if (!p) return;

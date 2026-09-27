@@ -14,11 +14,11 @@ import {
   findTab,
   notificationTexts,
   readBalance,
-  SELL_PRESETS,
   setReactInputValue,
   submitBlocker,
   submitReady,
 } from './fomo-dom';
+import { containsAnyWord, fomoDom } from './fomo-dom-config';
 import { MIN_TRADE_USD, type ExecutionResult, type TradeRequest } from './types';
 
 /** Timeouts (ms); injectable for tests. */
@@ -35,8 +35,6 @@ export interface TradeTimings {
 
 export const DEFAULT_TIMINGS: TradeTimings = { panelMs: 15_000, stepMs: 3_000, balanceMs: 8_000, settleMs: 500, readyMs: 10_000, confirmMs: 30_000 };
 
-/** Failure keywords in FOMO notifications. Calibrate once a real failure is observed. */
-const FAILURE_RE = /fail|error|slippage|revert|rejected|insufficient/i;
 
 /**
  * Resolves with `check()`'s first non-null value, re-checking on every DOM change
@@ -129,7 +127,7 @@ async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<E
   if (!input) return fail('ui_error', 'Amount box not found');
 
   let usd: number;
-  const preset = req.side === 'sell' && req.amount.kind === 'percent' && (SELL_PRESETS as readonly number[]).includes(req.amount.value)
+  const preset = req.side === 'sell' && req.amount.kind === 'percent' && fomoDom().sellPresets.includes(req.amount.value)
     ? findSellPreset(p(), req.amount.value)
     : null;
   if (req.amount.kind === 'usd') usd = req.amount.value;
@@ -156,8 +154,10 @@ async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<E
 
   // 4. Confirm: the balance must drop (cash for buys, position for sells) or a failure notice appears.
   const outcome = await waitFor<ExecutionResult>(doc, () => {
-    const failure = notificationTexts(doc).slice(before).find((s) => FAILURE_RE.test(s));
-    if (failure) return fail(/slippage/i.test(failure) ? 'slippage' : 'ui_error', `FOMO reported: ${failure}`);
+    // Failure / slippage words come from fomo-dom-config (calibrate there once a real failure is observed).
+    const { failureWords, slippageWords } = fomoDom();
+    const failure = notificationTexts(doc).slice(before).find((s) => containsAnyWord(s, failureWords));
+    if (failure) return fail(containsAnyWord(failure, slippageWords) ? 'slippage' : 'ui_error', `FOMO reported: ${failure}`);
     const now = readBalance(p(), req.side);
     if (now !== null && now <= balance - Math.min(usd, balance) * 0.5) {
       return { ok: true, detail: `${req.side === 'buy' ? 'Bought' : 'Sold'} ~$${usd.toFixed(2)} (balance $${balance.toFixed(2)} → $${now.toFixed(2)})` };
