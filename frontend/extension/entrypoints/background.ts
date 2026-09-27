@@ -67,8 +67,9 @@ export default defineBackground({
     let billing: BillingStatus | null = null;
     /** Latest wallets read from a fomo tab (sent to the server once connected). */
     let detected: Wallets | null = null;
-    /** fomo username last read from the top bar by the content script. */
+    /** fomo username (top bar) and user id (fomo's storage) last read by the content script. */
     let detectedUsername: string | null = null;
+    let detectedUserId: string | null = null;
     const orders = new Map<string, Order>();
     const ticks: Record<string, PriceTick> = {};
     const ports = new Set<Browser.runtime.Port>();
@@ -172,11 +173,15 @@ export default defineBackground({
       await syncUsername();
     };
 
-    /** Sends the detected fomo username when the account doesn't have it yet (or it changed). */
+    /** Sends the detected fomo username / user id when the account doesn't have them yet (or they changed). */
     const syncUsername = async (): Promise<void> => {
-      if (!account || !detectedUsername || account.fomoUsername === detectedUsername || conn.getStatus() !== 'connected') return;
+      if (!account || conn.getStatus() !== 'connected') return;
+      const body: { fomoUsername?: string; fomoUserId?: string } = {};
+      if (detectedUsername && detectedUsername !== account.fomoUsername) body.fomoUsername = detectedUsername;
+      if (detectedUserId && detectedUserId !== account.fomoUserId) body.fomoUserId = detectedUserId;
+      if (!body.fomoUsername && !body.fomoUserId) return;
       try {
-        account = (await conn.request('profile.set', { fomoUsername: detectedUsername })) as AccountView;
+        account = (await conn.request('profile.set', body)) as AccountView;
         push();
       } catch (err) {
         console.error('[limit] could not save fomo username', err);
@@ -189,6 +194,7 @@ export default defineBackground({
       if (m?.type !== 'fomo.wallets' || !m.wallets) return;
       detected = m.wallets;
       if (m.fomoUsername) detectedUsername = m.fomoUsername;
+      if (m.fomoUserId) detectedUserId = m.fomoUserId;
       void syncWallets();
     });
 

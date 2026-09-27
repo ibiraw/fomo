@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
 import { newShortId } from '../../core/accounts/short-id.js';
-import { AccountStorePort, type Account, type UserWallets } from '../../ports/account-store.js';
+import { AccountStorePort, type Account, type FomoProfile, type UserWallets } from '../../ports/account-store.js';
 
 interface AccountRow {
   id: string;
@@ -17,6 +17,7 @@ interface AccountRow {
   solana_wallet: string | null;
   evm_wallet: string | null;
   fomo_username: string | null;
+  fomo_user_id: string | null;
   created_at: number;
   last_seen_at: number;
 }
@@ -42,6 +43,7 @@ function toAccount(r: AccountRow): Account {
     shortId: r.short_id,
     wallets: { solana: r.solana_wallet, evm: r.evm_wallet as `0x${string}` | null },
     fomoUsername: r.fomo_username ?? null,
+    fomoUserId: r.fomo_user_id ?? null,
     createdAt: r.created_at,
     lastSeenAt: r.last_seen_at,
   };
@@ -65,6 +67,9 @@ export class SqliteAccountStoreAdapter extends AccountStorePort {
     // v1.3.0: the user's fomo username (monitoring shows "LM-7K3Q2P (@name)").
     if (!cols.includes('fomo_username')) this.db.exec('ALTER TABLE accounts ADD COLUMN fomo_username TEXT');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_accounts_fomo_username ON accounts(fomo_username)');
+    // v1.4.0: fomo's unique user id (usernames aren't unique over time).
+    if (!cols.includes('fomo_user_id')) this.db.exec('ALTER TABLE accounts ADD COLUMN fomo_user_id TEXT');
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_accounts_fomo_user_id ON accounts(fomo_user_id)');
     for (const { id } of this.db.prepare('SELECT id FROM accounts WHERE short_id IS NULL').all() as { id: string }[]) {
       this.insertWithShortId((shortId) => this.db.prepare('UPDATE accounts SET short_id = ? WHERE id = ?').run(shortId, id));
     }
@@ -111,9 +116,9 @@ export class SqliteAccountStoreAdapter extends AccountStorePort {
     return res.changes === 1 ? this.get(id) : null;
   }
 
-  /** Sets the fomo username. */
-  setFomoUsername(id: string, username: string): Account | null {
-    const res = this.db.prepare('UPDATE accounts SET fomo_username = ? WHERE id = ?').run(username, id);
+  /** Sets the fomo username and user id. */
+  setFomoProfile(id: string, profile: FomoProfile): Account | null {
+    const res = this.db.prepare('UPDATE accounts SET fomo_username = ?, fomo_user_id = ? WHERE id = ?').run(profile.username, profile.userId, id);
     return res.changes === 1 ? this.get(id) : null;
   }
 

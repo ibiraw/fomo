@@ -294,12 +294,13 @@ describe('WsGateway accounts', () => {
     expect((await c.next((m) => m.reqId === 'bad')).error).toMatch(/Not a valid Solana address/);
   });
 
-  it('saves the fomo username and returns it with the account', async () => {
+  it("saves the fomo username and fomo's user id and returns them with the account", async () => {
     const c = await authed(false);
-    c.send({ type: 'profile.set', reqId: 'p', fomoUsername: 'ibiraw' });
-    expect((await c.next((m) => m.reqId === 'p')).data).toMatchObject({ id: c.userId, fomoUsername: 'ibiraw' });
+    const DID = 'did:privy:cmabc123def456ghi789jkl0m';
+    c.send({ type: 'profile.set', reqId: 'p', fomoUsername: 'ibiraw', fomoUserId: DID });
+    expect((await c.next((m) => m.reqId === 'p')).data).toMatchObject({ id: c.userId, fomoUsername: 'ibiraw', fomoUserId: DID });
     c.send({ type: 'account.info', reqId: 'i' });
-    expect((await c.next((m) => m.reqId === 'i')).data).toMatchObject({ fomoUsername: 'ibiraw' });
+    expect((await c.next((m) => m.reqId === 'i')).data).toMatchObject({ fomoUsername: 'ibiraw', fomoUserId: DID });
     c.send({ type: 'profile.set', reqId: 'bad', fomoUsername: 'no spaces allowed' });
     expect((await c.next((m) => m.reqId === 'bad')).error).toMatch(/Not a fomo username/);
   });

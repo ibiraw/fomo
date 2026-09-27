@@ -5,7 +5,7 @@
  * @author Reborn1987
  */
 
-import { readFomoWallets } from '@/lib/account';
+import { readFomoUserId, readFomoWallets } from '@/lib/account';
 import { readOwnFomoUsername } from '@/lib/fomo-dom';
 import type { WalletsDetectedMessage } from '@/lib/messages';
 import { keyFromPath, tokenPath } from '@/lib/token-key';
@@ -64,13 +64,14 @@ export default defineContentScript({
   },
 });
 
-/** Sends the user's fomo wallet addresses and username to the background when any are found. */
+/** Sends the user's fomo wallet addresses, username and user id to the background when any are found. */
 function reportWallets(): void {
   try {
     const wallets = readFomoWallets(localStorage);
     const fomoUsername = readOwnFomoUsername(document);
-    if (wallets.solana || wallets.evm || fomoUsername) {
-      void browser.runtime.sendMessage({ type: 'fomo.wallets', wallets, fomoUsername } satisfies WalletsDetectedMessage).catch(() => undefined);
+    const fomoUserId = readFomoUserId(localStorage);
+    if (wallets.solana || wallets.evm || fomoUsername || fomoUserId) {
+      void browser.runtime.sendMessage({ type: 'fomo.wallets', wallets, fomoUsername, fomoUserId } satisfies WalletsDetectedMessage).catch(() => undefined);
     }
   } catch {
     // storage blocked or extension reloaded — try again on the next page load

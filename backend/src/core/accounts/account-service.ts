@@ -16,8 +16,14 @@ import type { Account, AccountStorePort, UserWallets } from '../../ports/account
 /** Secrets are ≥ 32 characters of base64url (the extension sends 43: 32 random bytes). */
 const SECRET = /^[A-Za-z0-9_-]{32,128}$/;
 
-/** fomo usernames as they appear in profile links (/profile/<name>). */
-const FomoUsernameSchema = z.string().regex(/^[A-Za-z0-9_.-]{1,40}$/, 'Not a fomo username');
+/** fomo identity: username as in profile links (/profile/<name>) and fomo's Privy user id. At least one. */
+const FomoProfileSchema = z
+  .object({
+    username: z.string().regex(/^[A-Za-z0-9_.-]{1,40}$/, 'Not a fomo username').optional(),
+    userId: z.string().regex(/^did:privy:[A-Za-z0-9]{10,64}$/, 'Not a fomo user id').optional(),
+  })
+  .strict()
+  .refine((p) => p.username !== undefined || p.userId !== undefined, 'Nothing to save');
 
 const WalletsSchema = z.object({
   solana: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, 'Not a valid Solana address').nullable(),
@@ -60,15 +66,17 @@ export class AccountService {
   }
 
   /**
-   * Saves the user's fomo username (read by the extension from their own profile link). Returns the account and
-   * whether the name changed, so callers only announce real changes.
+   * Saves the user's fomo identity as read by the extension: the username (own profile link) and/or fomo's unique
+   * user id. A field left out keeps its saved value. Returns the account and whether anything changed, so callers
+   * only announce real changes.
    */
-  setFomoUsername(id: string, input: unknown): { account: Account; changed: boolean } {
-    const parsed = FomoUsernameSchema.safeParse(input);
+  setFomoProfile(id: string, input: unknown): { account: Account; changed: boolean } {
+    const parsed = FomoProfileSchema.safeParse(input);
     if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => i.message).join('; '));
     const current = this.get(id);
-    if (current.fomoUsername === parsed.data) return { account: current, changed: false };
-    const updated = this.store.setFomoUsername(id, parsed.data);
+    const next = { username: parsed.data.username ?? current.fomoUsername, userId: parsed.data.userId ?? current.fomoUserId };
+    if (next.username === current.fomoUsername && next.userId === current.fomoUserId) return { account: current, changed: false };
+    const updated = this.store.setFomoProfile(id, next);
     if (!updated) throw new AuthError('Account no longer exists');
     return { account: updated, changed: true };
   }

@@ -88,7 +88,7 @@ const ACTIVE_STATUSES: readonly OrderStatus[] = ['open', 'triggered', 'executing
 /** Account label for monitoring: short id plus the fomo username once known ("LM-7K3Q2P (@name)"). */
 const label = (a: Account): string => (a.fomoUsername ? `${a.shortId} (@${a.fomoUsername})` : a.shortId);
 
-const accountView = (a: Account) => ({ id: a.id, shortId: a.shortId, wallets: a.wallets, fomoUsername: a.fomoUsername });
+const accountView = (a: Account) => ({ id: a.id, shortId: a.shortId, wallets: a.wallets, fomoUsername: a.fomoUsername, fomoUserId: a.fomoUserId });
 
 export class WsGateway extends TradeExecutorPort {
   private wss: WebSocketServer | null = null;
@@ -352,8 +352,8 @@ export class WsGateway extends TradeExecutorPort {
         });
       case 'profile.set':
         return this.reply(client, msg.reqId, async () => {
-          const { account, changed } = this.requireAccounts().setFomoUsername(userId, msg.fomoUsername);
-          if (changed) this.opts.onActivity?.('account', `${account.shortId} is @${account.fomoUsername} on fomo`);
+          const { account, changed } = this.requireAccounts().setFomoProfile(userId, { username: msg.fomoUsername, userId: msg.fomoUserId });
+          if (changed) this.opts.onActivity?.('account', `${account.shortId} is @${account.fomoUsername ?? '?'} on fomo · fomo id ${account.fomoUserId ?? '?'}`);
           return accountView(account);
         });
       case 'account.info':

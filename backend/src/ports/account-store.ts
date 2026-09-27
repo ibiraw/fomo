@@ -10,6 +10,12 @@ export interface UserWallets {
   readonly evm: `0x${string}` | null;
 }
 
+/** The user's identity on fomo.family. */
+export interface FomoProfile {
+  readonly username: string | null;
+  readonly userId: string | null;
+}
+
 export interface Account {
   readonly id: string;
   /** Short readable id shown to the user and in monitoring ("LM-7K3Q2P"). */
@@ -17,6 +23,11 @@ export interface Account {
   readonly wallets: UserWallets;
   /** The user's fomo.family username (from their own profile link on fomo), or null until the extension reads it. */
   readonly fomoUsername: string | null;
+  /**
+   * fomo's own unique user id (Privy DID, "did:privy:…", from fomo's storage). Usernames can repeat or change; this
+   * doesn't. Null until the extension reads it.
+   */
+  readonly fomoUserId: string | null;
   readonly createdAt: number;
   readonly lastSeenAt: number;
 }
@@ -35,8 +46,8 @@ export abstract class AccountStorePort {
   /** Replaces the account's wallets; returns the updated account (null if it doesn't exist). */
   abstract setWallets(id: string, wallets: UserWallets): Account | null;
 
-  /** Sets the account's fomo username; returns the updated account (null if it doesn't exist). */
-  abstract setFomoUsername(id: string, username: string): Account | null;
+  /** Sets the account's fomo username and user id; returns the updated account (null if it doesn't exist). */
+  abstract setFomoProfile(id: string, profile: FomoProfile): Account | null;
 
   /** Accounts using this Solana or EVM (lowercase) address, most recently active first. */
   abstract findByWallet(kind: 'solana' | 'evm', address: string): Account[];

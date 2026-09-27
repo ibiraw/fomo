@@ -58,6 +58,8 @@ export interface WalletsDetectedMessage {
   readonly wallets: Wallets;
   /** The logged-in user's fomo username, when the top bar shows it. */
   readonly fomoUsername?: string | null;
+  /** fomo's unique user id, when fomo's storage has it. */
+  readonly fomoUserId?: string | null;
 }
 
 export type BackgroundMessage =

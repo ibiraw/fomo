@@ -20,6 +20,8 @@ export interface AccountView {
   readonly wallets: Wallets;
   /** fomo username read from the user's own profile link (null until seen). */
   readonly fomoUsername?: string | null;
+  /** fomo's unique user id ("did:privy:…"), read from fomo's storage (null until seen). */
+  readonly fomoUserId?: string | null;
 }
 
 const KEY_RE = /^[A-Za-z0-9_-]{32,128}$/;
@@ -90,6 +92,23 @@ export function readFomoWallets(storage: StorageLike): Wallets {
 export function walletsUpdate(current: Wallets, detected: Wallets): Wallets | null {
   const next: Wallets = { solana: detected.solana ?? current.solana, evm: detected.evm ?? current.evm };
   return next.solana === current.solana && next.evm === current.evm ? null : next;
+}
+
+/** fomo's user ids are Privy DIDs. Mirror of the server's check. */
+const FOMO_USER_ID_RE = /^did:privy:[A-Za-z0-9]{10,64}$/;
+
+/**
+ * fomo's unique id for the logged-in user, from `ph_<project>_posthog` → `$stored_person_properties.privyId`
+ * (verified 2026-09-27: "did:privy:" + 25 characters). Usernames can repeat or change; this can't. Null when missing.
+ */
+export function readFomoUserId(storage: StorageLike): string | null {
+  for (let i = 0; i < storage.length; i++) {
+    const k = storage.key(i);
+    if (!k || !/^ph_.+_posthog$/.test(k)) continue;
+    const id = (json(storage.getItem(k)) as { $stored_person_properties?: { privyId?: unknown } } | null)?.$stored_person_properties?.privyId;
+    if (typeof id === 'string' && FOMO_USER_ID_RE.test(id)) return id;
+  }
+  return null;
 }
 
 /** "JDY8…KQDg" style short form. */

@@ -64,25 +64,27 @@ describe('AccountService', () => {
     expect(svc.delete(account.id)).toBe(false);
   });
 
-  it('saves the fomo username, reports whether it changed, and rejects anything that is not a username', () => {
+  it("saves the fomo username and fomo's user id, reports whether they changed, and rejects anything else", () => {
     const dir = mkdtempSync(join(tmpdir(), 'limit-acct-'));
     try {
       const path = join(dir, 'a.db');
       const store = new SqliteAccountStoreAdapter(path);
       const svc = new AccountService(store);
       const { account } = svc.login(SECRET_A, true);
-      expect(account.fomoUsername).toBeNull();
-      expect(svc.setFomoUsername(account.id, 'ibiraw')).toMatchObject({ changed: true, account: { fomoUsername: 'ibiraw' } });
-      expect(svc.setFomoUsername(account.id, 'ibiraw').changed).toBe(false);
-      expect(svc.setFomoUsername(account.id, 'new.name_2').changed).toBe(true);
-      for (const bad of ['', 'has space', "x' OR '1'='1", 'a'.repeat(41), '@name', 7, null]) {
-        expect(() => svc.setFomoUsername(account.id, bad)).toThrow(ValidationError);
+      const DID = 'did:privy:cmabc123def456ghi789jkl0m';
+      expect(account).toMatchObject({ fomoUsername: null, fomoUserId: null });
+      expect(svc.setFomoProfile(account.id, { username: 'ibiraw', userId: DID })).toMatchObject({ changed: true, account: { fomoUsername: 'ibiraw', fomoUserId: DID } });
+      expect(svc.setFomoProfile(account.id, { username: 'ibiraw' }).changed).toBe(false);
+      expect(svc.setFomoProfile(account.id, { username: 'new.name_2' })).toMatchObject({ changed: true, account: { fomoUsername: 'new.name_2', fomoUserId: DID } });
+      for (const bad of [{ username: '' }, { username: 'has space' }, { username: "x' OR '1'='1" }, { username: 'a'.repeat(41) }, { userId: 'did:other:abc' },
+        { userId: "did:privy:abc' OR 1=1" }, {}, { username: 'ok', extra: 1 }, 'ibiraw', null]) {
+        expect(() => svc.setFomoProfile(account.id, bad)).toThrow(ValidationError);
       }
-      expect(() => svc.setFomoUsername('gone', 'x')).toThrow(AuthError);
+      expect(() => svc.setFomoProfile('gone', { username: 'x' })).toThrow(AuthError);
       // Survives a reopen (column added by the v1.3.0 migration).
       store.close();
       const reopened = new SqliteAccountStoreAdapter(path);
-      expect(reopened.get(account.id)?.fomoUsername).toBe('new.name_2');
+      expect(reopened.get(account.id)).toMatchObject({ fomoUsername: 'new.name_2', fomoUserId: DID });
       reopened.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });

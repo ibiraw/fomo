@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { generateAccountKey, isAccountKey, readFomoWallets, shortAddress, walletsUpdate, type StorageLike } from '../lib/account';
+import { generateAccountKey, isAccountKey, readFomoUserId, readFomoWallets, shortAddress, walletsUpdate, type StorageLike } from '../lib/account';
 
 const SOL = 'JDY8BeQUPmcRZnYJGVBiU7x71SMbdUECW6NMUdGGKQDg';
 const EVM = '0x59a1b6CC4Cfc711ce0fa70f48Fef4e4b7Dd2B103';
@@ -57,5 +57,16 @@ describe('walletsUpdate', () => {
     expect(walletsUpdate({ solana: 'old', evm: null }, { solana: SOL, evm: EVM })).toEqual({ solana: SOL, evm: EVM });
     expect(shortAddress(SOL)).toBe('JDY8…KQDg');
     expect(shortAddress('short')).toBe('short');
+  });
+});
+
+describe('readFomoUserId', () => {
+  it("reads fomo's Privy user id from its analytics storage and rejects anything else", () => {
+    const DID = 'did:privy:cmabc123def456ghi789jkl0m';
+    const ph = (privyId: unknown) => storage({ ph_phc_x_posthog: JSON.stringify({ $stored_person_properties: { privyId } }) });
+    expect(readFomoUserId(ph(DID))).toBe(DID);
+    for (const bad of ['did:other:abc123def456', "did:privy:x' OR 1=1", 'did:privy:', 42, null]) expect(readFomoUserId(ph(bad))).toBeNull();
+    expect(readFomoUserId(storage({}))).toBeNull();
+    expect(readFomoUserId(storage({ ph_phc_x_posthog: 'not json' }))).toBeNull();
   });
 });
