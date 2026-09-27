@@ -51,6 +51,7 @@ Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), 
 ## Monitoring (`src/core/monitoring/`)
 - Every account (`LM-XXXXXX` short id), order placement/outcome, payment, claim, subscription change, server start and error (≤ 1 per source per 5 min) is written to the `activity` table (permanent log) and relayed to Telegram by `ActivityRelay` (batched, marks sent, backs off, honours 429 `retry_after`). Set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`; without them it only logs to the DB.
 - Account deletion cancels open orders but keeps order history.
+- Console errors go through `ErrorLog`: the first of each context+message is dumped in full, repeats within 60 s log one line (a dropped RPC socket fails every subscription at once).
 
 ## Gateway protocol (JSON over WS)
 Client: `hello{token,executor,create?}`, `order.create{reqId,order}`, `order.cancel{reqId,id}`, `order.list{reqId}`, `token.info{reqId,mint}`, `price.watch{reqId,mint}` (viewer interest, 5 min TTL; newest `viewedTokens` per connection), `wallet.holds{reqId,mint}` → `{holds: boolean|null}`, `wallets.set{reqId,wallets:{solana,evm}}`, `account.info{reqId}`, `account.delete{reqId}`, `billing.status{reqId}`, `billing.quote{reqId}`, `billing.claim{reqId,tx}`, `exec.result{execId,result}`, `pong`.

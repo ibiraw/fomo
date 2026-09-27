@@ -14,6 +14,7 @@ import { loadConfig } from './config.js';
 import { SqliteActivityStoreAdapter } from './adapters/storage/sqlite-activity-store.adapter.js';
 import { TelegramNotifierAdapter } from './adapters/telegram/telegram-notifier.adapter.js';
 import { ActivityRelay } from './core/monitoring/activity-relay.js';
+import { ErrorLog } from './core/monitoring/error-log.js';
 import { describeOrder } from './core/monitoring/describe.js';
 import { AccountService } from './core/accounts/account-service.js';
 import { WalletConfirmers } from './core/accounts/wallet-confirmers.js';
@@ -49,10 +50,13 @@ function log(msg: string): void {
 /** Monitoring relay (activity log + Telegram); set once the config is loaded. */
 let monitor: ActivityRelay | null = null;
 
+/** Console error sink with repeat suppression (one full dump per incident). */
+const errorLog = new ErrorLog(console.error);
+
 /** Logs an error with context, and reports it to monitoring (rate-limited per source). */
 function logError(ctx: string) {
   return (err: unknown): void => {
-    console.error(`${new Date().toISOString()} [${ctx}]`, err);
+    errorLog.log(ctx, err);
     if (ctx !== 'telegram') monitor?.recordError(ctx, err);
   };
 }
