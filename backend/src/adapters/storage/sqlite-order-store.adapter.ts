@@ -59,6 +59,8 @@ const MIGRATION_TRIGGER_SUPPLY = 'ALTER TABLE orders ADD COLUMN trigger_supply R
 /** v1.2.0: owning account. Orders created before accounts existed get `legacyUserId`. */
 const MIGRATION_USER_ID = 'ALTER TABLE orders ADD COLUMN user_id TEXT';
 const INDEX_USER = 'CREATE INDEX IF NOT EXISTS idx_orders_user_status ON orders(user_id, status)';
+/** v1.3.0: per-token lookups on every price tick (open orders on one mint). */
+const INDEX_MINT = 'CREATE INDEX IF NOT EXISTS idx_orders_mint_status ON orders(mint, status)';
 
 /** Maps a DB row to the domain Order. */
 function toOrder(r: OrderRow): Order {
@@ -88,6 +90,8 @@ export class SqliteOrderStoreAdapter extends OrderStorePort {
   private readonly db: DatabaseSync;
   private readonly insertStmt: StatementSync;
   private readonly getStmt: StatementSync;
+  /** Prepared list queries by SQL text (a handful of shapes, reused on every tick). */
+  private readonly listStmts = new Map<string, StatementSync>();
 
   /**
    * @param path SQLite file path, or ':memory:' for tests. @param now clock (injectable for tests).
@@ -103,6 +107,7 @@ export class SqliteOrderStoreAdapter extends OrderStorePort {
     if (!cols.includes('user_id')) this.db.exec(MIGRATION_USER_ID);
     this.db.prepare('UPDATE orders SET user_id = ? WHERE user_id IS NULL').run(legacyUserId);
     this.db.exec(INDEX_USER);
+    this.db.exec(INDEX_MINT);
     this.insertStmt = this.db.prepare(`
       INSERT INTO orders (id, user_id, mint, side, trigger_metric, trigger_direction, trigger_value, trigger_supply,
         amount_kind, amount_value, status, attempts, max_attempts, created_at, updated_at)
@@ -137,13 +142,19 @@ export class SqliteOrderStoreAdapter extends OrderStorePort {
   }
 
   /** Lists orders filtered by status and/or owner, newest first. */
-  list(statuses?: readonly OrderStatus[], userId?: string): Order[] {
+  list(statuses?: readonly OrderStatus[], userId?: string, mint?: string): Order[] {
     const where: string[] = [];
     const args: string[] = [];
     if (statuses?.length) { where.push(`status IN (${statuses.map(() => '?').join(',')})`); args.push(...statuses); }
     if (userId !== undefined) { where.push('user_id = ?'); args.push(userId); }
+    if (mint !== undefined) { where.push('mint = ?'); args.push(mint); }
     const sql = `SELECT * FROM orders ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at DESC, rowid DESC`;
-    return (this.db.prepare(sql).all(...args) as unknown as OrderRow[]).map(toOrder);
+    let stmt = this.listStmts.get(sql);
+    if (!stmt) {
+      stmt = this.db.prepare(sql);
+      this.listStmts.set(sql, stmt);
+    }
+    return (stmt.all(...args) as unknown as OrderRow[]).map(toOrder);
   }
 
   /** Compare-and-set status transition; returns null if the order was not in a `from` status. */

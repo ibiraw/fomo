@@ -23,9 +23,9 @@ export abstract class OrderStorePort {
 
   /**
    * Returns orders in any of the given statuses (all statuses when omitted or empty), newest first;
-   * only `userId`'s orders when given.
+   * only `userId`'s orders when given, only orders on `mint` when given.
    */
-  abstract list(statuses?: readonly OrderStatus[], userId?: string): Order[];
+  abstract list(statuses?: readonly OrderStatus[], userId?: string, mint?: string): Order[];
 
   /**
    * Atomically moves an order from one of `from` to `to` (compare-and-set).

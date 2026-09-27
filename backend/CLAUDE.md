@@ -21,6 +21,7 @@ Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), 
 | `src/core/orders/` | `order.ts` (model, validation, trigger check), `OrderEngine` |
 | `tests/` | vitest; fakes in `tests/helpers/` |
 | `scripts/watch-price.ts` | Live price stream dev tool |
+| `scripts/load-test.ts` | Limit + load test for the gateway — run only against a separate test server (see Load testing) |
 
 ## Commands
 - `npm run dev` — start server (prints pairing code)
@@ -58,6 +59,12 @@ Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), 
 Client: `hello{token,executor,create?}`, `order.create{reqId,order}`, `order.cancel{reqId,id}`, `order.list{reqId}`, `token.info{reqId,mint}`, `price.watch{reqId,mint}` (viewer interest, 5 min TTL; newest `viewedTokens` per connection), `wallet.holds{reqId,mint}` → `{holds: boolean|null}`, `wallets.set{reqId,wallets:{solana,evm}}`, `account.info{reqId}`, `account.delete{reqId}`, `billing.status{reqId}`, `billing.quote{reqId}`, `billing.claim{reqId,tx}`, `exec.result{execId,result}`, `pong`.
 Server: `welcome{account,orders,ticks,billing}`, `billing{status}` (on change), `reply{reqId,ok,data|error}`, `order{order}` (owner only), `tick{tick}` (≤4/s per mint, only to clients viewing it or with orders on it), `exec.request{execId,order}` (owner's executor), `ping`, `error`.
 Close codes: 4001 bad/unknown key or account limit, 4003 account deleted, 4008 too many messages. Only `chrome-extension://` origins or non-browser clients.
+
+## Load testing
+- Separate server: `data/loadtest/.env` = `.env` minus Telegram/paywall, plus `GATEWAY_PORT=8799`, `DATA_DIR=data/loadtest`, `PAYWALL_ENABLED=false`. Start `npx tsx --env-file=data/loadtest/.env src/index.ts`, then `npx tsx scripts/load-test.ts ws://127.0.0.1:8799 data/loadtest <users> <ordersPerUser>` (`SKIP_LIMITS=1` for load only). Wipe `data/loadtest/orders.db*` between runs.
+- 2026-09-27 result (Windows dev box, 3 live tokens, everyone placing at the same instant): 2,000 users / 10,000 orders all OK, ~330 orders/s, list p50 100 ms, server RSS ~155 MB. All limit checks pass.
+- Hot paths must never load all orders: per-tick evaluation reads only open orders on that mint (`idx_orders_mint_status`), a new order is checked alone, and the holdings guard queries open sells per (account, mint).
+- Every socket has an `error` listener (a frame over 64 KB used to crash the server) and must log in within 10 s.
 
 ## Notes
 - `.env` (RPC URLs) and `data/` (DB + pairing token) are git-ignored.

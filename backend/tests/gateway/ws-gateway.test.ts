@@ -69,12 +69,12 @@ async function authed(executor: boolean, secret = TOKEN): Promise<TestClient & {
 }
 
 /** Fresh gateway + engine + accounts. */
-async function start(limits?: GatewayLimits): Promise<void> {
+async function start(limits?: GatewayLimits, helloTimeoutMs?: number): Promise<void> {
   feed = new FakePriceFeed();
   store = new SqliteOrderStoreAdapter(':memory:');
   accounts = new AccountService(new SqliteAccountStoreAdapter(':memory:'));
   confirmers = new WalletConfirmers((id) => accounts.wallets(id), () => null);
-  gateway = new WsGateway({ host: '127.0.0.1', port: 0, execTimeoutMs: 300, tickThrottleMs: 250, pingIntervalMs: 50, ...(limits ? { limits } : {}) }, () => undefined);
+  gateway = new WsGateway({ host: '127.0.0.1', port: 0, execTimeoutMs: 300, tickThrottleMs: 250, pingIntervalMs: 50, ...(limits ? { limits } : {}), ...(helloTimeoutMs ? { helloTimeoutMs } : {}) }, () => undefined);
   const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), () => undefined);
   gateway.attach(engine, accounts, confirmers);
   await gateway.listen();
@@ -134,6 +134,27 @@ describe('WsGateway auth', () => {
     await c.next((m) => m.type === 'error');
     c.send({ type: 'order.list', reqId: '1' });
     await vi.waitFor(() => expect(c.closeCode).toBe(4001));
+  });
+
+  it('survives an oversized frame: closes that socket (1009) and keeps serving others', async () => {
+    const c = await authed(false);
+    c.ws.on('error', () => undefined); // the client side sees the abrupt close too
+    c.ws.send(JSON.stringify({ type: 'order.list', reqId: 'x'.repeat(70_000) }));
+    await vi.waitFor(() => expect(c.closeCode).toBe(1009));
+    const d = await authed(false, OTHER);
+    d.send({ type: 'order.list', reqId: 'after' });
+    await d.next((m) => m.type === 'reply' && m.reqId === 'after');
+  });
+
+  it('closes connections that never log in, but not logged-in ones', async () => {
+    sockets.splice(0).forEach((s) => s.terminate());
+    await gateway.close();
+    await start(undefined, 150);
+    const idle = await connect();
+    const user = await authed(false);
+    await vi.waitFor(() => expect(idle.closeCode).toBe(4001));
+    await new Promise((r) => setTimeout(r, 200));
+    expect(user.closeCode).toBeNull();
   });
 });
 

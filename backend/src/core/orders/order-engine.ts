@@ -11,7 +11,7 @@ import type { OrderStorePort } from '../../ports/order-store.js';
 import type { PriceFeedPort, PriceTick, PriceWatch } from '../../ports/price-feed.js';
 import type { TradeConfirmerPort } from '../../ports/trade-confirmer.js';
 import type { ExecutionResult, TradeExecutorPort } from '../../ports/trade-executor.js';
-import { CreateOrderSchema, isTriggered, metricValue, type Order } from './order.js';
+import { CreateOrderSchema, isTriggered, metricValue, type Order, type OrderStatus } from './order.js';
 
 /** Resolves after `ms`, or immediately when `signal` aborts. */
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
@@ -129,8 +129,9 @@ export class OrderEngine {
     if (parsed.data.side === 'sell') await this.requireHolding(userId, parsed.data.mint);
     const order = this.store.create(parsed.data, userId);
     this.publish(order);
+    // Only the new order needs checking against the latest price; the others were checked when that tick arrived.
     const tick = this.lastTick.get(order.mint);
-    if (tick) this.evaluate(tick);
+    if (tick && this.triggerIfMet(order, tick)) void this.pump(userId);
     return order;
   }
 
@@ -181,9 +182,12 @@ export class OrderEngine {
     return order;
   }
 
-  /** Orders newest first — one account's, or everyone's when `userId` is omitted. */
-  listOrders(userId?: string): Order[] {
-    return this.store.list(undefined, userId);
+  /**
+   * Orders newest first — one account's, or everyone's when `userId` is omitted; optionally only in `statuses`
+   * and only on `mint` (indexed, so hot paths never load the whole order history).
+   */
+  listOrders(userId?: string, statuses?: readonly OrderStatus[], mint?: string): Order[] {
+    return this.store.list(statuses, userId, mint);
   }
 
   /** Cancels an account's active orders (account deletion). Order history stays in the database. Returns how many were cancelled. */
@@ -233,7 +237,7 @@ export class OrderEngine {
   /** Stops watching a mint when no active orders remain on it. */
   private releaseWatchIfIdle(mint: string): void {
     if ((this.viewers.get(mint) ?? 0) > this.now()) return;
-    if (this.store.list([...ACTIVE]).some((o) => o.mint === mint)) return;
+    if (this.store.list([...ACTIVE], undefined, mint).length > 0) return;
     this.watches.get(mint)?.stop();
     this.watches.delete(mint);
     this.lastTick.delete(mint);
@@ -253,15 +257,18 @@ export class OrderEngine {
   /** Triggers every open order on the tick's mint whose condition is met. */
   private evaluate(tick: PriceTick): void {
     const queued = new Set<string>();
-    for (const o of this.store.list(['open'])) {
-      if (o.mint !== tick.mint || !isTriggered(o, tick)) continue;
-      const t = this.store.transition(o.id, ['open'], 'triggered', { triggeredAtValue: metricValue(o, tick) });
-      if (!t) continue; // someone else moved it first
-      this.publish(t);
-      this.enqueue(t);
-      queued.add(t.userId);
-    }
+    for (const o of this.store.list(['open'], undefined, tick.mint)) if (this.triggerIfMet(o, tick)) queued.add(o.userId);
     for (const userId of queued) void this.pump(userId);
+  }
+
+  /** Moves an open order to triggered and queues it when `tick` meets its condition. True when it was queued. */
+  private triggerIfMet(o: Order, tick: PriceTick): boolean {
+    if (!isTriggered(o, tick)) return false;
+    const t = this.store.transition(o.id, ['open'], 'triggered', { triggeredAtValue: metricValue(o, tick) });
+    if (!t) return false; // someone else moved it first
+    this.publish(t);
+    this.enqueue(t);
+    return true;
   }
 
   /** Adds a triggered order to its account's queue. */

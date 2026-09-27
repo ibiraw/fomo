@@ -8,7 +8,7 @@
  */
 
 import type { ConfirmerLookup } from './order-engine.js';
-import type { Order } from './order.js';
+import type { Order, OrderStatus } from './order.js';
 
 /** Reason stored on auto-cancelled orders. */
 export const SOLD_OUT_REASON = 'auto_cancelled: You no longer hold this token';
@@ -18,7 +18,7 @@ const ZERO_READS_TO_CANCEL = 2;
 
 /** What the guard needs from the order engine. */
 export interface GuardedOrders {
-  listOrders(): Order[];
+  listOrders(userId?: string, statuses?: readonly OrderStatus[], mint?: string): Order[];
   cancelOrder(id: string, reason?: string): Order;
 }
 
@@ -31,8 +31,8 @@ interface Holding {
 /** Map key for a holding. */
 const keyOf = (h: Holding): string => `${h.userId}|${h.mint}`;
 
-/** Open or triggered sell. */
-const isOpenSell = (o: Order): boolean => o.side === 'sell' && (o.status === 'open' || o.status === 'triggered');
+/** Statuses of sells that can still be cancelled. */
+const OPEN_SELL_STATUSES: readonly OrderStatus[] = ['open', 'triggered'];
 
 export class HoldingsGuard {
   /** Zero-balance reads in a row, per holding. */
@@ -74,7 +74,7 @@ export class HoldingsGuard {
 
   /** Engine event hook: re-check a holding after any of its orders changes (e.g. a sell filled). */
   onOrderChanged(order: Order): void {
-    if (this.sellHoldings().some((h) => h.userId === order.userId && h.mint === order.mint)) void this.check(order.userId, order.mint);
+    if (this.openSells(order.userId, order.mint).length > 0) void this.check(order.userId, order.mint);
   }
 
   /** Reads the balance; after two zero reads in a row, cancels the holding's open sells. */
@@ -95,7 +95,7 @@ export class HoldingsGuard {
         return;
       }
       this.zeroReads.delete(key);
-      for (const o of this.orders.listOrders().filter((o) => o.userId === userId && o.mint === mint && isOpenSell(o))) {
+      for (const o of this.openSells(userId, mint)) {
         try {
           this.orders.cancelOrder(o.id, SOLD_OUT_REASON);
         } catch (err) {
@@ -118,10 +118,15 @@ export class HoldingsGuard {
     this.confirmTimers.add(t);
   }
 
+  /** Open or triggered sells — everyone's, or one holding's (indexed lookup; runs on every order event). */
+  private openSells(userId?: string, mint?: string): Order[] {
+    return this.orders.listOrders(userId, OPEN_SELL_STATUSES, mint).filter((o) => o.side === 'sell');
+  }
+
   /** Distinct (account, token) pairs with at least one open sell order. */
   private sellHoldings(): Holding[] {
     const out = new Map<string, Holding>();
-    for (const o of this.orders.listOrders()) if (isOpenSell(o)) out.set(keyOf(o), { userId: o.userId, mint: o.mint });
+    for (const o of this.openSells()) out.set(keyOf(o), { userId: o.userId, mint: o.mint });
     return [...out.values()];
   }
 }

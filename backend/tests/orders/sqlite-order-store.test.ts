@@ -1,6 +1,6 @@
 /**
  * @file sqlite-order-store.test.ts
- * @description Tests for SqliteOrderStoreAdapter: create/get/list and compare-and-set transitions.
+ * @description Tests for SqliteOrderStoreAdapter: create/get/list (status, user, mint filters) and compare-and-set transitions.
  * @author Reborn1987
  */
 
@@ -36,6 +36,19 @@ describe('SqliteOrderStoreAdapter', () => {
     expect(store.list().map((o) => o.id)).toEqual([b.id, a.id]);
     expect(store.list(['open']).map((o) => o.id)).toEqual([b.id]);
     expect(store.list([])).toHaveLength(2);
+  });
+
+  it('filters by mint (with status and user) for per-tick lookups', () => {
+    const store = new SqliteOrderStoreAdapter(':memory:');
+    const other = CreateOrderSchema.parse({ ...input, mint: 'base:0x0cbf291ba052174879d90bf781df1a5f2bc5bb07' });
+    const a = store.create(input, 'u1');
+    const b = store.create(other, 'u1');
+    const c = store.create(input, 'u2');
+    store.transition(c.id, ['open'], 'cancelled');
+    expect(store.list(['open'], undefined, MINT).map((o) => o.id)).toEqual([a.id]);
+    expect(store.list(undefined, undefined, other.mint).map((o) => o.id)).toEqual([b.id]);
+    expect(store.list(undefined, 'u2', MINT).map((o) => o.id)).toEqual([c.id]);
+    expect(store.list(['open'], undefined, 'nothing')).toEqual([]);
   });
 
   it('transitions only from allowed statuses and applies the patch', () => {

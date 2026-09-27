@@ -17,7 +17,7 @@ import type { AccountService } from '../../core/accounts/account-service.js';
 import type { WalletConfirmers } from '../../core/accounts/wallet-confirmers.js';
 import type { BillingService } from '../../core/billing/billing-service.js';
 import { AuthError, FomoError } from '../../core/errors.js';
-import type { Order } from '../../core/orders/order.js';
+import type { Order, OrderStatus } from '../../core/orders/order.js';
 import type { EngineEvent, OrderEngine } from '../../core/orders/order-engine.js';
 import type { TokenInfoService } from '../../core/tokens/token-info-service.js';
 import type { Account } from '../../ports/account-store.js';
@@ -51,7 +51,12 @@ export interface GatewayOptions {
   /** Monitoring sink for account events (new, deleted, wallets, payment claims). */
   readonly onActivity?: (kind: 'account' | 'payment', text: string) => void;
   readonly limits?: GatewayLimits;
+  /** A connection that hasn't logged in within this time is closed (default 10 s). */
+  readonly helloTimeoutMs?: number;
 }
+
+/** Default login deadline for new connections. */
+export const DEFAULT_HELLO_TIMEOUT_MS = 10_000;
 
 /** Per-connection state. */
 interface Client {
@@ -63,6 +68,8 @@ interface Client {
   /** Token bucket for the message rate limit. */
   tokens: number;
   refilledAt: number;
+  /** Closes the connection if it hasn't logged in in time; cleared on login. */
+  helloTimer: NodeJS.Timeout | null;
 }
 
 /** An execution awaiting the extension's answer. */
@@ -73,7 +80,7 @@ interface PendingExec {
 }
 
 /** Statuses whose token prices an account needs. */
-const isActive = (o: Order): boolean => o.status === 'open' || o.status === 'triggered' || o.status === 'executing';
+const ACTIVE_STATUSES: readonly OrderStatus[] = ['open', 'triggered', 'executing'];
 
 /** What a client sees about its account. */
 const accountView = (a: Account) => ({ id: a.id, shortId: a.shortId, wallets: a.wallets });
@@ -214,9 +221,16 @@ export class WsGateway extends TradeExecutorPort {
   /** Registers a new socket; it must send a valid hello before anything else. */
   private onConnection(ws: WebSocket, req: IncomingMessage): void {
     const burst = this.limits.messagesPerSecond * 2;
-    const client: Client = { ws, ip: this.clientIp(req), userId: null, viewed: new Set(), tokens: burst, refilledAt: this.now() };
+    const client: Client = { ws, ip: this.clientIp(req), userId: null, viewed: new Set(), tokens: burst, refilledAt: this.now(), helloTimer: null };
+    client.helloTimer = setTimeout(() => {
+      client.helloTimer = null;
+      if (client.userId === null) ws.close(4001, 'Log in first');
+    }, this.opts.helloTimeoutMs ?? DEFAULT_HELLO_TIMEOUT_MS);
     this.clients.add(client);
     ws.on('message', (raw) => void this.onMessage(client, raw.toString()));
+    // Protocol errors (e.g. a frame over maxPayload) are emitted here; ws closes the socket itself afterwards.
+    // Without a listener Node treats them as unhandled and the whole server crashes.
+    ws.on('error', (err) => this.log(`socket error from ${client.ip}: ${err.message}`));
     ws.on('close', () => this.onClose(client));
   }
 
@@ -274,6 +288,8 @@ export class WsGateway extends TradeExecutorPort {
       return;
     }
     client.userId = account.id;
+    if (client.helloTimer) clearTimeout(client.helloTimer);
+    client.helloTimer = null;
     this.refreshOrderMints(account.id);
     if (executor) this.setExecutor(client, account.id);
     const orders = this.requireEngine().listOrders(account.id);
@@ -399,7 +415,7 @@ export class WsGateway extends TradeExecutorPort {
   private refreshOrderMints(userId: string): void {
     const engine = this.engine;
     if (!engine) return;
-    this.orderMints.set(userId, new Set(engine.listOrders(userId).filter(isActive).map((o) => o.mint)));
+    this.orderMints.set(userId, new Set(engine.listOrders(userId, ACTIVE_STATUSES).map((o) => o.mint)));
   }
 
   /** Makes `client` its account's executor (newest connection wins) and wakes the engine for that account. */
@@ -411,6 +427,7 @@ export class WsGateway extends TradeExecutorPort {
 
   /** Cleans up a closed socket; in-flight trades on it resolve as 'unknown'. */
   private onClose(client: Client): void {
+    if (client.helloTimer) clearTimeout(client.helloTimer);
     this.clients.delete(client);
     if (client.userId && this.executors.get(client.userId) === client) {
       this.executors.delete(client.userId);
