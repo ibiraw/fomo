@@ -68,6 +68,10 @@ Close codes: 4001 bad/unknown key or account limit, 4003 account deleted, 4008 t
 - 2026-09-27 fuzz: 2,318/2,318 checks. Non-token addresses give readable errors: Solana `getMintSupply` maps RPC invalid-params to `AccountNotFoundError`; EVM `readContract` treats empty `0x` results as "No contract"; empty (SOL-dusted) accounts at pump/LaunchLab PDAs count as absent.
 - Every socket has an `error` listener (a frame over 64 KB used to crash the server) and must log in within 10 s.
 
+## Remote access (until the VPS)
+- Quick tunnel: `data/bin/cloudflared.exe tunnel --no-autoupdate --url http://127.0.0.1:8787` (official signed binary, log in `data/tunnel.log`); random `https://*.trycloudflare.com` that changes on every restart. Build the remote extension with `WXT_SERVER_URL=wss://<that host> npm run zip`. `GATEWAY_TRUST_PROXY=true` so per-IP limits see CF-Connecting-IP. Measured ~100 ms round trip vs 1 ms local.
+- Several devices on one account: trades go to the executor that connected last; if it disconnects, the most recent other connected device takes over.
+
 ## Notes
 - `.env` (RPC URLs) and `data/` (DB + pairing token) are git-ignored.
 - Pool prices emit only when both vaults are at the same slot (avoids half-updated spikes).

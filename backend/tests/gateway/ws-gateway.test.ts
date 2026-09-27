@@ -265,6 +265,22 @@ describe('WsGateway execution', () => {
     const ext = await authed(true);
     await ext.next((m) => m.type === 'exec.request');
   });
+
+  it("falls back to the account's other device when the active executor disconnects", async () => {
+    const pc = await authed(true);
+    const mac = await authed(true); // connected last → active executor
+    const userId = pc.userId;
+    expect(gateway.isReady(userId)).toBe(true);
+    mac.ws.close();
+    await vi.waitFor(() => expect(mac.closeCode).not.toBeNull());
+    await vi.waitFor(() => expect(gateway.isReady(userId)).toBe(true));
+    pc.send({ type: 'order.create', reqId: 'a', order: ORDER });
+    await pc.next((m) => m.reqId === 'a');
+    feed.tick(MINT, 1);
+    await pc.next((m) => m.type === 'exec.request'); // the PC gets the trade
+    pc.ws.close();
+    await vi.waitFor(() => expect(gateway.isReady(userId)).toBe(false));
+  });
 });
 
 describe('WsGateway accounts', () => {

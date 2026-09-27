@@ -70,6 +70,8 @@ interface Client {
   refilledAt: number;
   /** Closes the connection if it hasn't logged in in time; cleared on login. */
   helloTimer: NodeJS.Timeout | null;
+  /** Logged in as a trade executor (an extension that can click Buy/Sell). */
+  executor: boolean;
 }
 
 /** An execution awaiting the extension's answer. */
@@ -221,7 +223,7 @@ export class WsGateway extends TradeExecutorPort {
   /** Registers a new socket; it must send a valid hello before anything else. */
   private onConnection(ws: WebSocket, req: IncomingMessage): void {
     const burst = this.limits.messagesPerSecond * 2;
-    const client: Client = { ws, ip: this.clientIp(req), userId: null, viewed: new Set(), tokens: burst, refilledAt: this.now(), helloTimer: null };
+    const client: Client = { ws, ip: this.clientIp(req), userId: null, viewed: new Set(), tokens: burst, refilledAt: this.now(), helloTimer: null, executor: false };
     client.helloTimer = setTimeout(() => {
       client.helloTimer = null;
       if (client.userId === null) ws.close(4001, 'Log in first');
@@ -420,6 +422,7 @@ export class WsGateway extends TradeExecutorPort {
 
   /** Makes `client` its account's executor (newest connection wins) and wakes the engine for that account. */
   private setExecutor(client: Client, userId: string): void {
+    client.executor = true;
     this.executors.set(userId, client);
     this.log(`executor connected ${userId.slice(0, 8)}`);
     for (const cb of this.readyCbs) cb(userId);
@@ -432,6 +435,9 @@ export class WsGateway extends TradeExecutorPort {
     if (client.userId && this.executors.get(client.userId) === client) {
       this.executors.delete(client.userId);
       this.log(`executor disconnected ${client.userId.slice(0, 8)}`);
+      // Same account on another device (e.g. PC and Mac): hand trades to the most recent one still connected.
+      const other = [...this.clients].reverse().find((c) => c.userId === client.userId && c.executor);
+      if (other) this.setExecutor(other, client.userId);
     }
     for (const [id, p] of this.pending) {
       if (p.client === client) this.settle(id, p, { ok: false, kind: 'unknown', message: 'Extension disconnected mid-trade' });
