@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ConfigError } from '../../src/core/errors.js';
+import { AccountNotFoundError, ConfigError } from '../../src/core/errors.js';
 import { ERC20_ABI, Erc20Reader, NATIVE } from '../../src/core/evm/erc20.js';
 import { EvmWalletConfirmer } from '../../src/core/evm/evm-wallet-confirmer.js';
 import { priceFromReserves, priceFromSqrtX96, toUnits } from '../../src/core/evm/pool-math.js';
@@ -37,6 +37,14 @@ describe('Erc20Reader', () => {
     await expect(r.decimals(TOKEN)).rejects.toThrow('rpc down');
     rpc.on(TOKEN, ERC20_ABI, 'decimals', 6);
     expect(await r.decimals(TOKEN)).toBe(6);
+  });
+
+  it('reports an address without a contract as "not a token" (empty call data), not a decode crash', async () => {
+    const rpc = new FakeEvmRpc().raw(TOKEN, '0x313ce567', '0x'); // decimals() selector
+    const r = new Erc20Reader(rpc);
+    const err = await r.decimals(TOKEN).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AccountNotFoundError);
+    expect((err as Error).message).toMatch(/No contract at .* \(not a token\)/);
   });
 });
 

@@ -22,9 +22,10 @@ Chrome MV3 extension built with WXT. Connects to the local backend (ws://127.0.0
 | `lib/account.ts`, `components/AccountSection.tsx` | Anonymous account: key made on install (also the backup code; `hello{create:true}`), wallets read silently from fomo.family localStorage (`privy:connections`, `ph_*_posthog` person properties) by the content script and sent with `wallets.set`; Settings → Account shows wallets (editable), backup code (show/copy/restore) and delete. Build with `WXT_SERVER_URL=wss://…` for the hosted server (hides the server-address field) |
 | `lib/billing.ts`, `components/UnlockSection.tsx` | Paywall UI: Settings → Unlock (free orders left, progress, pay per chain with copyable address + exact amount, token option once launched) and a banner on the order forms. Hidden when the server has no paywall |
 | `lib/server-connection.ts` | WS client: hello, reconnect w/ backoff, request/reply, exec relay |
+| `lib/number-input.ts` | Cleans typed/pasted numbers for the order fields (FieldBox, presets, % box): rejects bad keystrokes, expands `$2.5M` / `1,500` / `1e6` (a suffix is never silently dropped), plus the amount limits ($ minimum, max 100%) |
 | `lib/format.ts`, `lib/types.ts`, `lib/messages.ts` | Display helpers, shared types (mirror backend), popup⇄background messages |
 | `components/ui/` | shadcn components |
-| `tests/` | vitest (+ happy-dom); `tests/fake-fomo.ts` simulates FOMO's trade panel |
+| `tests/` | vitest (+ happy-dom); `tests/fake-fomo.ts` simulates FOMO's trade panel; component tests render with plain `react-dom/client` + `act` (no testing library), e.g. `tests/order-inputs.test.ts` |
 
 ## Store (Chrome Web Store, unlisted)
 - `store/LISTING.md` — listing text, permission justifications, privacy answers, screenshot list.

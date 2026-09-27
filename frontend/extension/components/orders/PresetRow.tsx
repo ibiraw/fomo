@@ -8,6 +8,7 @@ import { Check, Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import type { AmountUnit } from '@/hooks/use-presets';
+import { cleanNumberInput } from '@/lib/number-input';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -40,7 +41,7 @@ export function PresetRow({ presets, unit, selected, onPick, onUnitToggle, onSav
               aria-label={`Preset ${i + 1}`}
               inputMode="decimal"
               value={v}
-              onChange={(e) => setDraft((d) => d.map((x, j) => (j === i ? e.target.value.replace(/[^0-9.]/g, '') : x)))}
+              onChange={(e) => setDraft((d) => d.map((x, j) => (j === i ? cleanNumberInput(e.target.value, x) : x)))}
               className={cn(cell, 'w-full min-w-0 text-center text-foreground outline-none ring-1 ring-ring')}
             />
           ))

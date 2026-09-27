@@ -23,7 +23,7 @@ export abstract class SolanaAccountsPort {
   /** Returns account bytes, or null when the account does not exist. */
   abstract getAccount(address: string): Promise<Uint8Array | null>;
 
-  /** Returns the mint's current supply and decimals. */
+  /** Returns the mint's current supply and decimals. AccountNotFoundError when the address is not a token mint. */
   abstract getMintSupply(mint: string): Promise<MintSupply>;
 
   /** Total raw amount of `mint` held by `owner` across all its token accounts (0 if none). */

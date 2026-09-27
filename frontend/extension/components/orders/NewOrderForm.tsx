@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { usePresets, type AmountUnit } from '@/hooks/use-presets';
 import { formatPrice, formatUsdCompact, orderKind } from '@/lib/format';
+import { amountError as amountLimitError } from '@/lib/number-input';
 import { inferDirection, percentFromTarget, syncWithLive, targetFromPercent, formatTargetInput, type TargetAnchor } from '@/lib/target';
 import { MIN_TRADE_USD, type NewOrder, type OrderSide, type PriceTick, type TriggerDirection, type TriggerMetric } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -85,8 +86,7 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, m
   const targetValue = Number(target);
   const direction: TriggerDirection = current !== null && targetValue > 0 ? inferDirection(current, targetValue) : manualDirection;
   const amountValue = Number(amount);
-  const amountError = unit === 'usd' && amount !== '' && amountValue < MIN_TRADE_USD ? `Minimum $${MIN_TRADE_USD}`
-    : unit === 'percent' && amountValue > 100 ? 'Max 100%' : null;
+  const amountError = amountLimitError(unit, amount, MIN_TRADE_USD);
   const nothingToSell = side === 'sell' && holds === false;
   const valid = mint.trim().length >= 32 && targetValue > 0 && amountValue > 0 && !amountError && !nothingToSell;
 

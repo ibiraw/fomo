@@ -131,6 +131,9 @@ describe('RaydiumLaunchLabPriceFeed', () => {
     const none = await setup();
     none.accounts.data.delete(none.pool);
     await expect(none.feed.watch(MINT, () => undefined)).rejects.toThrow(/No Raydium LaunchLab curve/);
+    const dusted = await setup();
+    dusted.accounts.data.set(dusted.pool, new Uint8Array(0)); // someone sent SOL to the pool address
+    await expect(dusted.feed.watch(MINT, () => undefined)).rejects.toThrow(/No Raydium LaunchLab curve/);
     const done = await setup({ status: 2 });
     await expect(done.feed.watch(MINT, () => undefined)).rejects.toThrow(/graduated/);
     const linear = await setup({}, 1);

@@ -8,12 +8,15 @@ import {
   address,
   createSolanaRpc,
   createSolanaRpcSubscriptions,
+  isSolanaError,
+  SOLANA_ERROR__JSON_RPC__INVALID_PARAMS,
   type Rpc,
   type RpcSubscriptions,
   type SolanaRpcApi,
   type SolanaRpcSubscriptionsApi,
 } from '@solana/kit';
 
+import { AccountNotFoundError } from '../../core/errors.js';
 import { decodeTokenAccountAmount } from '../../core/pricing/decoders.js';
 import type { ConnectionHealth } from '../../ports/connection-health.js';
 import {
@@ -86,8 +89,14 @@ export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
 
   /** Fetches mint supply and decimals. */
   async getMintSupply(mint: string): Promise<MintSupply> {
-    const res = await this.rpc.getTokenSupply(address(mint), { commitment: 'processed' }).send();
-    return { amount: BigInt(res.value.amount), decimals: res.value.decimals };
+    try {
+      const res = await this.rpc.getTokenSupply(address(mint), { commitment: 'processed' }).send();
+      return { amount: BigInt(res.value.amount), decimals: res.value.decimals };
+    } catch (err) {
+      // The RPC answers "Invalid param" when the address is a wallet, a program or doesn't exist — i.e. not a token.
+      if (isSolanaError(err, SOLANA_ERROR__JSON_RPC__INVALID_PARAMS)) throw new AccountNotFoundError(`${mint} is not a token`);
+      throw err;
+    }
   }
 
   /** Sums the owner's token accounts for `mint` (the mint filter covers both token programs). */

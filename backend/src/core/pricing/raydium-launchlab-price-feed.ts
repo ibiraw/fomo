@@ -88,7 +88,8 @@ export class RaydiumLaunchLabPriceFeed extends PriceFeedPort {
     for (const quote of LAUNCHLAB_QUOTES) {
       const addr = await deriveLaunchLabPool(mint as Address, quote as Address);
       const raw = await this.accounts.getAccount(addr);
-      if (raw) { poolAddr = addr; pool = decodeLaunchLabPool(raw); break; }
+      // An empty account here is just SOL someone sent to the address, not a pool.
+      if (raw && raw.length > 0) { poolAddr = addr; pool = decodeLaunchLabPool(raw); break; }
     }
     if (!pool || !poolAddr) throw new UnsupportedPoolError(`No Raydium LaunchLab curve for ${mint}`);
     if (pool.status !== LAUNCHLAB_TRADING) throw new UnsupportedPoolError(`LaunchLab curve for ${mint} has graduated`);

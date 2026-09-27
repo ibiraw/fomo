@@ -131,6 +131,12 @@ describe('PumpPriceFeed', () => {
     await expect(feed.watch(MINT, () => undefined)).rejects.toThrow(/Only pump.fun tokens/);
   });
 
+  it('treats empty accounts at the curve/pool addresses (someone sent SOL there) as "not a pump token"', async () => {
+    accounts.data.set(await deriveBondingCurve(MINT), new Uint8Array(0));
+    accounts.data.set(await deriveCanonicalPumpPool(MINT), new Uint8Array(0));
+    await expect(feed.watch(MINT, () => undefined)).rejects.toThrow(UnsupportedPoolError);
+  });
+
   it('shares subscriptions between listeners and cleans up on last stop', async () => {
     await setupPool(1_000n, 1_000n);
     const a = await feed.watch(MINT, () => undefined);

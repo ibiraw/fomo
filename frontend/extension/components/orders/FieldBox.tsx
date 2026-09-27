@@ -6,6 +6,7 @@
 
 import type { ReactNode } from 'react';
 
+import { cleanNumberInput } from '@/lib/number-input';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -25,7 +26,7 @@ export function FieldBox({ label, value, onChange, placeholder, suffix, classNam
       <input
         inputMode="decimal"
         value={value}
-        onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ''))}
+        onChange={(e) => onChange(cleanNumberInput(e.target.value, value))}
         placeholder={placeholder}
         className="min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-faint"
       />

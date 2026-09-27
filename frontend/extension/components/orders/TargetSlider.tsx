@@ -5,7 +5,10 @@
  * @author Reborn1987
  */
 
+import { useState } from 'react';
+
 import { Slider } from '@/components/ui/slider';
+import { cleanPercentInput, percentInputValue } from '@/lib/number-input';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -33,8 +36,21 @@ export function sliderPercent(v: number): number {
   return Math.min(SLIDER_MAX_PERCENT, clampPercent(v));
 }
 
+/**
+ * What the % box shows: the user's own text while it still stands for `percent` (so "-", "1." or "-150" can be typed
+ * through), otherwise the percent itself (after the slider, a tick or the live value changed it).
+ */
+export function percentBoxText(draft: string | null, percent: number): string {
+  if (draft === null) return String(percent);
+  const v = percentInputValue(draft);
+  return v === null || clampPercent(v) === percent ? draft : String(percent);
+}
+
 /** Slider with tick labels and an editable % box. */
 export function TargetSlider({ percent, onChange }: Props) {
+  /** Text being typed in the % box; null when not editing. */
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = percentBoxText(draft, percent);
   return (
     <div className="grid grid-cols-[1fr_4.5rem] items-center gap-3">
       <div className="space-y-1.5 pt-1">
@@ -67,11 +83,14 @@ export function TargetSlider({ percent, onChange }: Props) {
         <input
           aria-label="Change from current, percent"
           inputMode="numeric"
-          value={String(percent)}
+          value={shown}
           onChange={(e) => {
-            const raw = e.target.value.replace(/[^0-9-]/g, '');
-            onChange(raw === '' || raw === '-' ? 0 : clampPercent(Number(raw)));
+            const text = cleanPercentInput(e.target.value, shown);
+            setDraft(text);
+            const v = percentInputValue(text);
+            if (v !== null) onChange(clampPercent(v));
           }}
+          onBlur={() => setDraft(null)}
           className="w-full min-w-0 bg-transparent text-right text-sm text-foreground outline-none"
         />
         <span className="pl-1 text-xs text-muted-foreground">%</span>

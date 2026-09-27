@@ -127,8 +127,9 @@ export class PumpPriceFeed extends PriceFeedPort {
       lastQuotePrice: null,
     };
     const curveAddr = await deriveBondingCurve(mint as Address);
+    // Anyone can send SOL to a curve address, leaving an empty system account there; only pump.fun writes curve data.
     const curveRaw = await this.accounts.getAccount(curveAddr);
-    if (curveRaw && !decodeBondingCurve(curveRaw).complete) {
+    if (curveRaw && curveRaw.length > 0 && !decodeBondingCurve(curveRaw).complete) {
       this.watchCurve(state, curveAddr, curveRaw);
     } else {
       await this.watchPool(state);
@@ -157,7 +158,7 @@ export class PumpPriceFeed extends PriceFeedPort {
   private async watchPool(state: WatchState): Promise<void> {
     const poolAddr = await deriveCanonicalPumpPool(state.mint as Address);
     const poolRaw = await this.accounts.getAccount(poolAddr);
-    if (!poolRaw) {
+    if (!poolRaw || poolRaw.length === 0) {
       throw new UnsupportedPoolError(
         `No pump.fun bonding curve or PumpSwap pool for ${state.mint}. Only pump.fun tokens are supported right now.`,
       );
