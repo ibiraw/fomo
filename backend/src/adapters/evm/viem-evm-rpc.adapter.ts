@@ -9,6 +9,7 @@ import { createPublicClient, http, webSocket, type PublicClient } from 'viem';
 
 import type { EvmChain } from '../../core/chains/token-key.js';
 import { EvmRpcPort, type EvmLog, type Hex, type LogFilter, type LogSubscription } from '../../ports/evm-rpc.js';
+import type { ConnectionHealth } from '../../ports/connection-health.js';
 
 /** Raw log object as sent by the node in a `logs` subscription. */
 interface RawLog {
@@ -45,12 +46,14 @@ export class ViemEvmRpcAdapter extends EvmRpcPort {
   /**
    * @param chain chain slug @param httpUrl JSON-RPC HTTPS endpoint @param wssUrl JSON-RPC WebSocket endpoint
    * @param onError sink for transient socket/subscription errors
+   * @param health drop/recovery reports (monitoring alerts only on lasting outages)
    */
   constructor(
     readonly chain: EvmChain,
     httpUrl: string,
     wssUrl: string,
     private readonly onError: (err: unknown) => void,
+    private readonly health: ConnectionHealth | null = null,
   ) {
     super();
     this.httpClient = createPublicClient({ transport: http(httpUrl, { batch: { wait: 5 }, retryCount: 2 }) });
@@ -87,6 +90,7 @@ export class ViemEvmRpcAdapter extends EvmRpcPort {
     const resubscribeLater = (err: unknown): void => {
       if (stopped || this.closed) return;
       this.onError(err);
+      this.health?.down(err);
       unsubscribe?.();
       unsubscribe = null;
       retryTimer = setTimeout(open, retryMs);
@@ -113,7 +117,10 @@ export class ViemEvmRpcAdapter extends EvmRpcPort {
         })
         .then((sub) => {
           if (stopped) void sub.unsubscribe().catch(() => undefined);
-          else unsubscribe = () => void sub.unsubscribe().catch(() => undefined);
+          else {
+            unsubscribe = () => void sub.unsubscribe().catch(() => undefined);
+            this.health?.up();
+          }
         })
         .catch(resubscribeLater);
     };

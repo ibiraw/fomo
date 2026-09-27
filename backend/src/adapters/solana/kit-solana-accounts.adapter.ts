@@ -15,6 +15,7 @@ import {
 } from '@solana/kit';
 
 import { decodeTokenAccountAmount } from '../../core/pricing/decoders.js';
+import type { ConnectionHealth } from '../../ports/connection-health.js';
 import {
   SolanaAccountsPort,
   type AccountListener,
@@ -50,8 +51,18 @@ export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
   private readonly rpc: Rpc<SolanaRpcApi>;
   private readonly subs: RpcSubscriptions<SolanaRpcSubscriptionsApi>;
 
-  /** @param httpUrl RPC HTTPS endpoint. @param wssUrl RPC WebSocket endpoint. @param onError error sink for logging. */
-  constructor(httpUrl: string, wssUrl: string, private readonly onError: (err: unknown) => void) {
+  /**
+   * @param httpUrl RPC HTTPS endpoint. @param wssUrl RPC WebSocket endpoint. @param onError error sink for logging.
+   * @param health drop/recovery reports (monitoring alerts only on lasting outages)
+   * @param onWarn sink for self-healing data glitches (empty updates); defaults to onError
+   */
+  constructor(
+    httpUrl: string,
+    wssUrl: string,
+    private readonly onError: (err: unknown) => void,
+    private readonly health: ConnectionHealth | null = null,
+    private readonly onWarn: (err: unknown) => void = onError,
+  ) {
     super();
     this.rpc = createSolanaRpc(httpUrl);
     this.subs = createSolanaRpcSubscriptions(wssUrl);
@@ -70,7 +81,7 @@ export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
     const now = Date.now();
     if (now - (this.lastEmptyWarn.get(addr) ?? 0) < EMPTY_WARN_INTERVAL_MS) return;
     this.lastEmptyWarn.set(addr, now);
-    this.onError(new Error(`Skipped an empty account update for ${addr} (RPC glitch; waiting for the next update)`));
+    this.onWarn(new Error(`Skipped an empty account update for ${addr} (RPC glitch; waiting for the next update)`));
   }
 
   /** Fetches mint supply and decimals. */
@@ -105,6 +116,7 @@ export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
             .send();
           if (current.value) listener(fromBase64(current.value.data), current.context.slot);
           backoff = MIN_BACKOFF_MS;
+          this.health?.up();
           for await (const note of stream) {
             const data = fromBase64(note.value.data);
             if (data.length === 0) {
@@ -117,6 +129,7 @@ export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
         } catch (err) {
           if (abort.signal.aborted) return;
           this.onError(err);
+          this.health?.down(err);
         }
         await sleep(backoff, abort.signal);
         backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);

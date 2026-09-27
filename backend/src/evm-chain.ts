@@ -18,6 +18,7 @@ import type { PoolDirectory } from './core/pricing/pool-directory.js';
 import type { EvmRpcPort } from './ports/evm-rpc.js';
 import type { HttpJsonPort } from './ports/http-json.js';
 import type { PriceFeedPort } from './ports/price-feed.js';
+import type { ConnectionHealth } from './ports/connection-health.js';
 
 /** One EVM chain's pieces. */
 export interface EvmChainParts {
@@ -25,6 +26,12 @@ export interface EvmChainParts {
   readonly erc20: Erc20Reader;
   readonly quotes: EvmUsdQuotes;
   readonly feed: PriceFeedPort;
+}
+
+/** Error log + health sink for one RPC connection (health drives the "stayed down" alerts). */
+export interface RpcSinks {
+  readonly onError: (err: unknown) => void;
+  readonly health: ConnectionHealth | null;
 }
 
 /**
@@ -37,9 +44,11 @@ export function buildEvmChain(
   directory: PoolDirectory,
   http: HttpJsonPort,
   logError: (ctx: string) => (err: unknown) => void,
+  connection?: (ctx: string) => RpcSinks,
 ): EvmChainParts {
   const addr = EVM_ADDRESSES[chain];
-  const rpc = new ViemEvmRpcAdapter(chain, urls.http, urls.wss, logError(`rpc:${chain}`));
+  const sinks = connection?.(`rpc:${chain}`) ?? { onError: logError(`rpc:${chain}`), health: null };
+  const rpc = new ViemEvmRpcAdapter(chain, urls.http, urls.wss, sinks.onError, sinks.health);
   const erc20 = new Erc20Reader(rpc);
   const quotes = new EvmUsdQuotes(chain, new Set(addr.stables), addr.wrappedNative);
   const pools = new EvmPoolPriceFeed(chain, rpc, erc20, directory, quotes, addr.v4, logError(`pools:${chain}`));

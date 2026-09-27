@@ -51,6 +51,7 @@ Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), 
 ## Monitoring (`src/core/monitoring/`)
 - Every account (`LM-XXXXXX` short id), order placement/outcome, payment, claim, subscription change, server start and error (≤ 1 per source per 5 min) is written to the `activity` table (permanent log) and relayed to Telegram by `ActivityRelay` (batched, marks sent, backs off, honours 429 `retry_after`). Set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`; without them it only logs to the DB.
 - Account deletion cancels open orders but keeps order history.
+- RPC socket drops (Solana `rpc`, EVM `rpc:<chain>`) are not sent as errors: adapters report down/up to `OutageTracker` (`ConnectionHealth` port), which alerts only after 2 min down and then posts the recovery. Empty-update glitches are console-only.
 - Console errors go through `ErrorLog`: the first of each context+message is dumped in full, repeats within 60 s log one line (a dropped RPC socket fails every subscription at once).
 
 ## Gateway protocol (JSON over WS)

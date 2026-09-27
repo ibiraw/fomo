@@ -15,6 +15,7 @@ import { SqliteActivityStoreAdapter } from './adapters/storage/sqlite-activity-s
 import { TelegramNotifierAdapter } from './adapters/telegram/telegram-notifier.adapter.js';
 import { ActivityRelay } from './core/monitoring/activity-relay.js';
 import { ErrorLog } from './core/monitoring/error-log.js';
+import { OutageTracker } from './core/monitoring/outage-tracker.js';
 import { describeOrder } from './core/monitoring/describe.js';
 import { AccountService } from './core/accounts/account-service.js';
 import { WalletConfirmers } from './core/accounts/wallet-confirmers.js';
@@ -61,13 +62,21 @@ function logError(ctx: string) {
   };
 }
 
+/** Logs an error to the console only (RPC socket drops: their alerts come from the outage tracker). */
+function logOnly(ctx: string) {
+  return (err: unknown): void => errorLog.log(ctx, err);
+}
+
 /** Builds and starts every component; shuts down cleanly on Ctrl+C. */
 async function main(): Promise<void> {
   const cfg = loadConfig();
   const activityStore = new SqliteActivityStoreAdapter(cfg.dbPath);
   monitor = new ActivityRelay(activityStore, cfg.telegram ? new TelegramNotifierAdapter(cfg.telegram.token, cfg.telegram.chatId) : null, logError('telegram'));
   const relay = monitor;
-  const accounts = new KitSolanaAccountsAdapter(cfg.rpcHttp, cfg.rpcWss, logError('rpc'));
+  // RPC sockets drop and self-heal about hourly; only outages that last 2+ minutes reach Telegram.
+  const outages = new OutageTracker((kind, text) => relay.record(kind, text));
+  const rpcSinks = (ctx: string) => ({ onError: logOnly(ctx), health: outages.for(ctx) });
+  const accounts = new KitSolanaAccountsAdapter(cfg.rpcHttp, cfg.rpcWss, logOnly('rpc'), outages.for('rpc'));
   const http = new FetchHttpJsonAdapter();
   const jupiterHttp = new FetchHttpJsonAdapter(cfg.jupiter.apiKey ? { 'x-api-key': cfg.jupiter.apiKey } : {});
   const quotes = new UsdQuotes(accounts, jupiterHttp, cfg.jupiter.url, 5_000, logError('quotes'));
@@ -87,7 +96,7 @@ async function main(): Promise<void> {
   // Quote tokens like VBUCKS are priced through the same on-chain feeds before falling back to Jupiter.
   quotes.setOnchainFeed(onchain);
   const solanaFeed = new CompositePriceFeed([onchain, jupiter]);
-  const evm = new Map<EvmChain, EvmChainParts>([...cfg.evm].map(([chain, urls]) => [chain, buildEvmChain(chain, urls, directory, http, logError)]));
+  const evm = new Map<EvmChain, EvmChainParts>([...cfg.evm].map(([chain, urls]) => [chain, buildEvmChain(chain, urls, directory, http, logError, rpcSinks)]));
   const feed = new ChainRouterPriceFeed(new Map<Chain, PriceFeedPort>([['solana', solanaFeed], ...[...evm].map(([c, p]) => [c, p.feed] as const)]));
   const erc20ByChain = new Map([...evm].map(([c, p]) => [c, p.erc20] as const));
   const store = new SqliteOrderStoreAdapter(cfg.dbPath, Date.now, LEGACY_ACCOUNT_ID);
@@ -163,6 +172,7 @@ async function main(): Promise<void> {
     log('shutting down');
     guard?.stop();
     relay.stop();
+    outages.stop();
     await relay.deliver(); // flush what's queued
     billing?.stop();
     engine.stop();
