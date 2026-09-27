@@ -29,14 +29,17 @@ export interface HealthEnv {
 
 /** Timings (ms). */
 export interface HealthTimings {
+  /** Navigation / check-due polling (cheap: compares a string and a number). */
   readonly tickMs: number;
+  /** How often to scan the page for the new-version prompt (walks the buttons). */
+  readonly promptEveryMs: number;
   /** Wait after a page load / navigation before checking (fomo renders the panel late). */
   readonly settleMs: number;
   /** Re-check a failure after this long before reporting it. */
   readonly confirmMs: number;
 }
 
-export const DEFAULT_HEALTH_TIMINGS: HealthTimings = { tickMs: 2_000, settleMs: 8_000, confirmMs: 5_000 };
+export const DEFAULT_HEALTH_TIMINGS: HealthTimings = { tickMs: 2_000, promptEveryMs: 6_000, settleMs: 8_000, confirmMs: 5_000 };
 
 export class FomoHealthWatcher {
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -46,6 +49,7 @@ export class FomoHealthWatcher {
   private checked = false;
   private confirming = false;
   private lastReportedOk: boolean | null = null;
+  private nextPromptScan = 0;
 
   /** @param env page access @param t timings */
   constructor(private readonly env: HealthEnv, private readonly t: HealthTimings = DEFAULT_HEALTH_TIMINGS) {}
@@ -73,9 +77,14 @@ export class FomoHealthWatcher {
   /** One round: new-version prompt, navigation, layout check. */
   tick(): void {
     const { doc, now } = this.env;
-    if (!this.promptSent && findNewVersionPrompt(doc)) {
-      this.promptSent = true;
-      this.env.send({ type: 'fomo.newVersion' });
+    // The prompt scan walks the buttons, so it runs less often than the tick and stops once reported for this page
+    // load (fomo reloads the page after its update, which starts a fresh watcher).
+    if (!this.promptSent && now() >= this.nextPromptScan) {
+      this.nextPromptScan = now() + this.t.promptEveryMs;
+      if (findNewVersionPrompt(doc)) {
+        this.promptSent = true;
+        this.env.send({ type: 'fomo.newVersion' });
+      }
     }
     const path = this.env.path();
     if (path !== this.lastPath) {

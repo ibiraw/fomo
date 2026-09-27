@@ -69,12 +69,12 @@ async function authed(executor: boolean, secret = TOKEN): Promise<TestClient & {
 }
 
 /** Fresh gateway + engine + accounts. */
-async function start(limits?: GatewayLimits, helloTimeoutMs?: number, layoutRetryMs?: number): Promise<void> {
+async function start(limits?: GatewayLimits, helloTimeoutMs?: number, layoutRetryMs?: number, now: () => number = Date.now): Promise<void> {
   feed = new FakePriceFeed();
   store = new SqliteOrderStoreAdapter(':memory:');
   accounts = new AccountService(new SqliteAccountStoreAdapter(':memory:'));
   confirmers = new WalletConfirmers((id) => accounts.wallets(id), () => null);
-  gateway = new WsGateway({ host: '127.0.0.1', port: 0, execTimeoutMs: 300, tickThrottleMs: 250, pingIntervalMs: 50, ...(limits ? { limits } : {}), ...(helloTimeoutMs ? { helloTimeoutMs } : {}), ...(layoutRetryMs ? { layoutRetryMs } : {}) }, () => undefined);
+  gateway = new WsGateway({ host: '127.0.0.1', port: 0, execTimeoutMs: 300, tickThrottleMs: 250, pingIntervalMs: 50, ...(limits ? { limits } : {}), ...(helloTimeoutMs ? { helloTimeoutMs } : {}), ...(layoutRetryMs ? { layoutRetryMs } : {}) }, () => undefined, now);
   const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), () => undefined);
   gateway.attach(engine, accounts, confirmers);
   await gateway.listen();
@@ -144,6 +144,24 @@ describe('WsGateway auth', () => {
     const d = await authed(false, OTHER);
     d.send({ type: 'order.list', reqId: 'after' });
     await d.next((m) => m.type === 'reply' && m.reqId === 'after');
+  });
+
+  it('forgets per-IP counters after their hour, idle tick throttles, and token lists of disconnected accounts', async () => {
+    sockets.splice(0).forEach((s) => s.terminate());
+    await gateway.close();
+    let t = Date.now();
+    await start(undefined, undefined, undefined, () => t);
+    const c = await authed(false); // creates an account from 127.0.0.1
+    c.send({ type: 'order.create', reqId: 'a', order: ORDER });
+    await c.next((m) => m.reqId === 'a');
+    feed.tick(MINT, 5);
+    await c.next((m) => m.type === 'tick');
+    expect(gateway.stats()).toMatchObject({ created: 1, lastTickSent: 1, orderMints: 1 });
+    c.ws.close();
+    await vi.waitFor(() => expect(gateway.stats().orderMints).toBe(0));
+    t += 3_600_001;
+    gateway.prune();
+    expect(gateway.stats()).toMatchObject({ created: 0, lastTickSent: 0 });
   });
 
   it('closes connections that never log in, but not logged-in ones', async () => {

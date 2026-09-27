@@ -83,6 +83,8 @@ interface Client {
   executor: boolean;
   /** Paused because fomo's layout wasn't recognised (until a check passes, the settings change, or the retry). */
   layoutPausedUntil: number | null;
+  /** The pending automatic retry (one per connection, however many failures are reported). */
+  layoutTimer: NodeJS.Timeout | null;
 }
 
 /** An execution awaiting the extension's answer. */
@@ -157,9 +159,12 @@ export class WsGateway extends TradeExecutorPort {
     const wasPaused = client.layoutPausedUntil !== null;
     const retryMs = this.opts.layoutRetryMs ?? DEFAULT_LAYOUT_RETRY_MS;
     client.layoutPausedUntil = this.now() + retryMs;
-    setTimeout(() => {
-      if (client.layoutPausedUntil !== null && this.now() >= client.layoutPausedUntil) this.resumeLayout(client, userId);
-    }, retryMs).unref?.();
+    if (client.layoutTimer) clearTimeout(client.layoutTimer);
+    client.layoutTimer = setTimeout(() => {
+      client.layoutTimer = null;
+      if (client.layoutPausedUntil !== null) this.resumeLayout(client, userId);
+    }, retryMs);
+    client.layoutTimer.unref?.();
     return !wasPaused;
   }
 
@@ -167,6 +172,8 @@ export class WsGateway extends TradeExecutorPort {
   private resumeLayout(client: Client, userId: string): boolean {
     if (client.layoutPausedUntil === null) return false;
     client.layoutPausedUntil = null;
+    if (client.layoutTimer) clearTimeout(client.layoutTimer);
+    client.layoutTimer = null;
     if (this.executors.get(userId) === client) for (const cb of this.readyCbs) cb(userId);
     return true;
   }
@@ -191,7 +198,10 @@ export class WsGateway extends TradeExecutorPort {
       wss.once('error', reject);
       wss.on('connection', (ws, req) => this.onConnection(ws, req));
       this.wss = wss;
-      this.pingTimer = setInterval(() => this.broadcast({ type: 'ping' }), this.opts.pingIntervalMs);
+      this.pingTimer = setInterval(() => {
+        this.broadcast({ type: 'ping' });
+        this.prune();
+      }, this.opts.pingIntervalMs);
     });
   }
 
@@ -272,7 +282,7 @@ export class WsGateway extends TradeExecutorPort {
   /** Registers a new socket; it must send a valid hello before anything else. */
   private onConnection(ws: WebSocket, req: IncomingMessage): void {
     const burst = this.limits.messagesPerSecond * 2;
-    const client: Client = { ws, ip: this.clientIp(req), userId: null, viewed: new Set(), tokens: burst, refilledAt: this.now(), helloTimer: null, executor: false, layoutPausedUntil: null };
+    const client: Client = { ws, ip: this.clientIp(req), userId: null, viewed: new Set(), tokens: burst, refilledAt: this.now(), helloTimer: null, executor: false, layoutPausedUntil: null, layoutTimer: null };
     client.helloTimer = setTimeout(() => {
       client.helloTimer = null;
       if (client.userId === null) ws.close(4001, 'Log in first');
@@ -347,6 +357,21 @@ export class WsGateway extends TradeExecutorPort {
     const ticks = this.requireEngine().latestTicks().filter((t) => this.wants(client, t.mint));
     const billing = this.billing?.status(account.id) ?? null;
     this.send(client, { type: 'welcome', account: accountView(account), orders, ticks, billing, fomoDom: this.fomoDom });
+  }
+
+  /**
+   * Drops bookkeeping that would otherwise grow for as long as the server runs: account-creation counters older than
+   * their hour, and throttle times of tokens that haven't ticked for 10 minutes.
+   */
+  prune(): void {
+    const now = this.now();
+    for (const [ip, e] of this.created) if (now - e.since > 3_600_000) this.created.delete(ip);
+    for (const [mint, at] of this.lastTickSent) if (now - at > 10 * 60_000) this.lastTickSent.delete(mint);
+  }
+
+  /** Sizes of the gateway's bookkeeping maps (tests / diagnostics). */
+  stats(): { clients: number; created: number; lastTickSent: number; orderMints: number } {
+    return { clients: this.clients.size, created: this.created.size, lastTickSent: this.lastTickSent.size, orderMints: this.orderMints.size };
   }
 
   /** True when `ip` is still under its hourly account-creation limit. */
@@ -501,7 +526,10 @@ export class WsGateway extends TradeExecutorPort {
   /** Cleans up a closed socket; in-flight trades on it resolve as 'unknown'. */
   private onClose(client: Client): void {
     if (client.helloTimer) clearTimeout(client.helloTimer);
+    if (client.layoutTimer) clearTimeout(client.layoutTimer);
     this.clients.delete(client);
+    // Last connection of this account gone: drop its token list (rebuilt on the next login).
+    if (client.userId && ![...this.clients].some((c) => c.userId === client.userId)) this.orderMints.delete(client.userId);
     if (client.userId && this.executors.get(client.userId) === client) {
       this.executors.delete(client.userId);
       this.log(`executor disconnected ${client.userId.slice(0, 8)}`);

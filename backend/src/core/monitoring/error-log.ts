@@ -15,6 +15,9 @@ export function errorHeadline(err: unknown): string {
   return text.split('\n')[0]!;
 }
 
+/** Above this many remembered messages, entries past their window are dropped (messages can carry addresses). */
+const PRUNE_AT = 500;
+
 /** Writes errors to a sink, dumping each distinct context+message once per window. */
 export class ErrorLog {
   private readonly lastDump = new Map<string, number>();
@@ -39,7 +42,15 @@ export class ErrorLog {
       this.write(`${stamp} [${ctx}] (repeat) ${headline}`);
       return;
     }
+    if (this.lastDump.size >= PRUNE_AT) {
+      for (const [k, at] of this.lastDump) if (now - at >= this.repeatMs) this.lastDump.delete(k);
+    }
     this.lastDump.set(key, now);
     this.write(`${stamp} [${ctx}]`, err);
+  }
+
+  /** How many distinct messages are remembered (tests / diagnostics). */
+  tracked(): number {
+    return this.lastDump.size;
   }
 }

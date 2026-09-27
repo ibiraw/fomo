@@ -24,18 +24,25 @@ function text(el: Element): string {
   return ((el as HTMLElement).innerText ?? el.textContent ?? '').trim();
 }
 
+/** Raw text without forcing a layout (unlike innerText) — for checks that run every few seconds. */
+function rawText(el: Element): string {
+  return (el.textContent ?? '').trim();
+}
+
 /**
  * fomo's "a new version is available — Reload" toast: a button labelled like `reloadLabels` whose surrounding
- * box (up to 4 levels up) mentions one of `newVersionWords`. Null when not showing.
+ * box (up to 4 levels up) mentions one of `newVersionWords`. Null when not showing. Runs every few seconds, so it
+ * only reads textContent (no layout) and stops at the first matching button.
  */
 export function findNewVersionPrompt(doc: Document): HTMLButtonElement | null {
   const { reloadLabels, newVersionWords } = fomoDom();
   const labels = reloadLabels.map((l) => l.toLowerCase());
-  for (const b of doc.querySelectorAll('button')) {
-    if (!labels.includes(text(b).toLowerCase())) continue;
+  for (const b of doc.getElementsByTagName('button')) {
+    const label = rawText(b);
+    if (label.length > 20 || !labels.includes(label.toLowerCase())) continue;
     let box: Element | null = b;
     for (let i = 0; i < 4 && box; i++, box = box.parentElement) {
-      if (containsAnyWord(text(box), newVersionWords)) return b;
+      if (containsAnyWord(rawText(box), newVersionWords)) return b;
     }
   }
   return null;

@@ -8,7 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ageColor, timeAgo } from '../lib/format';
-import { XLatestService, type XBrowserApi, type XTimings } from '../lib/x-latest';
+import { X_CACHE_MAX, XLatestService, type XBrowserApi, type XTimings } from '../lib/x-latest';
 import { scrapeLatestPost, type XScrapeResult } from '../lib/x-scraper';
 
 /** One simulated X post article. */
@@ -89,6 +89,16 @@ describe('XLatestService', () => {
     now = 2_000;
     await svc.get('https://x.com/w');
     expect(api.openTab).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps the cache bounded: expired entries dropped, at most X_CACHE_MAX profiles', async () => {
+    let now = 0;
+    const svc = new XLatestService(fakeApi(), T, () => now);
+    for (let i = 0; i < X_CACHE_MAX + 20; i++) await svc.get(`https://x.com/u${i}`);
+    expect(svc.cached()).toBe(X_CACHE_MAX);
+    now = 5_000; // everything expired
+    await svc.get('https://x.com/fresh');
+    expect(svc.cached()).toBe(1);
   });
 
   it('times out slow loads without caching, and still closes the tab', async () => {

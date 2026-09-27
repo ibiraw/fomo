@@ -32,6 +32,9 @@ export interface XLatest {
   readonly checkedAt: number;
 }
 
+/** Most X profiles kept in the cache (the service worker runs for days thanks to the keepalive alarm). */
+export const X_CACHE_MAX = 100;
+
 export class XLatestService {
   private readonly cache = new Map<string, XLatest>();
   private readonly inflight = new Map<string, Promise<XLatest>>();
@@ -71,7 +74,26 @@ export class XLatestService {
   /** Caches successes and definite answers; timeouts are not cached so the next view retries. */
   private store(url: string, result: XScrapeResult): XLatest {
     const entry = { result, checkedAt: this.now() };
-    if (result.ok || result.reason !== 'timeout') this.cache.set(url, entry);
+    if (result.ok || result.reason !== 'timeout') {
+      this.cache.delete(url); // re-insert so Map order = oldest first
+      this.cache.set(url, entry);
+      this.trim();
+    }
     return entry;
+  }
+
+  /** Drops expired entries, then the oldest ones beyond X_CACHE_MAX. */
+  private trim(): void {
+    const now = this.now();
+    for (const [url, e] of this.cache) if (now - e.checkedAt >= this.t.cacheMs) this.cache.delete(url);
+    for (const url of this.cache.keys()) {
+      if (this.cache.size <= X_CACHE_MAX) break;
+      this.cache.delete(url);
+    }
+  }
+
+  /** Number of cached profiles (tests / diagnostics). */
+  cached(): number {
+    return this.cache.size;
   }
 }

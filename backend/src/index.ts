@@ -4,7 +4,7 @@
  * @author Reborn1987
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { WsGateway } from './adapters/gateway/ws-gateway.js';
@@ -121,6 +121,8 @@ async function main(): Promise<void> {
     mkdirSync(layoutDir, { recursive: true });
     const file = join(layoutDir, `${new Date().toISOString().replace(/[:.]/g, '-')}-${label}.txt`);
     writeFileSync(file, snapshot);
+    // Keep the newest 50 (names start with the timestamp, so they sort by age).
+    for (const old of readdirSync(layoutDir).sort().slice(0, -50)) rmSync(join(layoutDir, old), { force: true });
     return file;
   });
   const gateway = new WsGateway(

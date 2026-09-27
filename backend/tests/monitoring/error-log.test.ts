@@ -47,6 +47,15 @@ describe('ErrorLog', () => {
     expect(lines.every((l) => l.length === 2)).toBe(true);
   });
 
+  it('forgets old messages once it remembers many (messages can carry addresses)', () => {
+    const { log, advance } = setup();
+    for (let i = 0; i < 500; i++) log.log('rpc', new Error(`empty update for addr${i}`));
+    expect(log.tracked()).toBe(500);
+    advance(60_000);
+    log.log('rpc', new Error('a new one'));
+    expect(log.tracked()).toBe(1);
+  });
+
   it('dumps again once the window has passed', () => {
     const { log, lines, advance } = setup();
     log.log('rpc', new Error('x'));

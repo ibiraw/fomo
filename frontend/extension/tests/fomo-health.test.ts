@@ -71,7 +71,7 @@ describe('FomoHealthWatcher', () => {
     watcher = new FomoHealthWatcher({
       doc: document, path: () => path, isTokenPage: (p) => p.startsWith('/tokens/'), loggedIn: () => loggedIn,
       send: (m) => sent.push(m), now: () => Date.now(),
-    }, { tickMs: 1_000, settleMs: 3_000, confirmMs: 2_000 });
+    }, { tickMs: 1_000, promptEveryMs: 3_000, settleMs: 3_000, confirmMs: 2_000 });
   });
   afterEach(() => {
     watcher.stop();
