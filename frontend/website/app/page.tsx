@@ -4,6 +4,7 @@
  * @author Reborn1987
  */
 
+import { BeforeAfter } from '@/components/site/BeforeAfter';
 import { Faq, Features, Hero, Holders, HowItWorks, SectionHead, SiteFooter, SiteHeader } from '@/components/site/Sections';
 import { Themes } from '@/components/site/Themes';
 import { TryIt } from '@/components/site/TryIt';
@@ -16,6 +17,10 @@ export default function Home() {
       <SiteHeader />
       <main>
         <Hero />
+        <section id="compare" className="mx-auto max-w-6xl px-5 py-24">
+          <SectionHead eyebrow="fomo vs fomo + limit" title="Same dip. One of you was asleep." sub="fomo's panel buys and sells at the price right now. limit adds orders that wait for your price and trade for you. Hover to pause." />
+          <BeforeAfter />
+        </section>
         <section id="demo" className="mx-auto max-w-6xl px-5 py-24">
           <SectionHead eyebrow="Demo" title="From target to filled, on its own" sub="A limit buy, start to finish. Hover to pause, click a step to jump." />
           <Walkthrough />

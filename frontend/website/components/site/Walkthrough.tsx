@@ -9,7 +9,7 @@
 'use client';
 
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 import {
   chartSeries,
@@ -27,32 +27,8 @@ import {
 } from '@/lib/demo';
 import { cn } from '@/lib/utils';
 
-/** Drives loop time with requestAnimationFrame; pausable. */
-function useLoopClock(paused: boolean): [number, (t: number) => void] {
-  const [t, setT] = useState(0);
-  const base = useRef({ start: 0, offset: 0 });
-  useEffect(() => {
-    if (paused) return;
-    let raf = 0;
-    const clock = base.current; // same object for the hook's lifetime; jump() mutates it in place
-    clock.start = performance.now();
-    const tick = (now: number): void => {
-      setT(loopTime(clock.offset + now - clock.start));
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(raf);
-      clock.offset += performance.now() - clock.start;
-    };
-  }, [paused]);
-  const jump = (to: number): void => {
-    base.current.offset = to;
-    base.current.start = performance.now();
-    setT(to);
-  };
-  return [t, jump];
-}
+import { useLoopClock } from './use-loop-clock';
+
 
 const STATUS_LABEL: Record<Exclude<DemoStatus, 'none'>, { text: string; cls: string }> = {
   open: { text: 'Waiting', cls: 'bg-accent text-muted-foreground' },
@@ -184,7 +160,7 @@ function Panel({ t }: { t: number }) {
 export function Walkthrough() {
   const reduced = useReducedMotion();
   const [hovered, setHovered] = useState(false);
-  const [t, jump] = useLoopClock(hovered || !!reduced);
+  const [t, jump] = useLoopClock(hovered || !!reduced, loopTime);
   const step = stepAt(t);
 
   return (
