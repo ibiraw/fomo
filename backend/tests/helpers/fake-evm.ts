@@ -67,6 +67,14 @@ export class FakeEvmRpc extends EvmRpcPort {
     return this.head;
   }
 
+  /** Address (lowercase) → contract code. */
+  codes = new Map<string, Hex>();
+
+  /** The code stored in `codes` ("0x" otherwise). */
+  async code(address: Hex): Promise<Hex> {
+    return this.codes.get(address.toLowerCase()) ?? '0x';
+  }
+
   /** True for addresses listed in `contracts`. */
   async isContract(address: Hex): Promise<boolean> {
     return this.contracts.has(address.toLowerCase());

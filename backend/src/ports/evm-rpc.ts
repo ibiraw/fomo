@@ -44,6 +44,9 @@ export abstract class EvmRpcPort {
   /** True when the address has contract code (a pool, a launchpad, a token), false for a wallet. */
   abstract isContract(address: Hex): Promise<boolean>;
 
+  /** The contract code at an address ("0x" for a wallet). */
+  abstract code(address: Hex): Promise<Hex>;
+
   /** The wallet that sent a transaction. */
   abstract transactionSender(hash: Hex): Promise<Hex>;
 

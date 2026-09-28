@@ -27,15 +27,16 @@ import { findLaunchLabPool, LAUNCHLAB_TRADING, type LaunchLabPool } from '../pri
 import type { EvmRpcPort, Hex } from '../../ports/evm-rpc.js';
 import type { SolanaAccountsPort } from '../../ports/solana-accounts.js';
 
-export type LaunchpadId = 'pump' | 'launchlab' | 'meteora-dbc' | 'four-meme' | 'flap';
+/** Launchpads read from their own accounts / contracts, plus ones recognised by their tokens' code (code-templates.ts). */
+export type LaunchpadId = 'pump' | 'launchlab' | 'meteora-dbc' | 'four-meme' | 'flap' | (string & {});
 
 /** Where a token was launched. */
 export interface Launchpad {
   readonly id: LaunchpadId;
   /** Display name ("pump.fun"). */
   readonly name: string;
-  /** Still trading on the launchpad's bonding curve (false: graduated to a DEX). */
-  readonly onCurve: boolean;
+  /** Still trading on the launchpad's bonding curve (false: graduated to a DEX; null: can't be told from the chain). */
+  readonly onCurve: boolean | null;
 }
 
 /** Recognises one launchpad. */

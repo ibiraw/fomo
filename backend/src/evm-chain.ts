@@ -13,6 +13,7 @@ import { EVM_ADDRESSES } from './core/evm/evm-addresses.js';
 import { EvmPoolPriceFeed } from './core/evm/evm-pool-price-feed.js';
 import { EvmUsdQuotes } from './core/evm/evm-usd-quotes.js';
 import { flap, fourMeme, LaunchpadPriceFeed } from './core/evm/launchpad-price-feed.js';
+import { evmCodeTemplateDetector } from './core/tokens/code-templates.js';
 import { evmLaunchpadDetector, type LaunchpadDetector } from './core/tokens/launchpad-service.js';
 import { CompositePriceFeed } from './core/pricing/composite-price-feed.js';
 import type { PoolDirectory } from './core/pricing/pool-directory.js';
@@ -64,6 +65,6 @@ export function buildEvmChain(
   const curves: PriceFeedPort[] = protocols.map(({ protocol, ctx }) => new LaunchpadPriceFeed(rpc, erc20, quotes, protocol, afterCurve, logError(`${ctx}:${chain}`)));
   const onchain = new CompositePriceFeed([...curves, pools]);
   quotes.setFeed(onchain);
-  const launchpads = protocols.map(({ protocol }) => evmLaunchpadDetector(rpc, protocol));
+  const launchpads = [...protocols.map(({ protocol }) => evmLaunchpadDetector(rpc, protocol)), evmCodeTemplateDetector(rpc)];
   return { rpc, erc20, quotes, feed: new CompositePriceFeed([onchain, dexscreener]), launchpads };
 }

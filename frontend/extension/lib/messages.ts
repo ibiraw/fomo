@@ -20,10 +20,10 @@ export interface TokenInfo {
 
 /** Where a token was launched (v1.8; mirror of backend Launchpad). */
 export interface LaunchpadInfo {
-  readonly id: 'pump' | 'launchlab' | 'meteora-dbc' | 'four-meme' | 'flap';
+  readonly id: string;
   readonly name: string;
-  /** Still on the launchpad's bonding curve (false: graduated to a DEX). */
-  readonly onCurve: boolean;
+  /** Still on the launchpad's bonding curve (false: graduated; null: the server can't tell, judge from the price source). */
+  readonly onCurve: boolean | null;
 }
 
 /** Holder metrics (v1.9; mirror of backend TokenMetrics). */

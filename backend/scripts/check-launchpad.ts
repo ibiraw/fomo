@@ -26,7 +26,7 @@ const svc = new LaunchpadService((chain) => (chain === 'solana' ? solana : evm.g
 for (const key of keys) {
   try {
     const lp = await svc.get(key);
-    console.log(key.padEnd(52), lp ? `${lp.name}${lp.onCurve ? ' (on the curve)' : ' (graduated)'}` : 'no launchpad found');
+    console.log(key.padEnd(52), lp ? `${lp.name}${lp.onCurve === null ? ' (curve status unknown)' : lp.onCurve ? ' (on the curve)' : ' (graduated)'}` : 'no launchpad found');
   } catch (err) {
     console.log(key.padEnd(52), 'ERROR', err instanceof Error ? err.message : err);
   }

@@ -80,6 +80,11 @@ export class ViemEvmRpcAdapter extends EvmRpcPort {
     return !!code && code !== '0x';
   }
 
+  /** eth_getCode ("0x" when there is none). */
+  async code(address: Hex): Promise<Hex> {
+    return (await this.httpClient.getCode({ address })) ?? '0x';
+  }
+
   /** eth_getTransactionByHash → from. */
   async transactionSender(hash: Hex): Promise<Hex> {
     return (await this.httpClient.getTransaction({ hash })).from;

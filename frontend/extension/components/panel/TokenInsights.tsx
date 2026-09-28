@@ -17,9 +17,9 @@ import type { PriceTick } from '@/lib/types';
 import { hasFeature, type ReleaseView } from '@/lib/release';
 
 /**
- * "pump.fun · bonding curve" / "· graduated". When limit doesn't recognise the launchpad, the name fomo shows next to
- * the token (`pageLaunchpad`, Limit panel only) is used instead, with the status judged from where the token's live
- * price comes from (a curve, or a DEX pool it graduated to).
+ * "pump.fun · bonding curve" / "· graduated". When the server doesn't know the launchpad, the name fomo shows next to
+ * the token (`pageLaunchpad`, Limit panel only) is used instead; when the curve status is unknown (that case, or a
+ * launchpad recognised only by its tokens' code), it is judged from where the token's live price comes from.
  */
 function LaunchpadLine({ mint, send, pageLaunchpad, priceSource }: { mint: string; send: SendFn; pageLaunchpad: string | null; priceSource: PriceTick['source'] | null }) {
   const q = useQuery({
@@ -31,23 +31,17 @@ function LaunchpadLine({ mint, send, pageLaunchpad, priceSource }: { mint: strin
   let value: React.ReactNode;
   if (q.isPending) value = <span className="text-muted-foreground">Checking…</span>;
   else if (q.isError) value = <span className="text-muted-foreground">Unavailable ({q.error.message})</span>;
-  else if (!q.data && pageLaunchpad) {
-    const status = curveStatusFromSource(priceSource);
-    value = (
+  else {
+    // The server's name and curve status; when it can't tell the status (or only fomo's icon names the launchpad),
+    // the status is judged from where the token's live price comes from.
+    const name = q.data?.name ?? pageLaunchpad;
+    const status = q.data && q.data.onCurve !== null ? (q.data.onCurve ? 'curve' : 'graduated') : curveStatusFromSource(priceSource);
+    value = name ? (
       <>
-        <span className="font-semibold text-foreground">{pageLaunchpad}</span>
+        <span className="font-semibold text-foreground">{name}</span>
         {status && <span className={status === 'curve' ? 'text-yellow' : 'text-buy'}> · {status === 'curve' ? 'bonding curve' : 'graduated'}</span>}
       </>
-    );
-  }
-  else if (!q.data) value = <span className="text-muted-foreground">Not a launchpad limit recognises</span>;
-  else {
-    value = (
-      <>
-        <span className="font-semibold text-foreground">{q.data.name}</span>
-        <span className={q.data.onCurve ? 'text-yellow' : 'text-buy'}> · {q.data.onCurve ? 'bonding curve' : 'graduated'}</span>
-      </>
-    );
+    ) : <span className="text-muted-foreground">Not a launchpad limit recognises</span>;
   }
   return (
     <p className="flex items-center gap-1.5 text-xs">
