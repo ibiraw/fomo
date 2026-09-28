@@ -4,7 +4,7 @@
  *              i's) with the tagline, and the logo mark (crescent on the dashed orbit in fomo's Buy-button blue) on
  *              the right. Everything stays in the vertical middle and clear of the bottom-left, because X covers that
  *              corner with the profile picture and crops the top/bottom on phones.
- *              Usage (from frontend/website): npx tsx scripts/x-banner.tsx <out.png>
+ *              Usage (from frontend/website): npx tsx scripts/x-banner.tsx <out.png> [--no-mark]  (text only, centred)
  * @author Reborn1987
  */
 
@@ -43,8 +43,8 @@ function Wordmark({ size }: { size: number }) {
   );
 }
 
-/** Renders the banner PNG to `out`. */
-async function main(out: string): Promise<void> {
+/** Renders the banner PNG to `out`; `withMark` false gives the text-only version, centred. */
+async function main(out: string, withMark: boolean): Promise<void> {
 const bold = await figtree(700);
 const regular = await figtree(500);
 
@@ -52,11 +52,13 @@ const image = new ImageResponse(
   (
     <div style={{ width: 1500, height: 500, display: 'flex', background: BG, position: 'relative', overflow: 'hidden' }}>
       {/* The logo mark (same geometry as the icon and profile picture), large on the right. */}
-      <svg width="360" height="360" viewBox="0 0 64 64" style={{ position: 'absolute', left: 1020, top: 60 }}>
+      {withMark && <svg width="360" height="360" viewBox="0 0 64 64" style={{ position: 'absolute', left: 1020, top: 60 }}>
         <ellipse cx="32" cy="36" rx="25" ry="11" fill="none" stroke={BLUE} strokeWidth="2.4" strokeDasharray="4.5 3.6" transform="rotate(-18 32 36)" />
         <path d="M40 14 A16 16 0 1 0 50 38 A12 12 0 1 1 40 14 Z" fill={WHITE} />
-      </svg>
-      <div style={{ position: 'absolute', left: 330, top: 128, display: 'flex', flexDirection: 'column', gap: 22 }}>
+      </svg>}
+      <div style={withMark
+        ? { position: 'absolute', left: 330, top: 128, display: 'flex', flexDirection: 'column', gap: 22 }
+        : { position: 'absolute', left: 0, top: 0, width: 1500, height: 500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22 }}>
         <Wordmark size={200} />
         <div style={{ display: 'flex', fontFamily: 'Figtree', fontWeight: 500, fontSize: 38, color: MUTED, letterSpacing: -0.5 }}>
           Limit orders for fomo. On autopilot.
@@ -70,4 +72,4 @@ writeFileSync(out, Buffer.from(await image.arrayBuffer()));
 console.log(`wrote ${out}`);
 }
 
-void main(process.argv[2] ?? 'x-banner.png');
+void main(process.argv[2] ?? 'x-banner.png', !process.argv.includes('--no-mark'));
