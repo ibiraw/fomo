@@ -18,7 +18,7 @@ import { SqliteActivityStoreAdapter } from './adapters/storage/sqlite-activity-s
 import { FileFomoDomAdapter } from './adapters/config/file-fomo-dom.adapter.js';
 import { TelegramNotifierAdapter } from './adapters/telegram/telegram-notifier.adapter.js';
 import { ActivityRelay } from './core/monitoring/activity-relay.js';
-import { ErrorLog } from './core/monitoring/error-log.js';
+import { ErrorLog, errorHeadline } from './core/monitoring/error-log.js';
 import { LayoutAlerts } from './core/monitoring/layout-alerts.js';
 import { OutageTracker } from './core/monitoring/outage-tracker.js';
 import { describeOrder } from './core/monitoring/describe.js';
@@ -81,7 +81,9 @@ async function main(): Promise<void> {
   // RPC sockets drop and self-heal about hourly; only outages that last 2+ minutes reach Telegram.
   const outages = new OutageTracker((kind, text) => relay.record(kind, text));
   const rpcSinks = (ctx: string) => ({ onError: logOnly(ctx), health: outages.for(ctx) });
-  const accounts = new KitSolanaAccountsAdapter(cfg.rpcHttp, cfg.rpcWss, logOnly('rpc'), outages.for('rpc'));
+  // Empty-update glitches are expected and self-healing: one log line each, no stack trace.
+  const rpcWarn = (err: unknown): void => log(`[rpc] ${errorHeadline(err)}`);
+  const accounts = new KitSolanaAccountsAdapter(cfg.rpcHttp, cfg.rpcWss, logOnly('rpc'), outages.for('rpc'), rpcWarn);
   const http = new FetchHttpJsonAdapter();
   const jupiterHttp = new FetchHttpJsonAdapter(cfg.jupiter.apiKey ? { 'x-api-key': cfg.jupiter.apiKey } : {});
   const quotes = new UsdQuotes(accounts, jupiterHttp, cfg.jupiter.url, 5_000, logError('quotes'));
