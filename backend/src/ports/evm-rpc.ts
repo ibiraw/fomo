@@ -41,6 +41,12 @@ export abstract class EvmRpcPort {
   /** Latest block number. */
   abstract blockNumber(): Promise<bigint>;
 
+  /** True when the address has contract code (a pool, a launchpad, a token), false for a wallet. */
+  abstract isContract(address: Hex): Promise<boolean>;
+
+  /** The wallet that sent a transaction. */
+  abstract transactionSender(hash: Hex): Promise<Hex>;
+
   /** Historical logs in [fromBlock, toBlock] (callers keep ranges within the provider's limit). */
   abstract getLogs(filter: LogFilter, fromBlock: bigint, toBlock: bigint): Promise<EvmLog[]>;
 

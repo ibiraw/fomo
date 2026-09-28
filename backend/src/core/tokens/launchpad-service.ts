@@ -64,6 +64,11 @@ export function pumpDetector(accounts: SolanaAccountsPort): LaunchpadDetector {
   };
 }
 
+/** The dev of a pump.fun token: the creator its bonding curve records (pump.fun pays creator rewards there). */
+export function pumpCreator(accounts: SolanaAccountsPort): (mint: string) => Promise<string | null> {
+  return async (mint) => decodeOrNull(await accounts.getAccount(await deriveBondingCurve(mint as Address)), decodeBondingCurve)?.creator ?? null;
+}
+
 /** Raydium LaunchLab (bonk.fun and other LaunchLab platforms): the token's pool, SOL- or USD1-quoted. */
 export function launchLabDetector(accounts: SolanaAccountsPort): LaunchpadDetector {
   return {

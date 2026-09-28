@@ -8,6 +8,7 @@ import {
   address,
   createSolanaRpc,
   createSolanaRpcSubscriptions,
+  getAddressDecoder,
   isSolanaError,
   SOLANA_ERROR__JSON_RPC__INVALID_PARAMS,
   type Rpc,
@@ -29,6 +30,8 @@ import {
 /** Reconnect backoff bounds (ms). */
 const MIN_BACKOFF_MS = 500;
 const MAX_BACKOFF_MS = 15_000;
+
+const addressDecoder = getAddressDecoder();
 
 /** Decodes a base64 account payload returned by the RPC. */
 function fromBase64(data: readonly [string, string]): Uint8Array {
@@ -105,6 +108,27 @@ export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
       .getTokenAccountsByOwner(address(owner), { mint: address(mint) }, { encoding: 'base64', commitment: 'processed' })
       .send();
     return res.value.reduce((sum, a) => sum + decodeTokenAccountAmount(fromBase64(a.account.data)), 0n);
+  }
+
+  /**
+   * All token accounts of the mint, read from the token program that owns the mint (classic or Token-2022), fetching
+   * only owner + amount (bytes 32..72) of each. getTokenLargestAccounts would be lighter but the provider refuses it.
+   */
+  async getTokenHolders(mint: string): Promise<readonly { readonly owner: string; readonly amount: bigint }[]> {
+    const info = await this.rpc.getAccountInfo(address(mint), { encoding: 'base64', commitment: 'confirmed' }).send();
+    if (!info.value) throw new AccountNotFoundError(`${mint} is not a token`);
+    const res = await this.rpc
+      .getProgramAccounts(info.value.owner, {
+        encoding: 'base64',
+        commitment: 'confirmed',
+        dataSlice: { offset: 32, length: 40 },
+        filters: [{ memcmp: { offset: 0n, bytes: mint as never, encoding: 'base58' } }],
+      })
+      .send();
+    return (res as readonly { account: { data: readonly [string, string] } }[]).map(({ account }) => {
+      const b = fromBase64(account.data);
+      return { owner: addressDecoder.decode(b.subarray(0, 32)), amount: new DataView(b.buffer, b.byteOffset + 32, 8).getBigUint64(0, true) };
+    });
   }
 
   /**

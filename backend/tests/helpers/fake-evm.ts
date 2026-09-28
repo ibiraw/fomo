@@ -26,6 +26,10 @@ export class FakeEvmRpc extends EvmRpcPort {
   /** Logs returned by getLogs (filtered by address and block range). */
   history: EvmLog[] = [];
   getLogsCalls: [bigint, bigint][] = [];
+  /** Addresses (lowercase) that have contract code. */
+  contracts = new Set<string>();
+  /** Transaction hash → sender. */
+  senders = new Map<string, Hex>();
 
   /** @param chain chain slug */
   constructor(readonly chain: EvmChain = 'base') {
@@ -61,6 +65,18 @@ export class FakeEvmRpc extends EvmRpcPort {
   /** Current head block. */
   async blockNumber(): Promise<bigint> {
     return this.head;
+  }
+
+  /** True for addresses listed in `contracts`. */
+  async isContract(address: Hex): Promise<boolean> {
+    return this.contracts.has(address.toLowerCase());
+  }
+
+  /** The sender recorded in `senders`; throws for unknown hashes. */
+  async transactionSender(hash: Hex): Promise<Hex> {
+    const from = this.senders.get(hash);
+    if (!from) throw new Error(`unknown transaction ${hash}`);
+    return from;
   }
 
   /** Returns history logs matching the address list and range. */

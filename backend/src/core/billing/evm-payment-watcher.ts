@@ -6,7 +6,6 @@
  * @author Reborn1987
  */
 
-import { toEventSelector } from 'viem';
 
 import type { EvmChain } from '../chains/token-key.js';
 import type { BillingStorePort } from '../../ports/billing-store.js';
@@ -14,7 +13,8 @@ import type { EvmLog, EvmRpcPort, Hex } from '../../ports/evm-rpc.js';
 import type { IncomingTransfer } from './billing-service.js';
 import type { PaymentAsset } from './payment-assets.js';
 
-export const TRANSFER_TOPIC = toEventSelector('Transfer(address,address,uint256)');
+export { TRANSFER_TOPIC } from '../evm/erc20.js';
+import { TRANSFER_TOPIC } from '../evm/erc20.js';
 /** Blocks per eth_getLogs call (providers cap ranges at 10k). */
 const CHUNK = 2_000n;
 /** Blocks left unread at the head, so a log is only read once its block is settled. */

@@ -29,6 +29,9 @@ export abstract class SolanaAccountsPort {
   /** Total raw amount of `mint` held by `owner` across all its token accounts (0 if none). */
   abstract getTokenBalance(owner: string, mint: string): Promise<bigint>;
 
+  /** Every token account of the mint as owner + raw amount (one entry per account; an owner may have several). */
+  abstract getTokenHolders(mint: string): Promise<readonly { readonly owner: string; readonly amount: bigint }[]>;
+
   /**
    * Streams account data changes. Implementations must reconnect on drop and re-deliver
    * the current state after reconnecting so no update is silently missed.

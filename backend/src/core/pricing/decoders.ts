@@ -28,6 +28,8 @@ export interface BondingCurveState {
   readonly virtualQuoteReserves: bigint;
   readonly tokenTotalSupply: bigint;
   readonly complete: boolean;
+  /** The coin's creator (pump.fun pays creator rewards here); null on accounts too old to have the field. */
+  readonly creator: Address | null;
   /** Quote asset mint; DEFAULT_PUBKEY means SOL. Older accounts without the field are SOL-paired. */
   readonly quoteMint: Address;
 }
@@ -86,6 +88,7 @@ export function decodeBondingCurve(data: Uint8Array): BondingCurveState {
     virtualQuoteReserves: dv.getBigUint64(16, true),
     tokenTotalSupply: dv.getBigUint64(40, true),
     complete: data[48] === 1,
+    creator: data.length >= 81 ? readAddress(data, 49) : null,
     quoteMint,
   };
 }

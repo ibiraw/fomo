@@ -38,6 +38,9 @@ const RETRY_MIN_MS = 1_000;
 const RETRY_MAX_MS = 30_000;
 
 /** Viem-backed EVM chain access. */
+/** Requests per JSON-RPC batch: the provider rejects larger batches ("Request exceeds defined limit"). */
+const BATCH_SIZE = 10;
+
 export class ViemEvmRpcAdapter extends EvmRpcPort {
   private readonly httpClient: PublicClient;
   private readonly wsClient: PublicClient;
@@ -56,7 +59,7 @@ export class ViemEvmRpcAdapter extends EvmRpcPort {
     private readonly health: ConnectionHealth | null = null,
   ) {
     super();
-    this.httpClient = createPublicClient({ transport: http(httpUrl, { batch: { wait: 5 }, retryCount: 2 }) });
+    this.httpClient = createPublicClient({ transport: http(httpUrl, { batch: { wait: 5, batchSize: BATCH_SIZE }, retryCount: 2 }) });
     this.wsClient = createPublicClient({ transport: webSocket(wssUrl, { keepAlive: { interval: 20_000 }, reconnect: { attempts: 1_000, delay: 2_000 } }) });
   }
 
@@ -69,6 +72,17 @@ export class ViemEvmRpcAdapter extends EvmRpcPort {
   /** Latest block number. */
   blockNumber(): Promise<bigint> {
     return this.httpClient.getBlockNumber({ cacheTime: 0 });
+  }
+
+  /** eth_getCode: anything but empty code is a contract. */
+  async isContract(address: Hex): Promise<boolean> {
+    const code = await this.httpClient.getCode({ address });
+    return !!code && code !== '0x';
+  }
+
+  /** eth_getTransactionByHash → from. */
+  async transactionSender(hash: Hex): Promise<Hex> {
+    return (await this.httpClient.getTransaction({ hash })).from;
   }
 
   /** eth_getLogs over a block range (removed logs dropped). */

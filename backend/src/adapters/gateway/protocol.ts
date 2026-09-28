@@ -28,6 +28,7 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('order.list'), reqId: z.string() }),
   z.object({ type: z.literal('token.info'), reqId: z.string(), mint: TokenKeySchema }),
   z.object({ type: z.literal('token.launchpad'), reqId: z.string(), mint: TokenKeySchema }),
+  z.object({ type: z.literal('token.metrics'), reqId: z.string(), mint: TokenKeySchema }),
   z.object({ type: z.literal('price.watch'), reqId: z.string(), mint: TokenKeySchema }),
   z.object({ type: z.literal('wallet.holds'), reqId: z.string(), mint: TokenKeySchema }),
   z.object({ type: z.literal('wallets.set'), reqId: z.string(), wallets: z.unknown() }),

@@ -18,6 +18,7 @@ import { SqliteBillingStoreAdapter } from '../../src/adapters/storage/sqlite-bil
 import { OrderEngine } from '../../src/core/orders/order-engine.js';
 import { DEFAULT_ACCESS, LATEST_VERSION, ReleaseService, type AccessConfig } from '../../src/core/releases/releases.js';
 import { LaunchpadService } from '../../src/core/tokens/launchpad-service.js';
+import { TokenMetricsService } from '../../src/core/tokens/token-metrics.js';
 import { FakePriceFeed } from '../helpers/fakes.js';
 
 const TOKEN = 'k'.repeat(43);
@@ -426,6 +427,19 @@ describe('WsGateway accounts', () => {
     config = { ...config, earlyAccess: [accounts.get(c.userId).shortId] };
     c.send({ type: 'token.launchpad', reqId: 'l2', mint: MINT });
     expect(await c.next((m) => m.reqId === 'l2')).toMatchObject({ ok: true, data: { id: 'pump', name: 'pump.fun', onCurve: true } });
+  });
+
+  it('answers token.metrics only for accounts whose version has it', async () => {
+    let config: AccessConfig = { ...DEFAULT_ACCESS, publicVersion: '1.8' };
+    gateway.setReleases(new ReleaseService(() => config));
+    const metrics = { topTenPct: 12.5, devWallet: null, devHoldsPct: null, note: 'dev-unknown' };
+    gateway.setTokenMetrics(new TokenMetricsService(() => ({ metrics: async () => metrics as never })));
+    const c = await authed(false);
+    c.send({ type: 'token.metrics', reqId: 'm1', mint: MINT });
+    expect(await c.next((m) => m.reqId === 'm1')).toMatchObject({ ok: false, error: 'This arrives in limit v1.9' });
+    config = { ...config, publicVersion: '1.9' };
+    c.send({ type: 'token.metrics', reqId: 'm2', mint: MINT });
+    expect(await c.next((m) => m.reqId === 'm2')).toMatchObject({ ok: true, data: metrics });
   });
 
   it("saves the fomo username and fomo's user id and returns them with the account", async () => {

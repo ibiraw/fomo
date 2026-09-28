@@ -4,7 +4,7 @@
  * @author Reborn1987
  */
 
-import { parseAbi } from 'viem';
+import { parseAbi, toEventSelector } from 'viem';
 
 import type { EvmRpcPort, Hex } from '../../ports/evm-rpc.js';
 import { readContract } from './contract.js';
@@ -19,6 +19,9 @@ export const ERC20_ABI = parseAbi([
 
 /** Native gas token placeholder used by Uniswap v4 pools (currency 0x0). */
 export const NATIVE = '0x0000000000000000000000000000000000000000';
+
+/** topic0 of ERC-20 Transfer(from, to, value). */
+export const TRANSFER_TOPIC = toEventSelector('Transfer(address,address,uint256)');
 
 export class Erc20Reader {
   private readonly decimalsCache = new Map<string, Promise<number>>();

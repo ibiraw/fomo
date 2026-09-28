@@ -18,6 +18,7 @@ import type { WalletConfirmers } from '../../core/accounts/wallet-confirmers.js'
 import type { BillingService } from '../../core/billing/billing-service.js';
 import { versionOf, type Feature, type ReleaseService } from '../../core/releases/releases.js';
 import type { LaunchpadService } from '../../core/tokens/launchpad-service.js';
+import type { TokenMetricsService } from '../../core/tokens/token-metrics.js';
 import { AuthError, FomoError } from '../../core/errors.js';
 import type { Order, OrderStatus } from '../../core/orders/order.js';
 import type { EngineEvent, OrderEngine } from '../../core/orders/order-engine.js';
@@ -157,6 +158,8 @@ export class WsGateway extends TradeExecutorPort {
   private releases: ReleaseService | null = null;
   /** v1.8: where tokens were launched (null: not available on this server). */
   private launchpads: LaunchpadService | null = null;
+  /** v1.9: top-10 share and dev holdings (null: not available on this server). */
+  private tokenMetrics: TokenMetricsService | null = null;
   /** fomo page-layout overrides sent to extensions (null: they use their built-ins). */
   private fomoDom: unknown = null;
   private readonly clients = new Set<Client>();
@@ -233,6 +236,11 @@ export class WsGateway extends TradeExecutorPort {
   /** Sets the launchpad lookup (v1.8). */
   setLaunchpads(launchpads: LaunchpadService): void {
     this.launchpads = launchpads;
+  }
+
+  /** Sets the token metrics (v1.9). */
+  setTokenMetrics(metrics: TokenMetricsService): void {
+    this.tokenMetrics = metrics;
   }
 
   /** Throws unless the account's version has the feature (always allowed when no release rules are set). */
@@ -506,6 +514,12 @@ export class WsGateway extends TradeExecutorPort {
           this.requireFeature(userId, 'launchpad');
           if (!this.launchpads) throw new FomoError('Launchpad info is not available on this server');
           return this.launchpads.get(msg.mint);
+        });
+      case 'token.metrics':
+        return this.reply(client, msg.reqId, () => {
+          this.requireFeature(userId, 'tokenMetrics');
+          if (!this.tokenMetrics) throw new FomoError('Token metrics are not available on this server');
+          return this.tokenMetrics.get(msg.mint);
         });
       case 'wallets.set':
         return this.reply(client, msg.reqId, async () => {

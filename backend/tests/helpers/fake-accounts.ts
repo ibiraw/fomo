@@ -47,6 +47,14 @@ export class FakeAccounts extends SolanaAccountsPort {
     return this.balances.get(`${owner}|${mint}`) ?? 0n;
   }
 
+  /** mint → its token accounts (owner + amount). */
+  readonly holders = new Map<string, { owner: string; amount: bigint }[]>();
+
+  /** Returns the stored token accounts (none if unset). */
+  async getTokenHolders(mint: string): Promise<readonly { readonly owner: string; readonly amount: bigint }[]> {
+    return this.holders.get(mint) ?? [];
+  }
+
   /** Registers listener and immediately delivers current state (mirrors the real adapter). */
   subscribe(address: string, listener: AccountListener): AccountSubscription {
     let set = this.listeners.get(address);

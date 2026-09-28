@@ -11,7 +11,7 @@ The public gets limit in versions, as if it is being built live; friends get eve
 | 1.2 | Themes + order sounds | Built, hidden |
 | 1.7 | The token's latest X post | Built, hidden |
 | 1.8 | Which launchpad a token came from | Built, early access only (2026-09-28) |
-| 1.9 | Dev holdings / dev sold, top 10 holders' share | To build |
+| 1.9 | Dev holdings, top 10 holders' share | Built, early access only (2026-09-28) |
 
 ## How it works
 - Server: `DATA_DIR/access.json` = `{"publicVersion":"1.0","earlyAccess":["LM-XXXXXX"],"freeUntil":{"LM-XXXXXX":"2026-11-01"}}`,
@@ -35,4 +35,4 @@ Their limit ID (popup → Settings → Account, `LM-XXXXXX`) → add to `earlyAc
 - [x] Extension: release storage + gating — tests
 - [x] Website: v1.0 only + What's new; zip never cached by Cloudflare
 - [x] v1.8 launchpad (early access only) — verified live on pump.fun (graduated + on curve), Meteora DBC; graduated DBC tokens not recognised yet
-- [ ] v1.9 token metrics (early access only)
+- [x] v1.9 token metrics (early access only) — Solana all tokens; EVM fresh tokens (ETH/Base ~2 weeks, BNB/Arc ~3 days, Robinhood ~1 day)

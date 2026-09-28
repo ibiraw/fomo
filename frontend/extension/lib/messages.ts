@@ -26,6 +26,15 @@ export interface LaunchpadInfo {
   readonly onCurve: boolean;
 }
 
+/** Holder metrics (v1.9; mirror of backend TokenMetrics). */
+export interface TokenMetricsInfo {
+  /** % of supply held by the 10 largest real holders (pools, curves, burns left out); null when unknown. */
+  readonly topTenPct: number | null;
+  readonly devWallet: string | null;
+  readonly devHoldsPct: number | null;
+  readonly note: 'too-old' | 'dev-unknown' | null;
+}
+
 export const POPUP_PORT = 'popup';
 /** Hosted server address baked in at build time (WXT_SERVER_URL); local server otherwise. */
 export const HOSTED_SERVER_URL: string | null = import.meta.env.WXT_SERVER_URL || null;
@@ -57,6 +66,7 @@ export type PopupRequest =
   | { readonly type: 'order.cancel'; readonly reqId: string; readonly id: string }
   | { readonly type: 'token.info'; readonly reqId: string; readonly mint: string }
   | { readonly type: 'token.launchpad'; readonly reqId: string; readonly mint: string }
+  | { readonly type: 'token.metrics'; readonly reqId: string; readonly mint: string }
   | { readonly type: 'price.watch'; readonly reqId: string; readonly mint: string }
   | { readonly type: 'wallet.holds'; readonly reqId: string; readonly mint: string }
   | { readonly type: 'x.latest'; readonly reqId: string; readonly url: string; readonly force?: boolean };
