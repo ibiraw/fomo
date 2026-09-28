@@ -389,6 +389,11 @@ describe('WsGateway accounts', () => {
     c.send({ type: 'trade.spot', reqId: 's5', side: 'sell', detail: 'Selling 1.2M KEK' });
     expect((await c.next((m) => m.reqId === 's5')).data).toEqual({ logged: false }); // repeat within a minute
     expect(activity.filter((a) => a.includes('SPOT'))).toHaveLength(2);
+    t += 5_000;
+    // Unreadable sell details (or token) are dropped; the sell itself is still logged.
+    c.send({ type: 'trade.spot', reqId: 's6', side: 'sell', detail: 'Selling 5K KEK', mint: 'not-a-token', sell: { all: true, soldPct: 100, usd: 3, pnlPct: -150 } });
+    expect((await c.next((m) => m.reqId === 's6')).data).toEqual({ logged: true });
+    expect(activity.at(-1)).toMatch(/\n\n❌ \*\*SPOT SELL\*\* on fomo: Selling 5K KEK$/);
   });
 
   it('sends the fomo layout overrides in the welcome and pushes changes to logged-in clients', async () => {

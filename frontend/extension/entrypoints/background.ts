@@ -140,11 +140,11 @@ export default defineBackground({
         void op.catch((err: unknown) => console.error('[limit] could not save the release', err));
       },
       onExecute: async (o) => {
-        trading = true;
+        trading = o.mint;
         try {
           return await executeInFomoTab(tabs, inject, worker, o);
         } finally {
-          trading = false;
+          trading = null;
         }
       },
     });
@@ -214,7 +214,8 @@ export default defineBackground({
     // fomo self-check reports from content scripts → server (state changes, failures at most every 10 min).
     let lastLayoutOk: boolean | null = null;
     let lastLayoutFailAt = 0;
-    let trading = false;
+    /** Token of the order limit is trading right now (null when idle). */
+    let trading: string | null = null;
     browser.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
       const quick = msg as Partial<QuickTradeRequest> | undefined;
       if (quick?.type === 'fomo.quick') {
@@ -230,8 +231,8 @@ export default defineBackground({
       }
       const spot = msg as Partial<SpotTradeMessage> | undefined;
       if (spot?.type === 'fomo.spot') {
-        // limit's own trades show the same toast: only the user's manual trades are reported.
-        if (!trading && (spot.side === 'buy' || spot.side === 'sell') && typeof spot.detail === 'string') {
+        // limit's own trade shows the same toast: skip reports on the token it is trading, keep the user's other trades.
+        if (!(trading !== null && (spot.mint === trading || !spot.mint)) && (spot.side === 'buy' || spot.side === 'sell') && typeof spot.detail === 'string') {
           void conn.request('trade.spot', {
             side: spot.side, detail: spot.detail, ...(spot.mint ? { mint: spot.mint } : {}), ...(spot.sell ? { sell: spot.sell } : {}),
           }).catch(() => undefined);
@@ -243,7 +244,7 @@ export default defineBackground({
         void conn.request('layout.status', { newVersion: true }).catch(() => undefined);
         // Reload fomo's new version in limit's own background tab (never in the user's tabs, never mid-trade).
         void worker.get().then((id) => {
-          if (id !== null && id === sender.tab?.id && !trading) void browser.tabs.reload(id).catch(() => undefined);
+          if (id !== null && id === sender.tab?.id && trading === null) void browser.tabs.reload(id).catch(() => undefined);
         });
         return;
       }

@@ -71,5 +71,8 @@ export function summarizeSell(toast: string, position: FomoPosition | null): Sel
   const sold = parseSellToast(toast);
   if (!sold || !position || position.amount <= 0) return null;
   const share = Math.min(1, sold.amount / position.amount);
-  return { all: share >= 0.99, soldPct: Math.round(share * 100), usd: Math.round(position.valueUsd * share * 100) / 100, pnlPct: position.pnlPct };
+  const summary = { all: share >= 0.99, soldPct: Math.round(share * 100), usd: Math.round(position.valueUsd * share * 100) / 100, pnlPct: position.pnlPct };
+  // Only numbers the server accepts; anything odd read off the page leaves the details out (the sell is still reported).
+  const ok = [summary.soldPct, summary.usd, summary.pnlPct].every(Number.isFinite) && summary.usd >= 0 && summary.pnlPct >= -100;
+  return ok ? summary : null;
 }

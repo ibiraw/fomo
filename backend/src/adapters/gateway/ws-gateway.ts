@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 
 import { WebSocketServer, type WebSocket } from 'ws';
+import { z } from 'zod';
 
 import type { AccountService } from '../../core/accounts/account-service.js';
 import type { WalletConfirmers } from '../../core/accounts/wallet-confirmers.js';
@@ -410,7 +411,11 @@ export class WsGateway extends TradeExecutorPort {
     let msg: ClientMessage;
     try {
       msg = ClientMessageSchema.parse(JSON.parse(raw));
-    } catch {
+    } catch (err) {
+      // Logged (type and failing field only, no values) so a message the extension keeps sending wrong is visible.
+      const issue = err instanceof z.ZodError ? err.issues[0] : undefined;
+      const type = /"type"\s*:\s*"([\w.]{1,40})"/.exec(raw.slice(0, 200))?.[1] ?? 'unknown';
+      console.warn(`[gateway] rejected ${type} message: ${issue ? `${issue.path.join('.') || '(root)'} ${issue.code}` : 'not JSON'}`);
       this.send(client, { type: 'error', message: 'Malformed message' });
       return;
     }

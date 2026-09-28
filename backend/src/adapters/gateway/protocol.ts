@@ -41,9 +41,12 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('exec.result'), execId: z.string(), result: ExecutionResultSchema }),
   /** A trade the user made with fomo's own Buy/Sell (seen from fomo's "Buying …" / "Selling …" toast), for monitoring. */
   z.object({
-    type: z.literal('trade.spot'), reqId: z.string(), side: z.enum(['buy', 'sell']), detail: z.string().max(200), mint: TokenKeySchema.optional(),
+    type: z.literal('trade.spot'), reqId: z.string(), side: z.enum(['buy', 'sell']), detail: z.string().max(200),
+    // The token and sell details are extras read off fomo's page: an unreadable one is dropped, never the whole report
+    // (a rejected report used to vanish without a trace).
+    mint: TokenKeySchema.optional().catch(undefined),
     /** Sells: measured against the position shown just before (all/partial, share, ~USD, PnL %). */
-    sell: z.object({ all: z.boolean(), soldPct: z.number().min(0).max(100), usd: z.number().min(0).max(1e9), pnlPct: z.number().min(-100).max(1e7) }).strict().optional(),
+    sell: z.object({ all: z.boolean(), soldPct: z.number().min(0).max(100), usd: z.number().min(0).max(1e9), pnlPct: z.number().min(-100).max(1e7) }).strict().optional().catch(undefined),
   }),
   /** The extension's fomo self-check (token page, logged in) and fomo's "new version" prompt. */
   z.object({

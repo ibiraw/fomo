@@ -79,6 +79,8 @@ describe('fomo positions and sells', () => {
     expect(summarizeSell('Selling 95K QCAT', held)).toEqual({ all: false, soldPct: 45, usd: 21.67, pnlPct: 12.4 });
     expect(summarizeSell('Selling 95K QCAT', null)).toBeNull();
     expect(summarizeSell('Selling lots', held)).toBeNull();
+    expect(summarizeSell('Selling 95K QCAT', { amount: 211_300, valueUsd: Number.NaN, pnlPct: 12.4 })).toBeNull(); // unreadable value: no details
+    expect(summarizeSell('Selling 95K QCAT', { amount: 211_300, valueUsd: 48.2, pnlPct: -140 })).toBeNull();
   });
 
   it('measures a sell against the position just before it (the snapshot, if fomo already removed the row)', () => {
