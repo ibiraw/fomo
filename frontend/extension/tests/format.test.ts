@@ -55,3 +55,15 @@ describe('format', () => {
     expect(mintFromFomoUrl(undefined)).toBeNull();
   });
 });
+
+describe('curveStatusFromSource', () => {
+  it('reads a curve or a graduated pool from the price source, and nothing from the fallbacks', async () => {
+    const { curveStatusFromSource } = await import('../lib/format');
+    expect(curveStatusFromSource('pump-curve')).toBe('curve');
+    expect(curveStatusFromSource('flap')).toBe('curve');
+    expect(curveStatusFromSource('v3-pool')).toBe('graduated');
+    expect(curveStatusFromSource('pump-swap')).toBe('graduated');
+    expect(curveStatusFromSource('dexscreener')).toBeNull();
+    expect(curveStatusFromSource(null)).toBeNull();
+  });
+});

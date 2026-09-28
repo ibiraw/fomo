@@ -66,7 +66,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
   return (
     <div className="space-y-4 p-1 pt-2">
       {notice && <p className="rounded-md bg-sell/15 p-2 text-xs text-sell">{notice}</p>}
-      {state.status === 'connected' && <TokenInsights key={`i:${mint}`} mint={mint} send={send} release={release} pageLaunchpad={pageLaunchpad} />}
+      {state.status === 'connected' && <TokenInsights key={`i:${mint}`} mint={mint} send={send} release={release} pageLaunchpad={pageLaunchpad} priceSource={state.ticks[mint]?.source ?? null} />}
       {state.status === 'connected' && hasFeature(release, 'xPost') && <TokenXCard key={`x:${mint}`} mint={mint} send={send} />}
       <UnlockBanner status={state.billing} where="panel" />
       {priceError ? (

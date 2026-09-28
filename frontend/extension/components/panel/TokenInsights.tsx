@@ -11,14 +11,17 @@ import { Rocket, UserRound, Users } from 'lucide-react';
 
 import { RefreshButton } from '@/components/RefreshButton';
 import type { SendFn } from '@/hooks/use-background';
+import { curveStatusFromSource } from '@/lib/format';
 import type { LaunchpadInfo, TokenMetricsInfo } from '@/lib/messages';
+import type { PriceTick } from '@/lib/types';
 import { hasFeature, type ReleaseView } from '@/lib/release';
 
 /**
- * "pump.fun · bonding curve" / "· graduated". When limit doesn't recognise the launchpad, the name fomo shows
- * next to the token (`pageLaunchpad`, Limit panel only) is used instead, without the curve status.
+ * "pump.fun · bonding curve" / "· graduated". When limit doesn't recognise the launchpad, the name fomo shows next to
+ * the token (`pageLaunchpad`, Limit panel only) is used instead, with the status judged from where the token's live
+ * price comes from (a curve, or a DEX pool it graduated to).
  */
-function LaunchpadLine({ mint, send, pageLaunchpad }: { mint: string; send: SendFn; pageLaunchpad: string | null }) {
+function LaunchpadLine({ mint, send, pageLaunchpad, priceSource }: { mint: string; send: SendFn; pageLaunchpad: string | null; priceSource: PriceTick['source'] | null }) {
   const q = useQuery({
     queryKey: ['token.launchpad', mint],
     queryFn: () => send({ type: 'token.launchpad', mint }) as Promise<LaunchpadInfo | null>,
@@ -28,7 +31,15 @@ function LaunchpadLine({ mint, send, pageLaunchpad }: { mint: string; send: Send
   let value: React.ReactNode;
   if (q.isPending) value = <span className="text-muted-foreground">Checking…</span>;
   else if (q.isError) value = <span className="text-muted-foreground">Unavailable ({q.error.message})</span>;
-  else if (!q.data && pageLaunchpad) value = <span className="font-semibold text-foreground">{pageLaunchpad}</span>;
+  else if (!q.data && pageLaunchpad) {
+    const status = curveStatusFromSource(priceSource);
+    value = (
+      <>
+        <span className="font-semibold text-foreground">{pageLaunchpad}</span>
+        {status && <span className={status === 'curve' ? 'text-yellow' : 'text-buy'}> · {status === 'curve' ? 'bonding curve' : 'graduated'}</span>}
+      </>
+    );
+  }
   else if (!q.data) value = <span className="text-muted-foreground">Not a launchpad limit recognises</span>;
   else {
     value = (
@@ -95,7 +106,9 @@ function MetricsLines({ mint, send }: { mint: string; send: SendFn }) {
 }
 
 /** Insights card for one token (only the parts the account's version has). */
-export function TokenInsights({ mint, send, release, pageLaunchpad = null }: { mint: string; send: SendFn; release: ReleaseView; pageLaunchpad?: string | null }) {
+export function TokenInsights({ mint, send, release, pageLaunchpad = null, priceSource = null }: {
+  mint: string; send: SendFn; release: ReleaseView; pageLaunchpad?: string | null; priceSource?: PriceTick['source'] | null;
+}) {
   const launchpad = hasFeature(release, 'launchpad');
   const metrics = hasFeature(release, 'tokenMetrics');
   const client = useQueryClient();
@@ -108,7 +121,7 @@ export function TokenInsights({ mint, send, release, pageLaunchpad = null }: { m
   return (
     <div className="flex items-start gap-2 rounded-lg border bg-card p-2.5">
       <div className="min-w-0 flex-1 space-y-1.5">
-        {launchpad && <LaunchpadLine mint={mint} send={send} pageLaunchpad={pageLaunchpad} />}
+        {launchpad && <LaunchpadLine mint={mint} send={send} pageLaunchpad={pageLaunchpad} priceSource={priceSource} />}
         {metrics && <MetricsLines mint={mint} send={send} />}
       </div>
       <RefreshButton onClick={refresh} busy={busy} label="Refresh token info" />

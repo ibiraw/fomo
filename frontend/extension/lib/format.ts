@@ -5,7 +5,7 @@
  */
 
 import { keyFromPath, tokenAddress } from './token-key';
-import type { Order, OrderStatus } from './types';
+import type { Order, OrderStatus, PriceTick } from './types';
 
 /** "$4.2K", "$1.35M", "$12.50". */
 export function formatUsdCompact(v: number): string {
@@ -135,4 +135,16 @@ export function shortNote(o: Pick<Order, 'lastError' | 'status'>): string | null
   if (short) return short;
   if (/restarted/i.test(o.lastError)) return 'Unconfirmed — check FOMO';
   return o.lastError.length > 48 ? `${o.lastError.slice(0, 45)}…` : o.lastError;
+}
+
+/**
+ * Whether a token is still on a launchpad's bonding curve, judged by where its live price comes from: a curve
+ * (pump.fun, LaunchLab, Meteora DBC, four.meme, flap.sh) or a DEX pool it graduated to (PumpSwap, Raydium CPMM,
+ * Meteora DAMM, Uniswap / PancakeSwap v2–v4). Null for the polled fallbacks (Jupiter, DexScreener), which don't say.
+ */
+export function curveStatusFromSource(source: PriceTick['source'] | null | undefined): 'curve' | 'graduated' | null {
+  if (!source) return null;
+  if (source === 'pump-curve' || source === 'raydium-launchlab' || source === 'meteora-dbc' || source === 'four-meme' || source === 'flap') return 'curve';
+  if (source === 'jupiter' || source === 'dexscreener') return null;
+  return 'graduated';
 }
