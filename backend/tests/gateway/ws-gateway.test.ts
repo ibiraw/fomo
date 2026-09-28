@@ -357,6 +357,8 @@ describe('WsGateway accounts', () => {
     expect(spotLine('sell', 'Selling 95K QCAT', { all: false, soldPct: 45, usd: 21.67, pnlPct: -8.1 }, 'LM-1')[2])
       .toBe('**PARTIAL SELL** (45%) on fomo: Selling 95K QCAT, got $21.67 · ⬇️ lost $1.91 (8.1%)');
     expect(spotLine('sell', 'Selling 95K QCAT', null, 'LM-1')).toEqual(['❌', 'LM-1', '**SPOT SELL** on fomo: Selling 95K QCAT']); // position unreadable
+    expect(spotLine('sell', 'Selling 95K QCAT', { all: true, soldPct: 100, usd: 0.01, pnlPct: -100 }, 'LM-1')[2])
+      .toBe('**SELL ALL** on fomo: Selling 95K QCAT, got $0.01 · ⬇️ lost (100.0%)'); // no cost to work back to: no $ figure
   });
 
   it("strips the toast's own relative time from spot-trade texts", () => {
