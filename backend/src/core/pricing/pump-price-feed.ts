@@ -160,7 +160,7 @@ export class PumpPriceFeed extends PriceFeedPort {
     const poolRaw = await this.accounts.getAccount(poolAddr);
     if (!poolRaw || poolRaw.length === 0) {
       throw new UnsupportedPoolError(
-        `No pump.fun bonding curve or PumpSwap pool for ${state.mint}. Only pump.fun tokens are supported right now.`,
+        `No pump.fun bonding curve or PumpSwap pool for ${state.mint}`,
       );
     }
     const pool = decodePumpPool(poolRaw);

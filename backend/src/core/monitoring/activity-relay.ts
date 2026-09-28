@@ -1,8 +1,11 @@
 /**
  * @file activity-relay.ts
- * @description Monitoring: records activity in the durable log and relays undelivered entries to the notifier
- *              (Telegram) in batches. Entries survive restarts and notifier outages; delivery backs off on failure.
- *              Error entries are rate-limited per source so a failing RPC can't flood the chat.
+ * @description Monitoring: records activity in the durable log and relays undelivered entries to Telegram in batches.
+ *              Entries survive restarts and notifier outages; delivery backs off on failure. Where each kind goes:
+ *                users' group ("limit updates") — user activity only: orders, accounts, payments, subscriptions;
+ *                the owner's private chat — server notices and alerts (outages, fomo layout problems);
+ *                nowhere — one-off errors (RPC hiccups, tokens that can't be priced): kept in the log only.
+ *              Error entries are rate-limited per source.
  * @author Reborn1987
  */
 
@@ -23,6 +26,18 @@ const ICON: Record<ActivityKind, string> = {
   payment: '💰',
   subscription: '⭐',
   error: '⚠️',
+  alert: '🚨',
+};
+
+/** Who gets each kind (see the file description). */
+export const ROUTE: Record<ActivityKind, 'group' | 'owner' | 'none'> = {
+  order: 'group',
+  account: 'group',
+  payment: 'group',
+  subscription: 'group',
+  server: 'owner',
+  alert: 'owner',
+  error: 'none',
 };
 
 /** "9:44:15 PM ET" — US Eastern (EST/EDT follows the date), the owner's time zone. */
@@ -68,7 +83,7 @@ export class ActivityRelay {
   private readonly lastError = new Map<string, number>();
 
   /**
-   * @param store durable log @param notifier where messages go (null: log only)
+   * @param store durable log @param notifier the users' group (null: log only)
    * @param onError sink for delivery failures (never re-logged, to avoid loops) @param pollMs delivery interval
    */
   constructor(
@@ -77,6 +92,7 @@ export class ActivityRelay {
     private readonly onError: (err: unknown) => void,
     private readonly pollMs = 1_000, // alerts leave within ~1 s; batching still groups bursts
     private readonly now: () => number = Date.now,
+    private readonly owner: NotifierPort | null = null,
   ) {}
 
   /** Logs an event (delivered on the next round). */
@@ -97,9 +113,9 @@ export class ActivityRelay {
     this.record('error', `${source}: ${msg}`);
   }
 
-  /** Starts delivery (no-op without a notifier). */
+  /** Starts delivery (no-op without any notifier). */
   start(): void {
-    if (!this.notifier) return;
+    if (!this.notifier && !this.owner) return;
     this.timer = setInterval(() => void this.deliver(), this.pollMs);
   }
 
@@ -109,23 +125,34 @@ export class ActivityRelay {
     this.timer = null;
   }
 
-  /** Sends one batch of undelivered entries. */
+  /**
+   * Sends one batch of undelivered entries, each to its chat (see ROUTE). Entries for nobody — or for a chat that isn't
+   * configured — are marked handled without sending (they stay in the log).
+   */
   async deliver(): Promise<void> {
-    if (!this.notifier || this.running || this.now() < this.resumeAt) return;
+    if ((!this.notifier && !this.owner) || this.running || this.now() < this.resumeAt) return;
     this.running = true;
     try {
       const entries = this.store.pending(BATCH);
       if (entries.length === 0) return;
-      const blocks = entries.map((e) => {
-        const plain = `${ICON[e.kind]} ${clock(e.at)} ${e.text}`;
-        return this.notifier!.format(plain.length > MAX_LINE_CHARS ? `${plain.slice(0, MAX_LINE_CHARS - 1)}…` : plain);
-      });
-      // Each message marks its own entries, so a failure part-way resends only what wasn't delivered.
-      let offset = 0;
-      for (const msg of packMessages(blocks)) {
-        await this.notifier.send(msg.text);
-        this.store.markSent(entries.slice(offset, offset + msg.count).map((e) => e.id), this.now());
-        offset += msg.count;
+      const chats = { group: this.notifier, owner: this.owner, none: null };
+      const unsent = entries.filter((e) => !chats[ROUTE[e.kind]]);
+      if (unsent.length > 0) this.store.markSent(unsent.map((e) => e.id), this.now());
+      for (const route of ['group', 'owner'] as const) {
+        const notifier = chats[route];
+        const mine = entries.filter((e) => ROUTE[e.kind] === route);
+        if (!notifier || mine.length === 0) continue;
+        const blocks = mine.map((e) => {
+          const plain = `${ICON[e.kind]} ${clock(e.at)} ${e.text}`;
+          return notifier.format(plain.length > MAX_LINE_CHARS ? `${plain.slice(0, MAX_LINE_CHARS - 1)}…` : plain);
+        });
+        // Each message marks its own entries, so a failure part-way resends only what wasn't delivered.
+        let offset = 0;
+        for (const msg of packMessages(blocks)) {
+          await notifier.send(msg.text);
+          this.store.markSent(mine.slice(offset, offset + msg.count).map((e) => e.id), this.now());
+          offset += msg.count;
+        }
       }
       this.backoffMs = 0;
     } catch (err) {

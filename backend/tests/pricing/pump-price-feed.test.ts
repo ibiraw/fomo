@@ -128,7 +128,7 @@ describe('PumpPriceFeed', () => {
     await setupPool(1n, 1n, BASE_TA);
     await expect(feed.watch(MINT, () => undefined)).rejects.toThrow(UnsupportedPoolError);
     accounts.data.clear();
-    await expect(feed.watch(MINT, () => undefined)).rejects.toThrow(/Only pump.fun tokens/);
+    await expect(feed.watch(MINT, () => undefined)).rejects.toThrow(/No pump.fun bonding curve or PumpSwap pool for /);
   });
 
   it('treats empty accounts at the curve/pool addresses (someone sent SOL there) as "not a pump token"', async () => {

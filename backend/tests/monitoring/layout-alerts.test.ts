@@ -42,7 +42,7 @@ describe('LayoutAlerts', () => {
     alerts.handle(report({ account: acct('b') }));
     alerts.handle(report({ account: acct('c') }));
     expect(out).toHaveLength(1);
-    expect(out[0]![0]).toBe('error');
+    expect(out[0]![0]).toBe('alert');
     expect(out[0]![1]).toMatch(/missing amount input\. Trades paused — nothing was clicked.*snapshot: reports\/LM-AXXXXX\.txt/);
     expect(saved).toEqual(['LM-AXXXXX:div.panel']);
     advance(10 * 60_000);

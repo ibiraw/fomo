@@ -5,7 +5,7 @@
  * @author Reborn1987
  */
 
-export type ActivityKind = 'server' | 'account' | 'order' | 'payment' | 'subscription' | 'error';
+export type ActivityKind = 'server' | 'account' | 'order' | 'payment' | 'subscription' | 'error' | 'alert';
 
 /** One logged event. */
 export interface ActivityEntry {

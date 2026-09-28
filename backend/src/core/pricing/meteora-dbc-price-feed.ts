@@ -13,6 +13,7 @@ import { marketCapUsd } from './math.js';
 import { dbcPrice, decodeDbcPool, decodeDbcQuoteMint, type DbcPool } from './meteora-dbc.js';
 import type { PoolDirectory } from './pool-directory.js';
 import type { UsdQuotes } from './usd-quotes.js';
+import { followGraduation, GRADUATION_RETRY_MS } from './graduation.js';
 
 /** Per-mint state. */
 interface Watched {
@@ -27,6 +28,7 @@ export class MeteoraDbcPriceFeed extends PriceFeedPort {
   /**
    * @param accounts RPC @param directory pool discovery @param quotes USD for the quote token
    * @param graduated feed used after the curve migrates @param onError sink for stream errors
+   * @param retryMs wait between tries to find the graduated pool
    */
   constructor(
     private readonly accounts: SolanaAccountsPort,
@@ -34,6 +36,7 @@ export class MeteoraDbcPriceFeed extends PriceFeedPort {
     private readonly quotes: UsdQuotes,
     private readonly graduated: PriceFeedPort,
     private readonly onError: (err: unknown) => void,
+    private readonly retryMs = GRADUATION_RETRY_MS,
   ) {
     super();
   }
@@ -95,10 +98,7 @@ export class MeteoraDbcPriceFeed extends PriceFeedPort {
     };
     const graduate = (): void => {
       w.stops.forEach((s) => s());
-      w.stops = [];
-      this.graduated.watch(mint, emit)
-        .then((handoff) => { w.stops.push(() => handoff.stop()); })
-        .catch((err: unknown) => this.onError(err));
+      w.stops = [followGraduation(this.graduated, mint, emit, this.onError, this.retryMs)];
     };
     const sub = this.accounts.subscribe(listed.address, (d) => {
       try {

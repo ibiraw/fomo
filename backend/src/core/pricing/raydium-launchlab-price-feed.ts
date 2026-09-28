@@ -20,6 +20,7 @@ import {
   launchLabReserves,
   type LaunchLabPool,
 } from './raydium-launchlab.js';
+import { followGraduation, GRADUATION_RETRY_MS } from './graduation.js';
 import type { UsdQuotes } from './usd-quotes.js';
 
 export { LAUNCHLAB_QUOTES } from './raydium-launchlab.js';
@@ -36,13 +37,14 @@ export class RaydiumLaunchLabPriceFeed extends PriceFeedPort {
 
   /**
    * @param accounts RPC @param quotes USD conversion @param graduated feed used after migration (CPMM)
-   * @param onError sink for stream errors
+   * @param onError sink for stream errors @param retryMs wait between tries to find the graduated pool
    */
   constructor(
     private readonly accounts: SolanaAccountsPort,
     private readonly quotes: UsdQuotes,
     private readonly graduated: PriceFeedPort,
     private readonly onError: (err: unknown) => void,
+    private readonly retryMs = GRADUATION_RETRY_MS,
   ) {
     super();
   }
@@ -103,10 +105,7 @@ export class RaydiumLaunchLabPriceFeed extends PriceFeedPort {
     };
     const graduate = (): void => {
       w.stops.forEach((s) => s());
-      w.stops = [];
-      this.graduated.watch(mint, emit)
-        .then((handoff) => { w.stops.push(() => handoff.stop()); })
-        .catch((err: unknown) => this.onError(err));
+      w.stops = [followGraduation(this.graduated, mint, emit, this.onError, this.retryMs)];
     };
     const sub = this.accounts.subscribe(poolAddr, (d) => this.guard(() => {
       latest = decodeLaunchLabPool(d);

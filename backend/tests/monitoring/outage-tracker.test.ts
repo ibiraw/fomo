@@ -37,7 +37,7 @@ describe('OutageTracker', () => {
     vi.advanceTimersByTime(60_000);
     h.down(new Error('latest'));
     vi.advanceTimersByTime(60_000);
-    expect(alerts).toEqual([['error', 'rpc:robinhood down for 2 min (still retrying): Error: latest']]);
+    expect(alerts).toEqual([['alert', 'rpc:robinhood down for 2 min (still retrying): Error: latest']]);
     vi.advanceTimersByTime(180_000);
     h.down(new Error('again'));
     expect(alerts).toHaveLength(1);
@@ -57,7 +57,7 @@ describe('OutageTracker', () => {
     tracker.down('rpc:base', new Error('b'));
     tracker.up('rpc');
     vi.advanceTimersByTime(120_000);
-    expect(alerts).toEqual([['error', 'rpc:base down for 2 min (still retrying): Error: b']]);
+    expect(alerts).toEqual([['alert', 'rpc:base down for 2 min (still retrying): Error: b']]);
   });
 
   it('reports sub-minute durations in seconds', () => {

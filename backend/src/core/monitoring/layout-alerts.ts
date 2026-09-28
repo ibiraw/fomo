@@ -13,8 +13,8 @@ export const NEW_VERSION_WINDOW_MS = 30 * 60_000;
 /** At most one "layout broken" alert per this window (later ones only count toward the next alert). */
 export const BROKEN_WINDOW_MS = 10 * 60_000;
 
-/** Monitoring sink ('error' pings, 'server' is informational). */
-export type LayoutAlertSink = (kind: 'error' | 'server', text: string) => void;
+/** Monitoring sink ('alert' needs attention, 'server' is informational). */
+export type LayoutAlertSink = (kind: 'alert' | 'server', text: string) => void;
 /** Saves a snapshot; returns where (a file path) so the alert can point to it. */
 export type SnapshotWriter = (label: string, snapshot: string) => string;
 
@@ -42,7 +42,7 @@ export class LayoutAlerts {
       const where = r.snapshot ? ` · layout snapshot: ${this.saveSnapshot(r.account.shortId, r.snapshot)}` : '';
       const others = this.brokenSince.size > 1 ? ` (${this.brokenSince.size} accounts so far)` : '';
       this.brokenSince.clear();
-      this.sink('error', `🛠 fomo layout not recognised for ${who}${others}: missing ${r.missing.join(', ') || '?'}. `
+      this.sink('alert', `🛠 fomo layout not recognised for ${who}${others}: missing ${r.missing.join(', ') || '?'}. `
         + `${r.paused ? 'Trades paused — nothing was clicked; they resume when fixed' : 'Nothing was clicked'} (fix: data/fomo-dom.json)${where}`);
       return;
     }

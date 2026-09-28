@@ -33,6 +33,32 @@ function setup() {
 }
 
 describe('ActivityRelay', () => {
+  it('sends user activity to the group, server notices and alerts to the owner, and errors to nobody', async () => {
+    let t = 0;
+    const store = new SqliteActivityStoreAdapter(':memory:');
+    const group = new FakeNotifier();
+    const owner = new FakeNotifier();
+    const relay = new ActivityRelay(store, group, () => undefined, 60_000, () => t, owner);
+    relay.record('order', 'LM-1\n\n🟢 placed Limit buy $5');
+    relay.record('payment', '50 USDC');
+    relay.record('server', 'server started');
+    relay.record('alert', 'rpc:base down for 2 min');
+    relay.recordError('pay:arc', new Error('HTTP request failed.'));
+    await relay.deliver();
+    expect(group.sent).toHaveLength(1);
+    expect(group.sent[0]).toMatch(/placed Limit buy[\s\S]*50 USDC/);
+    expect(group.sent[0]).not.toMatch(/server started|down for|HTTP request/);
+    expect(owner.sent).toHaveLength(1);
+    expect(owner.sent[0]).toMatch(/🖥 .*server started[\s\S]*🚨 .*rpc:base down/);
+    expect(owner.sent[0]).not.toMatch(/HTTP request/);
+    expect(store.pending(10)).toEqual([]); // the error is handled (kept in the log, sent nowhere)
+    t += 1;
+    const noOwner = new ActivityRelay(new SqliteActivityStoreAdapter(':memory:'), group, () => undefined, 60_000, () => t);
+    noOwner.record('alert', 'x');
+    await noOwner.deliver();
+    expect(group.sent).toHaveLength(1); // without an owner chat, alerts aren't sent to the group
+  });
+
   it('delivers logged entries in one message and marks them sent', async () => {
     const { store, notifier, relay } = setup();
     relay.record('account', 'new account\nLM-222222'); // one line: newlines flattened
@@ -48,7 +74,7 @@ describe('ActivityRelay', () => {
 
   it('keeps entries when delivery fails, backs off, and honours Telegram rate limits', async () => {
     const { store, notifier, errors, relay, advance } = setup();
-    relay.record('server', 'started');
+    relay.record('account', 'new account LM-222222');
     notifier.fail = new Error('offline');
     await relay.deliver();
     expect(store.pending(10)).toHaveLength(1);
@@ -60,7 +86,7 @@ describe('ActivityRelay', () => {
     await relay.deliver();
     expect(notifier.sent).toHaveLength(1);
 
-    relay.record('server', 'again');
+    relay.record('payment', 'again');
     notifier.fail = new NotifierRateLimitError(30_000);
     await relay.deliver();
     notifier.fail = null;

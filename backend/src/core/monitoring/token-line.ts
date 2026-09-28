@@ -1,8 +1,8 @@
 /**
  * @file token-line.ts
  * @description The token line of a monitoring entry — "<network heart> <address>" — and how it is finished before the
- *              entry is recorded: the heart, the ticker and the token's name on one line, and the full address on the
- *              next (tap-to-copy in Telegram):
+ *              entry is recorded: the heart, the ticker and the token's name on one line, and the full address as its
+ *              own part below it (tap-to-copy in Telegram; parts are separated by a blank line, which the relay keeps):
  *                💜 $COMPUTE Compute Network
  *                FaoGhqyKofREyNWyu2E1wYqHziLVyq8X2EqcBiWJpump
  *              The heart names the chain, so the entry text alone is enough to look the token up.
@@ -55,7 +55,7 @@ export function withTokenLabel(text: string, label: TokenLabel | null): string {
   if (!ticker) return text;
   const name = cleanName(label!.name);
   const shownName = name && name.toLowerCase() !== ticker.toLowerCase() ? ` ${name}` : '';
-  return text.replace(LINE_RE, (_line, heart: string, address: string) => `${heart} $${ticker}${shownName}\n${address}`);
+  return text.replace(LINE_RE, (_line, heart: string, address: string) => `${heart} $${ticker}${shownName}\n\n${address}`);
 }
 
 /**

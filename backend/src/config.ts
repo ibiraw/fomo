@@ -52,6 +52,8 @@ const EnvSchema = z.object({
   /** Telegram monitoring: bot token from @BotFather and the chat to post into (both, or neither). */
   TELEGRAM_BOT_TOKEN: z.string().regex(/^\d+:[A-Za-z0-9_-]{30,}$/, 'Not a Telegram bot token').optional(),
   TELEGRAM_CHAT_ID: z.string().regex(/^-?\d+$/, 'Not a Telegram chat id').optional(),
+  /** The owner's private chat with the bot: server notices and alerts (the group only gets user activity). */
+  TELEGRAM_OWNER_CHAT_ID: z.string().regex(/^-?\d+$/, 'Not a Telegram chat id').optional(),
   /** Optional Jupiter API key; without it the keyless lite endpoint is used. */
   JUPITER_API_KEY: z.string().min(1).optional(),
   JUPITER_POLL_MS: z.coerce.number().int().min(1_000).default(1_500),
@@ -71,7 +73,7 @@ export interface AppConfig {
   readonly fomoWallet: string | null;
   readonly fomoEvmWallet: `0x${string}` | null;
   /** Telegram monitoring; null when not configured. */
-  readonly telegram: { readonly token: string; readonly chatId: string } | null;
+  readonly telegram: { readonly token: string; readonly chatId: string; readonly ownerChatId: string | null } | null;
   /** Paywall settings; null when the paywall is off. */
   readonly paywall: {
     readonly treasury: { readonly solana: string; readonly evm: string };
@@ -129,7 +131,7 @@ function paywallFrom(e: z.infer<typeof EnvSchema>): AppConfig['paywall'] {
 function telegramFrom(e: z.infer<typeof EnvSchema>): AppConfig['telegram'] {
   if (!e.TELEGRAM_BOT_TOKEN && !e.TELEGRAM_CHAT_ID) return null;
   if (!e.TELEGRAM_BOT_TOKEN || !e.TELEGRAM_CHAT_ID) throw new ConfigError('TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set together');
-  return { token: e.TELEGRAM_BOT_TOKEN, chatId: e.TELEGRAM_CHAT_ID };
+  return { token: e.TELEGRAM_BOT_TOKEN, chatId: e.TELEGRAM_CHAT_ID, ownerChatId: e.TELEGRAM_OWNER_CHAT_ID ?? null };
 }
 
 /** Parses env vars; throws ConfigError listing every problem. */

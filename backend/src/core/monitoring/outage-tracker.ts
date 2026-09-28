@@ -14,7 +14,7 @@ import { errorHeadline } from './error-log.js';
 export const STAY_DOWN_MS = 2 * 60_000;
 
 /** Where alerts go (the activity relay in production). */
-export type OutageSink = (kind: 'error' | 'server', text: string) => void;
+export type OutageSink = (kind: 'alert' | 'server', text: string) => void;
 
 /** One open outage. */
 interface Outage {
@@ -56,7 +56,7 @@ export class OutageTracker {
     outage.timer = setTimeout(() => {
       outage.timer = null;
       outage.alerted = true;
-      this.sink('error', `${source} down for ${duration(this.now() - outage.since)} (still retrying): ${errorHeadline(outage.lastError).slice(0, 200)}`);
+      this.sink('alert', `${source} down for ${duration(this.now() - outage.since)} (still retrying): ${errorHeadline(outage.lastError).slice(0, 200)}`);
     }, this.stayDownMs);
     this.open.set(source, outage);
   }

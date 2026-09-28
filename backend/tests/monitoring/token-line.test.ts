@@ -23,8 +23,8 @@ describe('token line', () => {
   });
 
   it('finishes it with the ticker and name, and the full address on the next line', () => {
-    expect(withTokenLabel(entry(`💜 ${SOL}`), { symbol: 'COMPUTE', name: 'Compute Network' })).toBe(entry(`💜 $COMPUTE Compute Network\n${SOL}`));
-    expect(withTokenLabel(entry(`💙 ${EVM}`), { symbol: 'PEPE', name: 'pepe' })).toBe(entry(`💙 $PEPE\n${EVM}`)); // name = ticker
+    expect(withTokenLabel(entry(`💜 ${SOL}`), { symbol: 'COMPUTE', name: 'Compute Network' })).toBe(entry(`💜 $COMPUTE Compute Network\n\n${SOL}`));
+    expect(withTokenLabel(entry(`💙 ${EVM}`), { symbol: 'PEPE', name: 'pepe' })).toBe(entry(`💙 $PEPE\n\n${EVM}`)); // name = ticker
     const done = withTokenLabel(entry(`💜 ${SOL}`), { symbol: 'A', name: 'B' });
     expect(withTokenLabel(done, { symbol: 'X', name: 'Y' })).toBe(done); // only once
     expect(withTokenLabel(entry(`💜 ${SOL}`), null)).toBe(entry(`💜 ${SOL}`));
@@ -49,7 +49,7 @@ describe('token line', () => {
     t.push('order', entry(`💙 ${EVM}`));
     t.push('order', 'no token here');
     await t.flush();
-    expect(recorded).toEqual([entry(`💜 ${SOL}`), entry(`💙 $FAST Fast One\n${EVM}`), 'no token here']);
+    expect(recorded).toEqual([entry(`💜 ${SOL}`), entry(`💙 $FAST Fast One\n\n${EVM}`), 'no token here']);
     const failing = new TokenLabeler<'order'>(async () => { throw new Error('rpc'); }, (_k, text) => recorded.push(text));
     failing.push('order', entry(`💜 ${SOL}`));
     await failing.flush();

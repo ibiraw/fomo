@@ -82,7 +82,15 @@ function logOnly(ctx: string) {
 async function main(): Promise<void> {
   const cfg = loadConfig();
   const activityStore = new SqliteActivityStoreAdapter(cfg.dbPath);
-  monitor = new ActivityRelay(activityStore, cfg.telegram ? new TelegramNotifierAdapter(cfg.telegram.token, cfg.telegram.chatId) : null, logError('telegram'));
+  // The users' group gets user activity; the owner's private chat gets server notices and alerts (see ROUTE).
+  monitor = new ActivityRelay(
+    activityStore,
+    cfg.telegram ? new TelegramNotifierAdapter(cfg.telegram.token, cfg.telegram.chatId) : null,
+    logError('telegram'),
+    1_000,
+    Date.now,
+    cfg.telegram?.ownerChatId ? new TelegramNotifierAdapter(cfg.telegram.token, cfg.telegram.ownerChatId) : null,
+  );
   const relay = monitor;
   // RPC sockets drop and self-heal about hourly; only outages that last 2+ minutes reach Telegram.
   const outages = new OutageTracker((kind, text) => relay.record(kind, text));

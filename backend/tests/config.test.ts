@@ -75,7 +75,9 @@ describe('loadConfig paywall', () => {
 describe('loadConfig telegram', () => {
   it('is off by default and needs both token and chat id', () => {
     expect(loadConfig({ ...base, DATA_DIR: tempDir() }).telegram).toBeNull();
-    expect(loadConfig({ ...base, DATA_DIR: tempDir(), TELEGRAM_BOT_TOKEN: '123456:' + 'A'.repeat(35), TELEGRAM_CHAT_ID: '-1001' }).telegram).toEqual({ token: '123456:' + 'A'.repeat(35), chatId: '-1001' });
+    expect(loadConfig({ ...base, DATA_DIR: tempDir(), TELEGRAM_BOT_TOKEN: '123456:' + 'A'.repeat(35), TELEGRAM_CHAT_ID: '-1001' }).telegram).toEqual({ token: '123456:' + 'A'.repeat(35), chatId: '-1001', ownerChatId: null });
+    expect(loadConfig({ ...base, DATA_DIR: tempDir(), TELEGRAM_BOT_TOKEN: '123456:' + 'A'.repeat(35), TELEGRAM_CHAT_ID: '-1001', TELEGRAM_OWNER_CHAT_ID: '859' }).telegram)
+      .toMatchObject({ ownerChatId: '859' });
     expect(() => loadConfig({ ...base, DATA_DIR: tempDir(), TELEGRAM_CHAT_ID: '5' })).toThrow(/must be set together/);
     expect(() => loadConfig({ ...base, DATA_DIR: tempDir(), TELEGRAM_BOT_TOKEN: 'nope', TELEGRAM_CHAT_ID: '5' })).toThrow(/Telegram bot token/);
   });
