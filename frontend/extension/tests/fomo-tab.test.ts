@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { executeInFomoTab, isTokenPage, prepareTab, tokenUrl, type TabsApi, type TabTimings, type WorkerTabStore } from '../lib/fomo-tab';
+import { executeInFomoTab, isTokenPage, prepareTab, tokenUrl, tradeInNewTab, type TabsApi, type TabTimings, type WorkerTabStore } from '../lib/fomo-tab';
 import type { Order } from '../lib/types';
 
 const MINT = 'EcwFm5TJ3zuBXnsT6DngXMAMfsfELhwGc9JFgeVWpump';
@@ -34,6 +34,27 @@ function fakeTabs(tabs: { id: number; url: string; active?: boolean }[], opts: {
   };
   return api as typeof api & TabsApi;
 }
+
+describe('tradeInNewTab (quick buttons)', () => {
+  it("opens the token in a new tab in front, trades there with fomo's button and leaves the tab open", async () => {
+    const tabs = fakeTabs([{ id: 1, url: tokenUrl(MINT) }]);
+    const req = { side: 'buy', amount: { kind: 'usd', value: 25 } } as const;
+    const r = await tradeInNewTab(tabs, noInject, MINT, req, FAST);
+    expect(r).toMatchObject({ ok: true });
+    expect(tabs.create).toHaveBeenCalledWith({ url: tokenUrl(MINT), active: true });
+    expect(tabs.sendMessage).toHaveBeenCalledWith(99, { type: 'fomo.trade', mint: MINT, request: req });
+    expect(tabs.remove).not.toHaveBeenCalled();
+  });
+
+  it('fails without clicking when the page never gets ready, and reports an unknown outcome when the tab goes quiet', async () => {
+    const req = { side: 'sell', amount: { kind: 'percent', value: 50 } } as const;
+    const never = fakeTabs([], { onMint: () => false });
+    expect(await tradeInNewTab(never, noInject, MINT, req, FAST)).toMatchObject({ ok: false, kind: 'ui_error' });
+    expect(never.sendMessage).not.toHaveBeenCalledWith(99, expect.objectContaining({ type: 'fomo.trade' }));
+    const quiet = fakeTabs([], { trade: () => new Promise(() => undefined) });
+    expect(await tradeInNewTab(quiet, noInject, MINT, req, FAST)).toMatchObject({ ok: false, kind: 'unknown' });
+  });
+});
 
 describe('prepareTab', () => {
   it('prefers a tab already on the token page', async () => {

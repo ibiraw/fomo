@@ -2,7 +2,7 @@
  * @file quick-trade.test.ts
  * @description v2.0.0 quick Buy/Sell buttons: preset validation, reading an item's token (token-page link, defined.fi
  *              and fomo logo file names, unknown networks), buttons only in the Alerts / Feed tabs, one row per item
- *              (redrawn when the token changes), and a tap → order → outcome on the button.
+ *              (redrawn when the token changes), and a tap → trade in a new tab → outcome on the button.
  * @author Reborn1987
  */
 
@@ -78,11 +78,11 @@ describe('QuickTradeButtons', () => {
     expect(document.querySelectorAll('[data-limit-quick]')).toHaveLength(0);
   });
 
-  it('sends a quick order on tap without opening the post, and shows the outcome', async () => {
+  it('asks for a trade on tap without opening the post, and shows the outcome', async () => {
     vi.useFakeTimers();
     document.body.innerHTML = panel('Feed');
     const sent: QuickTradeRequest[] = [];
-    let answer: QuickTradeReply = { ok: true, orderId: 'o1' };
+    let answer: QuickTradeReply = { ok: true };
     const w = new QuickTradeButtons({ doc: document, presets: () => DEFAULT_QUICK_PRESETS, send: async (r) => { sent.push(r); return answer; } });
     w.scan();
     const clicked = vi.fn();
@@ -93,8 +93,6 @@ describe('QuickTradeButtons', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(sent).toEqual([{ type: 'fomo.quick', mint: `robinhood:${RH}`, side: 'buy', amount: { kind: 'usd', value: 50 } }]);
     expect(clicked).not.toHaveBeenCalled();
-    expect(buy!.textContent).toBe('Buying…');
-    w.finish({ type: 'quick.result', orderId: 'o1', status: 'filled', error: null });
     expect(buy!.textContent).toBe('✓ Bought');
     await vi.advanceTimersByTimeAsync(3_000);
     expect(buy!.textContent).toBe('Buy $50');
@@ -104,11 +102,11 @@ describe('QuickTradeButtons', () => {
     expect(sell!.textContent).toBe('✗ Failed');
     expect(sell!.title).toBe("You don't hold this token");
     await vi.advanceTimersByTimeAsync(6_000);
-    answer = { ok: false, error: 'Connection closed', unknown: true }; // sent, but the answer was lost
+    answer = { ok: false, error: 'FOMO tab did not answer', unknown: true }; // pressed, outcome not seen
     sell!.click();
     await vi.advanceTimersByTimeAsync(0);
     expect(sell!.textContent).toBe('? Check fomo');
-    expect(sell!.title).toMatch(/may still go through/);
+    expect(sell!.title).toMatch(/may have gone through/);
     vi.useRealTimers();
   });
 });

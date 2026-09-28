@@ -42,7 +42,7 @@ export function QuickTradeSettings() {
   return (
     <SettingsCard className="space-y-2">
       <h2 className="text-sm font-semibold">Quick buttons</h2>
-      <p className="text-xs text-muted-foreground">Under every post in fomo&apos;s Feed and Alerts. A tap trades right away, no confirmation.</p>
+      <p className="text-xs text-muted-foreground">Under every post in fomo&apos;s Feed and Alerts. A tap opens the coin in a new tab and presses fomo&apos;s own Buy/Sell there, no confirmation.</p>
       <div className="grid grid-cols-3 gap-1.5">
         <FieldBox label="Buy" value={draft.buyA} onChange={(v) => change('buyA', v)} suffix={<span className="text-xs font-semibold">$</span>} className={valid.buyA ? '' : 'ring-1 ring-destructive'} />
         <FieldBox label="Buy" value={draft.buyB} onChange={(v) => change('buyB', v)} suffix={<span className="text-xs font-semibold">$</span>} className={valid.buyB ? '' : 'ring-1 ring-destructive'} />

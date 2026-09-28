@@ -13,7 +13,7 @@ import { FomoHealthWatcher, type FomoHealthMessage } from '@/lib/fomo-health-wat
 import { SpotTradeWatcher, titleSymbol, type SpotTradeMessage } from '@/lib/fomo-spot-watch';
 import type { WalletsDetectedMessage } from '@/lib/messages';
 import { keyFromPath, tokenPath } from '@/lib/token-key';
-import { DEFAULT_QUICK_PRESETS, QUICK_PRESETS_KEY, QuickTradeButtons, toQuickPresets, type QuickPresets, type QuickTradeReply, type QuickTradeResult } from '@/lib/quick-trade';
+import { DEFAULT_QUICK_PRESETS, QUICK_PRESETS_KEY, QuickTradeButtons, toQuickPresets, type QuickPresets, type QuickTradeReply } from '@/lib/quick-trade';
 import { hasFeature, loadRelease, onReleaseChange } from '@/lib/release';
 import { executeTrade } from '@/lib/trade';
 import type { ExecutionResult, TradeRequest } from '@/lib/types';
@@ -76,11 +76,7 @@ export default defineContentScript({
       }
     };
     startQuickTrade();
-    browser.runtime.onMessage.addListener((msg: ContentMessage | QuickTradeResult, _sender, sendResponse) => {
-      if (msg.type === 'quick.result') {
-        quickButtons?.finish(msg);
-        return false;
-      }
+    browser.runtime.onMessage.addListener((msg: ContentMessage, _sender, sendResponse) => {
       if (msg.type === 'fomo.ping') {
         sendResponse({ onMint: onMintPage(msg.mint) } satisfies PingReply);
         return false;

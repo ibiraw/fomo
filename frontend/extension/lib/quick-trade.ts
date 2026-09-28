@@ -3,8 +3,8 @@
  * @description v2.0.0 quick Buy/Sell buttons under posts in fomo's Feed and Alerts (side panel). Each item's token is
  *              read from its link to the token page (trades) or, for thesis posts that have no link, from its token
  *              logo, whose file name carries the network id and address (defined.fi "4663_0x…_small", fomo
- *              "logos/evm_4663_0x…", "logos/solana_solana_<mint>"). A tap places a quick (market) order through the
- *              server, which limit then trades right away in its background fomo tab. Amounts are the user's presets.
+ *              "logos/evm_4663_0x…", "logos/solana_solana_<mint>"). A tap opens the token's page in a new tab and
+ *              trades there with fomo's own Buy/Sell button (a spot trade, no server order). Amounts are the user's presets.
  *              Only the tabs in the layout data (Alerts, Feed) get buttons; Tokens and Leaderboard don't.
  * @author Reborn1987
  */
@@ -98,20 +98,12 @@ export interface QuickTradeRequest {
 }
 
 /**
- * The background's answer to a tap: placed (with the order id to follow), refused, or `unknown` — sent but the answer
- * never came (connection dropped), so the trade may still go through.
+ * The background's answer to a tap once the trade in the new tab is over: done, failed, or `unknown` — fomo's Buy/Sell
+ * was pressed but its outcome couldn't be seen (tab closed, no answer), so the user must check fomo.
  */
 export type QuickTradeReply =
-  | { readonly ok: true; readonly orderId: string }
+  | { readonly ok: true }
   | { readonly ok: false; readonly error: string; readonly unknown?: boolean };
-
-/** Sent by the background when a quick order finishes. */
-export interface QuickTradeResult {
-  readonly type: 'quick.result';
-  readonly orderId: string;
-  readonly status: 'filled' | 'failed' | 'unknown' | 'cancelled';
-  readonly error: string | null;
-}
 
 const ROW_ATTR = 'data-limit-quick';
 
@@ -130,9 +122,6 @@ const LOOK: Record<'buy' | 'sell', { bg: string; fg: string; border: string }> =
 
 /** Adds and keeps the quick buttons on the active Feed / Alerts items. */
 export class QuickTradeButtons {
-  /** Buttons waiting for their order's outcome, by order id. */
-  private readonly waiting = new Map<string, { button: HTMLButtonElement; label: string; side: 'buy' | 'sell' }>();
-
   /** @param env page access */
   constructor(private readonly env: QuickTradeEnv) {}
 
@@ -152,15 +141,6 @@ export class QuickTradeButtons {
     this.env.doc.querySelectorAll(`[${ROW_ATTR}]`).forEach((r) => r.remove());
   }
 
-  /** Shows a finished quick order on its button. */
-  finish(r: QuickTradeResult): void {
-    const w = this.waiting.get(r.orderId);
-    if (!w) return;
-    this.waiting.delete(r.orderId);
-    const done = r.status === 'filled';
-    this.settle(w.button, done ? `✓ ${w.side === 'buy' ? 'Bought' : 'Sold'}` : r.status === 'unknown' ? 'Check fomo' : '✗ Failed', w.label, r.error);
-  }
-
   /** The button row for one token. */
   private row(key: string): HTMLElement {
     const p = this.env.presets();
@@ -177,7 +157,7 @@ export class QuickTradeButtons {
     return row;
   }
 
-  /** One pill button: tap → quick order → "Buying…" → "✓ Bought" / "✗ Failed". */
+  /** One pill button: tap → trade in a new tab → "Buying…" → "✓ Bought" / "✗ Failed" / "? Check fomo". */
   private button(mint: string, side: 'buy' | 'sell', amount: QuickTradeRequest['amount'], label: string): HTMLButtonElement {
     const b = this.env.doc.createElement('button');
     b.type = 'button';
@@ -194,8 +174,8 @@ export class QuickTradeButtons {
       b.textContent = side === 'buy' ? 'Buying…' : 'Selling…';
       void this.env.send({ type: 'fomo.quick', mint, side, amount }).then(
         (reply) => {
-          if (reply.ok) this.waiting.set(reply.orderId, { button: b, label, side });
-          else if (reply.unknown) this.settle(b, '? Check fomo', label, `${reply.error}. It may still go through: check fomo before tapping again.`);
+          if (reply.ok) this.settle(b, `✓ ${side === 'buy' ? 'Bought' : 'Sold'}`, label, null);
+          else if (reply.unknown) this.settle(b, '? Check fomo', label, `${reply.error}. It may have gone through: check fomo before tapping again.`);
           else this.settle(b, '✗ Failed', label, reply.error);
         },
         (err: unknown) => this.settle(b, '✗ Failed', label, err instanceof Error ? err.message : String(err)),

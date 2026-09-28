@@ -96,7 +96,12 @@ export async function prepareTab(
   const id = tab.id;
   await tabs.update(id, { autoDiscardable: false }); // keep Chrome's Memory Saver from unloading it
   if (!isTokenPage(tab.url, mint)) await tabs.update(id, { url }); // only ever the worker tab
+  await waitForTokenPage(tabs, inject, id, mint, t);
+  return id;
+}
 
+/** Waits until the tab's content script reports the token page, adding the script once if it's missing. */
+async function waitForTokenPage(tabs: TabsApi, inject: InjectFn, id: number, mint: string, t: TabTimings): Promise<void> {
   const deadline = Date.now() + t.readyMs;
   let injected = false;
   let injectFailure: string | null = null;
@@ -104,7 +109,7 @@ export async function prepareTab(
   while (Date.now() < deadline) {
     try {
       const reply = (await tabs.sendMessage(id, { type: 'fomo.ping', mint })) as { onMint?: boolean } | undefined;
-      if (reply?.onMint) return id;
+      if (reply?.onMint) return;
       lastProblem = 'tab is not showing the token page';
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -171,14 +176,37 @@ async function runInFomoTab(
     // Nothing was clicked yet, so this is a definite failure, not an unknown outcome.
     return { tabId: null, result: { ok: false, kind: 'ui_error', message: err instanceof Error ? err.message : String(err) } };
   }
-  return { tabId: id, result: await trade(tabs, id, order, t, t0) };
+  return { tabId: id, result: await trade(tabs, id, order.mint, toTradeRequest(order), t, t0) };
+}
+
+/**
+ * Quick Buy/Sell: opens the token's page in a new tab in front of the user and trades there with fomo's own Buy/Sell
+ * button (no server order). The tab stays open afterwards, it is the user's now. Never throws.
+ */
+export async function tradeInNewTab(
+  tabs: TabsApi,
+  inject: InjectFn,
+  mint: string,
+  request: TradeRequest,
+  t: TabTimings = DEFAULT_TAB_TIMINGS,
+): Promise<ExecutionResult> {
+  const t0 = Date.now();
+  try {
+    const tab = await tabs.create({ url: tokenUrl(mint), active: true });
+    if (tab.id === undefined) throw new Error('Could not open a FOMO tab');
+    await waitForTokenPage(tabs, inject, tab.id, mint, t);
+    return await trade(tabs, tab.id, mint, request, t, t0);
+  } catch (err) {
+    // The tab never got ready, so nothing was clicked: a definite failure.
+    return { ok: false, kind: 'ui_error', message: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 /** Sends the trade to the prepared tab's content script. */
-async function trade(tabs: TabsApi, id: number, order: Order, t: TabTimings, t0: number): Promise<ExecutionResult> {
+async function trade(tabs: TabsApi, id: number, mint: string, request: TradeRequest, t: TabTimings, t0: number): Promise<ExecutionResult> {
   try {
     const result = await timeout(
-      tabs.sendMessage(id, { type: 'fomo.trade', mint: order.mint, request: toTradeRequest(order) }) as Promise<ExecutionResult | undefined>,
+      tabs.sendMessage(id, { type: 'fomo.trade', mint, request }) as Promise<ExecutionResult | undefined>,
       t.tradeMs,
       'FOMO tab did not answer',
     );
