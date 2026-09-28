@@ -9,7 +9,8 @@ import type { Order } from '../core/orders/order.js';
 /**
  * Why a trade failed. `slippage` is retryable; `unknown` means the outcome could not be confirmed; `layout` means
  * fomo's page wasn't recognised and nothing was clicked — the order goes back to waiting and the account's trades
- * pause until the layout settings work again.
+ * pause until the layout settings work again; `unconfirmed` means fomo's page looked done but the wallet didn't
+ * change on-chain (e.g. a crashing price shrank the position's $ value like a sell would).
  */
 export type ExecutionErrorKind =
   | 'layout'
@@ -18,7 +19,8 @@ export type ExecutionErrorKind =
   | 'insufficient_funds'
   | 'ui_error'
   | 'timeout'
-  | 'unknown';
+  | 'unknown'
+  | 'unconfirmed';
 
 /** Result of one execution attempt (Service Result pattern). */
 export type ExecutionResult =

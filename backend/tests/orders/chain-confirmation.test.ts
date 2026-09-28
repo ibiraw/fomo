@@ -115,17 +115,46 @@ describe('OrderEngine on-chain confirmation', () => {
     expect(store.get(o.id)?.status).toBe('unknown');
   });
 
-  it('trusts definite UI failures and UI successes', async () => {
-    const { store, feed, exec, engine } = await setup();
+  it('trusts definite UI failures, and UI successes the wallet confirms', async () => {
+    const { accounts, store, feed, exec, engine } = await setup();
     exec.results.push({ ok: false, kind: 'insufficient_funds', message: 'no cash' });
     const o = await engine.createOrder('u1', BUY);
     feed.tick(MINT, 1);
     await settle(20);
     expect(store.get(o.id)?.status).toBe('failed');
+    let release!: () => void;
+    exec.gate = new Promise((r) => (release = r));
     const p = await engine.createOrder('u1', BUY);
     feed.tick(MINT, 1);
-    await settle(20);
+    await settle(10);
+    accounts.balances.set(KEY, 5_000n); // the buy landed
+    release();
+    await settle(30);
     expect(store.get(p.id)?.status).toBe('filled');
+  });
+
+  it("doesn't believe a UI success the wallet never shows: a stop loss sells again, a buy waits to be checked", async () => {
+    // What happened to COMPUTE (2026-09-28): the price crash shrank the position's $ value on fomo's page like a
+    // sell would, the extension reported the stop loss sold, but the tokens never left the wallet.
+    const { accounts, store, feed, exec, engine } = await setup(30);
+    accounts.balances.set(KEY, 1_617_043n);
+    const stopLoss = await engine.createOrder('u1', { ...BUY, side: 'sell', amount: { kind: 'percent', value: 100 } });
+    feed.tick(MINT, 1);
+    await settle(80);
+    expect(store.get(stopLoss.id)).toMatchObject({ status: 'open', attempts: 1 });
+    expect(store.get(stopLoss.id)?.lastError).toMatch(/^unconfirmed: fomo showed it done/);
+    exec.gate = new Promise((r) => setTimeout(r, 10));
+    feed.tick(MINT, 1); // tried again: this time the sell really happens
+    await settle(5);
+    accounts.balances.set(KEY, 0n);
+    await settle(60);
+    expect(store.get(stopLoss.id)?.status).toBe('filled');
+
+    const buy = await engine.createOrder('u1', BUY);
+    feed.tick(MINT, 1);
+    await settle(80);
+    expect(store.get(buy.id)).toMatchObject({ status: 'unknown' }); // never bought twice blind
+    expect(exec.executed.filter((o) => o.id === buy.id)).toHaveLength(1);
   });
 
   it('falls back to UI-only confirmation when the snapshot fails', async () => {

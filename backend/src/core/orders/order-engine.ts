@@ -345,7 +345,9 @@ export class OrderEngine {
   /**
    * Runs the trade through the executor while watching the wallet on-chain. On-chain evidence marks
    * the order filled as soon as it appears, and also rescues results the UI could not confirm
-   * (unknown / timeout). Without a confirmer this is just executor.execute().
+   * (unknown / timeout). A UI success counts only once the wallet agrees within the grace period: fomo's page can
+   * look done when it isn't (a stop loss on a crashing token loses $ value like a sell would), so without on-chain
+   * evidence it becomes `unconfirmed`. Without a confirmer this is just executor.execute().
    */
   private async executeWithConfirmation(order: Order): Promise<ExecutionResult> {
     const confirmer = this.confirmerFor(order.userId);
@@ -364,10 +366,11 @@ export class OrderEngine {
     });
     try {
       const result = await this.executor.execute(order);
-      if (result.ok || (result.kind !== 'unknown' && result.kind !== 'timeout')) return result;
+      if (!result.ok && result.kind !== 'unknown' && result.kind !== 'timeout') return result;
       const change = await Promise.race([chain, sleep(this.chainGraceMs, abort.signal).then(() => null)]);
-      return change
-        ? { ok: true, detail: `Confirmed on-chain (token balance ${change.before} → ${change.after})` }
+      if (change) return result.ok ? result : { ok: true, detail: `Confirmed on-chain (token balance ${change.before} → ${change.after})` };
+      return result.ok
+        ? { ok: false, kind: 'unconfirmed', message: `fomo showed it done (${result.detail}), but the wallet didn't change on-chain` }
         : result;
     } finally {
       abort.abort();
@@ -380,6 +383,12 @@ export class OrderEngine {
     const lastError = `${result.kind}: ${result.message}`;
     if (result.kind === 'slippage' && order.attempts < order.maxAttempts) {
       return this.store.transition(order.id, ['executing'], 'open', { lastError });
+    }
+    // A sell the wallet didn't confirm is tried again (selling a share of nothing sells nothing); a buy is never
+    // retried blind — it could buy twice — so it waits for the user to check fomo.
+    if (result.kind === 'unconfirmed') {
+      const retry = order.side === 'sell' && order.attempts < order.maxAttempts;
+      return this.store.transition(order.id, ['executing'], retry ? 'open' : 'unknown', { lastError });
     }
     const next = result.kind === 'timeout' || result.kind === 'unknown' ? 'unknown' : 'failed';
     return this.store.transition(order.id, ['executing'], next, { lastError });
