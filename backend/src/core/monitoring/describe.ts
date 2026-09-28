@@ -36,13 +36,13 @@ export function orderIcon(o: Pick<Order, 'side' | 'trigger'>): string {
   return o.trigger.direction === 'above' ? '🎯' : '🛑';
 }
 
-/** Network colour shown before a token address: Solana 🟣, Base 🔵, Ethereum 🩵, BNB 🟡, Robinhood 🟢, Arc 🩶. */
-const NETWORK_ICON: Record<string, string> = { solana: '🟣', base: '🔵', ethereum: '🩵', bnb: '🟡', robinhood: '🟢', arc: '🩶' };
+/** Network heart shown before a token address (the colour is the chain): Solana 💜, Base 💙, Ethereum 🩵, BNB 💛, Robinhood 💚, Arc 🩶. */
+const NETWORK_ICON: Record<string, string> = { solana: '💜', base: '💙', ethereum: '🩵', bnb: '💛', robinhood: '💚', arc: '🩶' };
 
-/** The network icon for a token key ("base:0x…" → 🔵; a bare mint is Solana → 🟣). */
+/** The network heart for a token key ("base:0x…" → 💙; a bare mint is Solana → 💜). */
 export function networkIcon(key: string): string {
   const chain = key.includes(':') ? key.slice(0, key.indexOf(':')) : 'solana';
-  return NETWORK_ICON[chain] ?? '⚪';
+  return NETWORK_ICON[chain] ?? '🤍';
 }
 
 /** An optional last line: market info (📊 target, fill) or a reason (ℹ️ error, cancel reason). */
@@ -56,7 +56,7 @@ export interface EntryDetail {
  *   "LM-JPHDZS" (the relay prefixes "⏰ <time> ")
  *   "🧍LM-JPHDZS (@ibiraw)"
  *   "🟢 placed Limit buy $50"
- *   "🟣 6prL…pump" (network colour + tap-to-copy address)
+ *   "💜 6prL…pump" (network heart + tap-to-copy address; no chain name — the colour says it)
  *   "📊 MC ≤ $162.9K"
  */
 export function orderEntry(icon: string, who: string, action: string, mint: string | null, detail: EntryDetail | null = null): string {
@@ -65,7 +65,7 @@ export function orderEntry(icon: string, who: string, action: string, mint: stri
     id,
     `🧍${who}`,
     `${icon} ${action}`,
-    mint ? `${networkIcon(mint)} ${mint}` : null,
+    mint ? `${networkIcon(mint)} ${mint.includes(':') ? mint.slice(mint.indexOf(':') + 1) : mint}` : null,
     detail ? `${detail.kind === 'market' ? '📊' : 'ℹ️'} ${detail.text}` : null,
   ].filter((part): part is string => !!part).join('\n\n');
 }

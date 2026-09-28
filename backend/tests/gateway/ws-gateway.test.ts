@@ -357,7 +357,7 @@ describe('WsGateway accounts', () => {
     c.send({ type: 'trade.spot', reqId: 's1', side: 'buy', detail: 'Buying  $3.00 KEK', mint: MINT });
     expect((await c.next((m) => m.reqId === 's1')).data).toEqual({ logged: true });
     expect(activity.at(-1)).toMatch(/^order: LM-\w+\n\n🧍LM-\w+\n\n🛒 Spot buy on fomo: Buying \$3\.00 KEK\n\n/); // whitespace squeezed
-    expect(activity.at(-1)!.endsWith(`\n\n🟣 ${MINT}`)).toBe(true);
+    expect(activity.at(-1)!.endsWith(`\n\n💜 ${MINT}`)).toBe(true);
     c.send({ type: 'trade.spot', reqId: 's2', side: 'sell', detail: 'Selling 1.2M KEK' });
     expect((await c.next((m) => m.reqId === 's2')).data).toEqual({ logged: false }); // < 3 s after the last
     t += 5_000;

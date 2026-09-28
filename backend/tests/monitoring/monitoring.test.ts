@@ -139,12 +139,12 @@ describe('describeOrder', () => {
     status: 'open', attempts: 0, maxAttempts: 3, lastError: null, triggeredAtValue: null, createdAt: 1, updatedAt: 1,
   } as unknown as Order;
   it('describes placements and outcomes, and skips intermediate states', () => {
-    const CA = 'base:0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07';
-    expect(describeOrder(base, 'LM-2 (@ibiraw)')).toBe(`LM-2\n\n🧍LM-2 (@ibiraw)\n\n🎯 placed Take profit 50%\n\n🔵 ${CA}\n\n📊 MC ≥ $120.0K`);
-    expect(describeOrder(base, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 placed Take profit 50%\n\n🔵 ${CA}\n\n📊 MC ≥ $120.0K`); // no handle yet
+    const ADDR = '0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07'; // shown without the chain name: 💙 means Base
+    expect(describeOrder(base, 'LM-2 (@ibiraw)')).toBe(`LM-2\n\n🧍LM-2 (@ibiraw)\n\n🎯 placed Take profit 50%\n\n💙 ${ADDR}\n\n📊 MC ≥ $120.0K`);
+    expect(describeOrder(base, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 placed Take profit 50%\n\n💙 ${ADDR}\n\n📊 MC ≥ $120.0K`); // no handle yet
     expect(describeOrder({ ...base, attempts: 1, lastError: 'slippage: x' }, 'LM-2')).toMatch(/🎯 re-armed Take profit 50% after slippage\n\n[\s\S]*\n\nℹ️ slippage: x$/);
-    expect(describeOrder({ ...base, status: 'filled', triggeredAtValue: 121_000 }, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 FILLED Take profit 50%\n\n🔵 ${CA}\n\n📊 at $121.0K`);
-    expect(describeOrder({ ...base, status: 'cancelled' }, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 cancelled Take profit 50%\n\n🔵 ${CA}`); // no detail line
+    expect(describeOrder({ ...base, status: 'filled', triggeredAtValue: 121_000 }, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 FILLED Take profit 50%\n\n💙 ${ADDR}\n\n📊 at $121.0K`);
+    expect(describeOrder({ ...base, status: 'cancelled' }, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 cancelled Take profit 50%\n\n💙 ${ADDR}`); // no detail line
     const kind = (side: string, direction: string) => describeOrder({ ...base, side, trigger: { ...base.trigger, direction } } as Order, 'x')!;
     expect([kind('buy', 'below'), kind('buy', 'above'), kind('sell', 'above'), kind('sell', 'below')].map((t) => t.split('\n\n')[2]!.replace('placed ', '').replace(/ \S+$/, '')))
       .toEqual(['🟢 Limit buy', '🚀 Breakout buy', '🎯 Take profit', '🛑 Stop loss']);
@@ -153,13 +153,13 @@ describe('describeOrder', () => {
     expect(describeOrder({ ...base, status: 'cancelled', lastError: 'auto_cancelled: gone' }, 'LM-2')).toMatch(/cancelled [\s\S]*\n\nℹ️ auto_cancelled: gone$/);
     expect(describeOrder({ ...base, status: 'triggered' }, 'LM-2')).toBeNull();
     const buy = { ...base, side: 'buy', trigger: { ...base.trigger, metric: 'price', direction: 'below', value: 0.00042 }, amount: { kind: 'usd', value: 25 } } as unknown as Order;
-    expect(describeOrder(buy, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🟢 placed Limit buy $25\n\n🔵 ${CA}\n\n📊 price ≤ $0.000420`);
+    expect(describeOrder(buy, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🟢 placed Limit buy $25\n\n💙 ${ADDR}\n\n📊 price ≤ $0.000420`);
     expect(describeOrder({ ...buy, trigger: { ...buy.trigger, direction: 'above' } }, 'LM-2')).toMatch(/Breakout buy/);
     expect(describeOrder({ ...base, trigger: { ...base.trigger, direction: 'below' } }, 'LM-2')).toMatch(/Stop loss/);
   });
-  it('colours each network: Solana purple, Base blue, Ethereum light blue, BNB yellow, Robinhood green, Arc grey', () => {
+  it('gives each network a coloured heart: Solana purple, Base blue, Ethereum light blue, BNB yellow, Robinhood green, Arc grey', () => {
     expect(['EcwFm5TJ3zuBXnsT6DngXMAMfsfELhwGc9JFgeVWpump', 'base:0x1', 'ethereum:0x1', 'bnb:0x1', 'robinhood:0x1', 'arc:0x1', 'other:0x1'].map(networkIcon))
-      .toEqual(['🟣', '🔵', '🩵', '🟡', '🟢', '🩶', '⚪']);
+      .toEqual(['💜', '💙', '🩵', '💛', '💚', '🩶', '🤍']);
   });
 
   it('formats amounts and tokens compactly', () => {
