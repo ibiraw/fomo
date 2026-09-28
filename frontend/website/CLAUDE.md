@@ -8,7 +8,7 @@ limit showcase site (Mono theme). Next.js 16 static export.
 |------|---------|
 | `app/` | layout (splash, share metadata), page, `opengraph-image.tsx` (preview image), `icon.svg` |
 | `app/privacy/`, `app/policies/` | Privacy policy; policies (terms, subscription & payments, refunds, risk). Both use `components/site/PolicyBlock.tsx` |
-| `components/site/` | Sections (hero, features, how it works, holders, FAQ), BeforeAfter (#compare, under the hero), Walkthrough, TryIt, Themes, Splash, `use-loop-clock.ts` (shared rAF loop) |
+| `components/site/` | Sections (hero, features, how it works, FAQ), GetStarted (#pricing: 3 free orders + $50/30 days; #get: zip download `/limit.zip`, store "coming soon", 8 setup steps), BeforeAfter (#compare, under the hero), Walkthrough, TryIt, Themes, Splash, `use-loop-clock.ts` (shared rAF loop) |
 | `lib/` | `before-after.ts` (fomo vs fomo + limit timeline), `demo.ts` (walkthrough timeline), `order-kind.ts`, `themes.ts` (mirror of extension themes — keep in sync) |
 | `single/`, `vite.single.config.ts` | Single-file build of the same components (for Claude artifact publishing) |
 

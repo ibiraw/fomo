@@ -1,7 +1,7 @@
 /**
  * @file Sections.tsx
- * @description Static sections of the limit site: header, hero, features, architecture, holder
- *              access (coming soon), FAQ and footer. No personal information anywhere.
+ * @description Static sections of the limit site: header, hero, features, architecture, FAQ and
+ *              footer (setup and pricing live in GetStarted.tsx). No personal information anywhere.
  * @author Reborn1987
  */
 
@@ -16,7 +16,6 @@ import {
   Radio,
   ShieldCheck,
   Timer,
-  Wallet,
 } from 'lucide-react';
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -45,7 +44,8 @@ export function SiteHeader() {
           <Link href="/#features" className="hover:text-foreground">Features</Link>
           <Link href="/#themes" className="hover:text-foreground">Themes</Link>
           <Link href="/#how" className="hover:text-foreground">How it works</Link>
-          <Link href="/#holders" className="hover:text-foreground">Holders</Link>
+          <Link href="/#pricing" className="hover:text-foreground">Pricing</Link>
+          <Link href="/#get" className="hover:text-foreground">Get limit</Link>
           <Link href="/#faq" className="hover:text-foreground">FAQ</Link>
         </nav>
         <Badge variant="outline" className="border-brand/40 text-brand">Unofficial</Badge>
@@ -73,7 +73,7 @@ export function Hero() {
             <a href="#demo">See it work</a>
           </Button>
           <Button asChild size="lg" variant="outline" className="rounded-xl">
-            <a href="#holders">Holder access — soon</a>
+            <a href="#get">Get limit — free to try</a>
           </Button>
         </div>
         <dl className="mx-auto mt-14 grid max-w-2xl grid-cols-3 gap-4 text-center">
@@ -172,31 +172,6 @@ export function HowItWorks() {
             <ShieldCheck className="mt-0.5 size-5 shrink-0 text-buy" aria-hidden />
             <p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">Anonymous account.</span> No email or sign-up: the extension makes a private account key on install. Its backup code moves you to another browser.</p>
           </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/** Holder access — coming soon. */
-export function Holders() {
-  return (
-    <section id="holders" className="mx-auto max-w-6xl px-5 py-24">
-      <div className="relative overflow-hidden rounded-3xl border border-brand/30 bg-card p-8 md:p-12">
-        <div className="pointer-events-none absolute -right-20 -top-20 size-72 rounded-full bg-brand/10 blur-3xl" />
-        <div className="relative max-w-2xl">
-          <Badge className="bg-brand/15 text-brand">Coming soon</Badge>
-          <h2 className="mt-4 text-3xl font-bold tracking-tight md:text-4xl">Early access for token holders</h2>
-          <p className="mt-3 text-muted-foreground">
-            Limit opens to token holders first. Connect your wallet and holding the token unlocks the download.
-          </p>
-          <div className="mt-6 rounded-xl border border-sell/40 bg-sell/10 p-4 text-sm">
-            <p className="font-semibold text-sell">No token has launched yet.</p>
-            <p className="mt-1 text-muted-foreground">There is no contract address. Anything claiming to be the limit token right now is fake.</p>
-          </div>
-          <Button disabled size="lg" className="mt-6 rounded-xl">
-            <Wallet className="size-4" aria-hidden /> Connect wallet — available at launch
-          </Button>
         </div>
       </div>
     </section>

@@ -5,7 +5,8 @@
  */
 
 import { BeforeAfter } from '@/components/site/BeforeAfter';
-import { Faq, Features, Hero, Holders, HowItWorks, SectionHead, SiteFooter, SiteHeader } from '@/components/site/Sections';
+import { GetLimit, Pricing } from '@/components/site/GetStarted';
+import { Faq, Features, Hero, HowItWorks, SectionHead, SiteFooter, SiteHeader } from '@/components/site/Sections';
 import { Themes } from '@/components/site/Themes';
 import { TryIt } from '@/components/site/TryIt';
 import { Walkthrough } from '@/components/site/Walkthrough';
@@ -35,7 +36,8 @@ export default function Home() {
           <Themes />
         </section>
         <HowItWorks />
-        <Holders />
+        <Pricing />
+        <GetLimit />
         <Faq />
       </main>
       <SiteFooter />
