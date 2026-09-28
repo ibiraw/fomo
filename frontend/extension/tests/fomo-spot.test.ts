@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { setFomoDom } from '../lib/fomo-dom-config';
 import { parseSellToast, readPosition, summarizeSell } from '../lib/fomo-positions';
-import { SpotTradeWatcher, spotSide, titleSymbol, type SpotTradeMessage } from '../lib/fomo-spot-watch';
+import { SpotTradeWatcher, spotSide, titleSymbol, tradeText, type SpotTradeMessage } from '../lib/fomo-spot-watch';
 
 const toast = (text: string): string => `<div class="bg-bg-primary rounded-xl outline">${text}</div>`;
 
@@ -32,6 +32,20 @@ describe('SpotTradeWatcher', () => {
     w.scan();
     expect(sent.at(-1)).toMatchObject({ side: 'sell', detail: 'Selling 1.2M KEK' });
     expect(sent).toHaveLength(2);
+  });
+
+  it('reports a toast fomo reuses for the next trade, but not its ticking "ago" time', () => {
+    const sent: SpotTradeMessage[] = [];
+    const w = new SpotTradeWatcher({ doc: document, mint: () => null, symbol: () => null, send: (m) => sent.push(m), now: () => 0 });
+    document.body.innerHTML = toast('Selling 467.4K TAERIJust now');
+    w.scan();
+    const el = document.body.querySelector('div')!;
+    el.textContent = 'Selling 467.4K TAERI 1m ago'; // only the time changed
+    w.scan();
+    el.textContent = 'Selling 2.1M SOLCATJust now'; // same toast, next trade
+    w.scan();
+    expect(sent.map((m) => m.detail)).toEqual(['Selling 467.4K TAERIJust now', 'Selling 2.1M SOLCATJust now']);
+    expect(tradeText('Buying $3.00 KEK 12 mins ago')).toBe('Buying $3.00 KEK');
   });
 
   it('follows the server-set prefixes', () => {

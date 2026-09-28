@@ -326,6 +326,21 @@ export default defineBackground({
       port.postMessage({ type: 'state', state: state() } satisfies BackgroundMessage);
     });
 
+    // After an install, update or reload, fomo tabs that were already open still run the old copy, which can no
+    // longer reach limit (no Limit panel, no trade alerts). Attach the new copy to every one of them, whatever token
+    // each shows; the old copies step aside on their own (their panel removes itself).
+    browser.runtime.onInstalled.addListener(() => {
+      void (async () => {
+        const open = await browser.tabs.query({ url: 'https://fomo.family/*' });
+        for (const tab of open) {
+          if (tab.id === undefined || tab.discarded) continue;
+          await browser.scripting
+            .executeScript({ target: { tabId: tab.id }, files: ['/content-scripts/fomo-panel.js', '/content-scripts/fomo.js'] })
+            .catch((err: unknown) => console.warn('[limit] could not attach to an open fomo tab', err));
+        }
+      })();
+    });
+
     // The service worker can be stopped by Chrome; the alarm wakes it and restores the connection.
     void browser.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.5 });
     browser.alarms.onAlarm.addListener((a) => {

@@ -15,7 +15,7 @@ import { LimitView, type MintStore } from '@/components/panel/LimitView';
 import { loadDefaultTab, onDefaultTabChange, type DefaultTab } from '@/hooks/use-default-tab';
 import { loadTheme, onThemeChange } from '@/hooks/use-theme';
 import { followFomoDom } from '@/lib/fomo-dom-config';
-import { appendViewAfter, ensureLimitTab, ensurePageStyle, LIMIT_HOST_TAG, setLimitActive, setPageTheme, VIEW_ATTR } from '@/lib/fomo-inject';
+import { appendViewAfter, ensureLimitTab, ensurePageStyle, LIMIT_HOST_TAG, LIMIT_TAB_ID, setLimitActive, setPageTheme, VIEW_ATTR } from '@/lib/fomo-inject';
 import { applyPanelVars, fomoOverrideCss, type Theme } from '@/lib/themes';
 import { mintFromFomoUrl } from '@/lib/format';
 
@@ -117,7 +117,8 @@ export default defineContentScript({
     const observer = new MutationObserver(schedule);
     observer.observe(document.body, { childList: true, subtree: true });
     ctx.addEventListener(window, 'wxt:locationchange', schedule);
-    ctx.onInvalidated(() => { observer.disconnect(); offTheme(); offDefaultTab(); ui?.remove(); });
+    // A newer copy (after an update) takes over: remove our view and our Limit tab so it builds fresh ones.
+    ctx.onInvalidated(() => { observer.disconnect(); offTheme(); offDefaultTab(); ui?.remove(); document.getElementById(LIMIT_TAB_ID)?.remove(); });
     await sync();
   },
 });

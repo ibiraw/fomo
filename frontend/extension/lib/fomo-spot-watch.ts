@@ -40,6 +40,11 @@ export function titleSymbol(title: string): string | null {
   return parts.length >= 3 && parts[1] ? parts[1] : null;
 }
 
+/** A toast's trade without fomo's relative time ("Selling 1.2M KEKJust now" → "Selling 1.2M KEK"). */
+export function tradeText(text: string): string {
+  return text.replace(/\s*(?:just now|\d+\s*(?:s|sec|secs|seconds?|m|min|mins|minutes?|h|hr|hrs|hours?|d|days?)\s*ago)$/i, '').trim();
+}
+
 /** How often the current token's position is snapshotted (a sell toast may appear after fomo already updated it). */
 const POSITION_EVERY_MS = 5_000;
 
@@ -54,8 +59,11 @@ export function spotSide(text: string): 'buy' | 'sell' | null {
 
 export class SpotTradeWatcher {
   private timer: ReturnType<typeof setInterval> | null = null;
-  /** Toasts already looked at (held weakly, so removed toasts are garbage-collected). */
-  private readonly seen = new WeakSet<Element>();
+  /**
+   * The trade each toast last showed (held weakly, so removed toasts are garbage-collected). fomo can reuse a toast
+   * for the next trade, so a toast is reported again whenever its trade text changes.
+   */
+  private readonly seen = new WeakMap<Element, string>();
   /** Last position snapshot of the page's token (only one kept). */
   private snapshot: { symbol: string; position: FomoPosition } | null = null;
   private nextSnapshot = 0;
@@ -83,10 +91,11 @@ export class SpotTradeWatcher {
       this.snapshot = position ? { symbol, position } : this.snapshot?.symbol === symbol ? this.snapshot : null;
     }
     for (const el of this.env.doc.querySelectorAll(fomoDom().notification)) {
-      if (this.seen.has(el)) continue;
       const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
       if (!text) continue; // still rendering — look again next scan
-      this.seen.add(el);
+      const trade = tradeText(text);
+      if (this.seen.get(el) === trade) continue; // same trade (only its "2m ago" changed)
+      this.seen.set(el, trade);
       const side = spotSide(text);
       if (!side) continue;
       this.env.send({ type: 'fomo.spot', side, detail: text.slice(0, 200), mint: this.env.mint(), sell: side === 'sell' ? this.sellSummary(text, symbol) : null });
