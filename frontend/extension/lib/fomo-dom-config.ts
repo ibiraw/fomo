@@ -83,7 +83,8 @@ export const DEFAULT_FOMO_DOM: FomoDomConfig = {
   spotBuyPrefixes: ['Buying'],
   spotSellPrefixes: ['Selling'],
   positionsHeader: 'Your positions',
-  launchpadIcon: 'img[src*="crypto-exchange-logos-production"]',
+  // Two icon hosts seen (2026-09-28): fomo's own ("…/launchpad/pons.png") and Mobula's ("…/logos/factory_stockereum.webp").
+  launchpadIcon: 'img[src*="crypto-exchange-logos-production"], img[src*="/logos/factory_"]',
   quickTradeTabs: ['Alerts', 'Feed'],
   sideTabInactiveClass: 'text-text-secondary',
   feedItem: '.border-b.border-bg-secondary',

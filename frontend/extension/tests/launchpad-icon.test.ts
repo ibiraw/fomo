@@ -25,6 +25,11 @@ describe('launchpadFromIcon', () => {
     expect(launchpadFromIcon(`${HOST}/SomeOtherProgram111111111111111111111111111.webp`)).toBeNull();
     expect(launchpadFromIcon(`${HOST}/launchpad/%E0%A4%A.png`)).toBeNull(); // malformed escape
     expect(launchpadFromIcon(`${HOST}/launchpad/<script>.png`)).toBeNull();
+    const MOBULA = 'https://metadata.mobula.io/assets/logos';
+    expect(launchpadFromIcon(`${MOBULA}/factory_stockereum.webp`, 'Stockereum')).toBe('Stockereum'); // fomo's label
+    expect(launchpadFromIcon(`${MOBULA}/factory_stockereum.webp`, '<b>x</b>')).toBe('stockereum'); // odd label → file name
+    expect(launchpadFromIcon(`${MOBULA}/factory_stockereum.webp`)).toBe('stockereum');
+    expect(launchpadFromIcon(`${MOBULA}/ethereum.webp`, 'Ethereum')).toBeNull(); // chain logos aren't launchpads
   });
 });
 
@@ -43,5 +48,9 @@ describe('readLaunchpadName', () => {
     expect(readLaunchpadName(document, 'NOPE')).toBeNull();
     place(document.getElementById('b')!, 900, 81, 16, 16); // too far from the name
     expect(readLaunchpadName(document, 'VAULT')).toBeNull();
+    document.body.innerHTML = `<div id="hdr"><div id="name">ZC</div><img id="m" alt="Stockereum" src="https://metadata.mobula.io/assets/logos/factory_stockereum.webp"></div>`;
+    place(document.getElementById('name')!, 420, 79, 20, 20);
+    place(document.getElementById('m')!, 470, 81, 16, 16);
+    expect(readLaunchpadName(document, 'ZC')).toBe('Stockereum');
   });
 });

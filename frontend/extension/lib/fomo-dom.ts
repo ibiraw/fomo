@@ -129,11 +129,15 @@ const LAUNCHPAD_PROGRAMS: Readonly<Record<string, string>> = {
   dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN: 'Meteora DBC',
 };
 
+/** A launchpad name as fomo labels its icon (plain words only). */
+const LAUNCHPAD_LABEL_RE = /^[\w][\w .-]{0,39}$/;
+
 /**
- * The launchpad name in one of fomo's icon addresses: ".../launchpad/stonkfun.png" → "stonkfun", ".../<program
- * address>.webp" → the program's launchpad (observed 2026-09-28). Null for anything else.
+ * The launchpad name in one of fomo's icons: ".../launchpad/stonkfun.png" → "stonkfun", ".../<program address>.webp"
+ * → the program's launchpad, ".../logos/factory_stockereum.webp" (alt "Stockereum") → fomo's label, else the file's
+ * name (observed 2026-09-28). Null for anything else.
  */
-export function launchpadFromIcon(src: string): string | null {
+export function launchpadFromIcon(src: string, alt: string | null = null): string | null {
   const path = src.split(/[?#]/)[0]!;
   let file: string;
   try {
@@ -142,6 +146,8 @@ export function launchpadFromIcon(src: string): string | null {
     return null; // malformed escape in the address
   }
   if (/\/launchpad\/[^/]+$/.test(path)) return /^[\w.-]{1,40}$/.test(file) ? file : null;
+  const factory = /^factory_([\w.-]{1,40})$/.exec(file);
+  if (factory) return alt && LAUNCHPAD_LABEL_RE.test(alt.trim()) ? alt.trim() : factory[1]!;
   return LAUNCHPAD_PROGRAMS[file] ?? null;
 }
 
@@ -160,7 +166,7 @@ export function readLaunchpadName(doc: Document, symbol: string): string | null 
   for (const img of doc.querySelectorAll<HTMLImageElement>(fomoDom().launchpadIcon)) {
     const r = img.getBoundingClientRect();
     if (r.width === 0 || Math.abs(r.top + r.height / 2 - mid) > 16 || r.left < name.r.right || r.left > name.r.right + 120) continue;
-    const lp = launchpadFromIcon(img.getAttribute('src') ?? '');
+    const lp = launchpadFromIcon(img.getAttribute('src') ?? '', img.getAttribute('alt'));
     if (lp) return lp;
   }
   return null;
