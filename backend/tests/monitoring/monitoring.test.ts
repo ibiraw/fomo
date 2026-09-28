@@ -33,6 +33,19 @@ function setup() {
 }
 
 describe('ActivityRelay', () => {
+  it("uses an order entry's own leading icon as the line icon (🟢 / 🎯 / 🛒 …), the kind's icon otherwise", async () => {
+    const { notifier, relay } = setup();
+    relay.record('order', '🟢 LM-2 (@me) placed Limit buy $50 · x');
+    relay.record('order', 'LM-2 re-armed'); // no own icon → 📈
+    relay.record('account', '🟢 not an order'); // only order entries swap icons
+    await relay.deliver();
+    expect(notifier.sent[0]!.split('\n')).toEqual([
+      '🟢 7:00:00 PM ET LM-2 (@me) placed Limit buy $50 · x',
+      '📈 7:00:00 PM ET LM-2 re-armed',
+      '👤 7:00:00 PM ET 🟢 not an order',
+    ]);
+  });
+
   it('delivers logged entries in one message and marks them sent', async () => {
     const { store, notifier, relay } = setup();
     relay.record('account', 'new account LM-222222');
@@ -139,18 +152,18 @@ describe('describeOrder', () => {
     status: 'open', attempts: 0, maxAttempts: 3, lastError: null, triggeredAtValue: null, createdAt: 1, updatedAt: 1,
   } as unknown as Order;
   it('describes placements and outcomes, and skips intermediate states', () => {
-    expect(describeOrder(base, 'LM-2')).toBe('LM-2 placed 🎯 Take profit 50% · base:0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07 · MC ≥ $120.0K');
+    expect(describeOrder(base, 'LM-2')).toBe('🎯 LM-2 placed Take profit 50% · base:0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07 · MC ≥ $120.0K');
     expect(describeOrder({ ...base, attempts: 1, lastError: 'slippage: x' }, 'LM-2')).toMatch(/re-armed after slippage/);
-    expect(describeOrder({ ...base, status: 'filled', triggeredAtValue: 121_000 }, 'LM-2')).toBe('LM-2 FILLED 🎯 Take profit 50% · base:0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07 at $121.0K');
+    expect(describeOrder({ ...base, status: 'filled', triggeredAtValue: 121_000 }, 'LM-2')).toBe('🎯 LM-2 FILLED Take profit 50% · base:0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07 at $121.0K');
     const kind = (side: string, direction: string) => describeOrder({ ...base, side, trigger: { ...base.trigger, direction } } as Order, 'x');
-    expect([kind('buy', 'below'), kind('buy', 'above'), kind('sell', 'above'), kind('sell', 'below')].map((t) => t!.split(' ').slice(2, 5).join(' ')))
+    expect([kind('buy', 'below'), kind('buy', 'above'), kind('sell', 'above'), kind('sell', 'below')].map((t) => t!.split(' ').slice(0, 1).concat(t!.split(' ').slice(3, 5)).join(' ')))
       .toEqual(['🟢 Limit buy', '🚀 Breakout buy', '🎯 Take profit', '🛑 Stop loss']);
     expect(describeOrder({ ...base, status: 'failed', lastError: 'ui_error: y' }, 'LM-2')).toMatch(/FAILED .*ui_error: y/);
     expect(describeOrder({ ...base, status: 'unknown' }, 'LM-2')).toMatch(/outcome unknown/);
     expect(describeOrder({ ...base, status: 'cancelled', lastError: 'auto_cancelled: gone' }, 'LM-2')).toMatch(/cancelled .*\(auto_cancelled: gone\)/);
     expect(describeOrder({ ...base, status: 'triggered' }, 'LM-2')).toBeNull();
     const buy = { ...base, side: 'buy', trigger: { ...base.trigger, metric: 'price', direction: 'below', value: 0.00042 }, amount: { kind: 'usd', value: 25 } } as unknown as Order;
-    expect(describeOrder(buy, 'LM-2')).toBe('LM-2 placed 🟢 Limit buy $25 · base:0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07 · price ≤ $0.000420');
+    expect(describeOrder(buy, 'LM-2')).toBe('🟢 LM-2 placed Limit buy $25 · base:0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07 · price ≤ $0.000420');
     expect(describeOrder({ ...buy, trigger: { ...buy.trigger, direction: 'above' } }, 'LM-2')).toMatch(/Breakout buy/);
     expect(describeOrder({ ...base, trigger: { ...base.trigger, direction: 'below' } }, 'LM-2')).toMatch(/Stop loss/);
   });

@@ -489,8 +489,9 @@ export class WsGateway extends TradeExecutorPort {
           const skip = last !== null && (now - last.at < SPOT_MIN_GAP_MS || (last.text === text && now - last.at < SPOT_REPEAT_MS));
           if (skip) return { logged: false };
           client.lastSpot = { text, at: now };
-          const icon = msg.side === 'buy' ? '🛒 Spot buy' : '💸 Spot sell';
-          this.opts.onActivity?.('order', `${label(this.requireAccounts().get(userId))} ${icon} on fomo · ${text}${msg.mint ? ` · ${msg.mint}` : ''}`);
+          // Leading icon = the line's icon in Telegram (🛒 spot buy / 💸 spot sell).
+          const [icon, name] = msg.side === 'buy' ? ['🛒', 'Spot buy'] : ['💸', 'Spot sell'];
+          this.opts.onActivity?.('order', `${icon} ${label(this.requireAccounts().get(userId))} ${name} on fomo · ${text}${msg.mint ? ` · ${msg.mint}` : ''}`);
           return { logged: true };
         });
       case 'layout.status':

@@ -1,8 +1,8 @@
 /**
  * @file describe.ts
- * @description One-line monitoring texts for order events ("LM-7K3Q2P placed 🎯 Take profit 50% · base:0x9500…
- *              (full address) · MC ≥ $120K"). Intermediate states (triggered, executing) return null — only
- *              placements and outcomes are worth a message.
+ * @description One-line monitoring texts for order events ("🎯 LM-7K3Q2P placed Take profit 50% · base:0x9500…
+ *              (full address) · MC ≥ $120K"). The leading icon is the order type; the relay uses it as the line's icon.
+ *              Intermediate states (triggered, executing) return null — only placements and outcomes are worth a message.
  * @author Reborn1987
  */
 
@@ -24,14 +24,29 @@ export function tokenLabel(key: string): string {
   return chain ? `${chain}:${short}` : short;
 }
 
-/** "🟢 Limit buy", "🚀 Breakout buy", "🎯 Take profit", "🛑 Stop loss" — the icon makes the type obvious at a glance. */
+/** "Limit buy", "Breakout buy", "Take profit", "Stop loss". */
 export function orderKind(o: Pick<Order, 'side' | 'trigger'>): string {
-  if (o.side === 'buy') return o.trigger.direction === 'below' ? '🟢 Limit buy' : '🚀 Breakout buy';
-  return o.trigger.direction === 'above' ? '🎯 Take profit' : '🛑 Stop loss';
+  if (o.side === 'buy') return o.trigger.direction === 'below' ? 'Limit buy' : 'Breakout buy';
+  return o.trigger.direction === 'above' ? 'Take profit' : 'Stop loss';
 }
 
-/** Monitoring text for an order change, or null when it isn't worth a message. */
+/** The order type's icon: 🟢 limit buy, 🚀 breakout buy, 🎯 take profit, 🛑 stop loss. */
+export function orderIcon(o: Pick<Order, 'side' | 'trigger'>): string {
+  if (o.side === 'buy') return o.trigger.direction === 'below' ? '🟢' : '🚀';
+  return o.trigger.direction === 'above' ? '🎯' : '🛑';
+}
+
+/**
+ * Monitoring text for an order change, or null when it isn't worth a message. It starts with the order type's icon,
+ * which the relay shows as the line's icon in place of the generic 📈.
+ */
 export function describeOrder(o: Order, who: string): string | null {
+  const text = describeOrderText(o, who);
+  return text === null ? null : `${orderIcon(o)} ${text}`;
+}
+
+/** The text of describeOrder without the leading icon. */
+function describeOrderText(o: Order, who: string): string | null {
   const amount = o.amount.kind === 'usd' ? `$${o.amount.value}` : `${o.amount.value}%`;
   const target = `${o.trigger.metric === 'marketCap' ? 'MC' : 'price'} ${o.trigger.direction === 'below' ? '≤' : '≥'} ${usdCompact(o.trigger.value)}`;
   const what = `${orderKind(o)} ${amount} · ${o.mint}`; // full address: copyable in Telegram

@@ -29,6 +29,15 @@ const ICON: Record<ActivityKind, string> = {
 const ET = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
 export const clock = (ms: number): string => `${ET.format(ms)} ET`;
 
+/** An order entry may start with its own icon (🟢 limit buy, 🎯 take profit, 🛒 spot buy …), shown instead of 📈. */
+const OWN_ICON_RE = /^(\p{Extended_Pictographic}\uFE0F?)\s+/u;
+
+/** The line's icon and text: the entry's own leading icon for orders, else the kind's icon. */
+export function iconAndText(kind: ActivityKind, text: string): { icon: string; text: string } {
+  const own = kind === 'order' ? OWN_ICON_RE.exec(text) : null;
+  return own ? { icon: own[1]!, text: text.slice(own[0].length) } : { icon: ICON[kind], text };
+}
+
 /** Longest single entry (plain text) before formatting; longer ones are cut so markup is never split. */
 const MAX_LINE_CHARS = 1_000;
 
@@ -101,7 +110,8 @@ export class ActivityRelay {
       const entries = this.store.pending(BATCH);
       if (entries.length === 0) return;
       const lines = entries.map((e) => {
-        const plain = `${ICON[e.kind]} ${clock(e.at)} ${e.text}`;
+        const { icon, text } = iconAndText(e.kind, e.text);
+        const plain = `${icon} ${clock(e.at)} ${text}`;
         return this.notifier!.format(plain.length > MAX_LINE_CHARS ? `${plain.slice(0, MAX_LINE_CHARS - 1)}…` : plain);
       });
       // Each message marks its own entries, so a failure part-way resends only what wasn't delivered.
