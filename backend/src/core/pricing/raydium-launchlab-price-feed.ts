@@ -1,31 +1,28 @@
 /**
  * @file raydium-launchlab-price-feed.ts
- * @description On-chain PriceFeedPort for tokens still on a Raydium LaunchLab bonding curve (bonk.fun etc.).
+ * @description On-chain PriceFeedPort for tokens still on a Raydium LaunchLab bonding curve (bonk.fun, stonkfun…),
+ *              in any quote with a USD price (SOL, USD1, or e.g. the tokenized stocks stonkfun pairs with).
  *              When the curve graduates, hands the same listeners over to a fallback feed (Raydium CPMM),
  *              mirroring how the pump.fun feed switches from curve to PumpSwap.
  * @author Reborn1987
  */
 
-import type { Address } from '@solana/kit';
-
 import { UnsupportedPoolError } from '../errors.js';
 import { PriceFeedPort, type PriceListener, type PriceTick, type PriceWatch } from '../../ports/price-feed.js';
 import type { SolanaAccountsPort } from '../../ports/solana-accounts.js';
-import { WSOL_MINT } from './addresses.js';
 import { marketCapUsd, priceFromReserves } from './math.js';
 import {
   CURVE_CONSTANT_PRODUCT,
   decodeCurveType,
   decodeLaunchLabPool,
-  deriveLaunchLabPool,
+  findLaunchLabPool,
   LAUNCHLAB_TRADING,
   launchLabReserves,
   type LaunchLabPool,
 } from './raydium-launchlab.js';
 import type { UsdQuotes } from './usd-quotes.js';
 
-/** Quote tokens LaunchLab curves are created against (SOL, USD1). */
-export const LAUNCHLAB_QUOTES = [WSOL_MINT, 'USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB'] as const;
+export { LAUNCHLAB_QUOTES } from './raydium-launchlab.js';
 
 /** Per-mint state. */
 interface Watched {
@@ -83,15 +80,9 @@ export class RaydiumLaunchLabPriceFeed extends PriceFeedPort {
 
   /** Finds a trading constant-product curve for `mint` and subscribes to it. */
   private async open(mint: string): Promise<Watched> {
-    let poolAddr: string | null = null;
-    let pool: LaunchLabPool | null = null;
-    for (const quote of LAUNCHLAB_QUOTES) {
-      const addr = await deriveLaunchLabPool(mint as Address, quote as Address);
-      const raw = await this.accounts.getAccount(addr);
-      // An empty account here is just SOL someone sent to the address, not a pool.
-      if (raw && raw.length > 0) { poolAddr = addr; pool = decodeLaunchLabPool(raw); break; }
-    }
-    if (!pool || !poolAddr) throw new UnsupportedPoolError(`No Raydium LaunchLab curve for ${mint}`);
+    const found = await findLaunchLabPool(this.accounts, mint);
+    if (!found) throw new UnsupportedPoolError(`No Raydium LaunchLab curve for ${mint}`);
+    const { address: poolAddr, pool } = found;
     if (pool.status !== LAUNCHLAB_TRADING) throw new UnsupportedPoolError(`LaunchLab curve for ${mint} has graduated`);
     const cfg = await this.accounts.getAccount(pool.globalConfig);
     if (!cfg || decodeCurveType(cfg) !== CURVE_CONSTANT_PRODUCT) {

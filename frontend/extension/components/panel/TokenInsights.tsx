@@ -70,7 +70,18 @@ function MetricsLines({ mint, send }: { mint: string; send: SendFn }) {
   if (m.note === 'too-old') return row(usersIcon, 'Holder data', <span className="text-muted-foreground">Only for fresh tokens on this chain</span>);
   return (
     <>
-      {m.topTenPct !== null && row(usersIcon, 'Top 10 holders', <><Share pct={m.topTenPct} warnAt={30} badAt={50} /> <span className="text-muted-foreground">of supply</span></>)}
+      {m.topTenPct !== null && row(
+        usersIcon,
+        'Top 10 holders',
+        <>
+          <Share pct={m.topTenPct} warnAt={30} badAt={50} />
+          {m.topHoldersPct.length > 0 && (
+            <span className="tabular-nums text-muted-foreground" title="The 5 largest holders' shares of supply (%)">
+              {' '}({m.topHoldersPct.map((p) => p.toFixed(1)).join(' · ')})
+            </span>
+          )}
+        </>,
+      )}
       {m.devHoldsPct === null
         ? row(devIcon, 'Dev', <span className="text-muted-foreground">Not recorded by this launchpad</span>)
         : row(devIcon, 'Dev holds', <Share pct={m.devHoldsPct} warnAt={5} badAt={15} />)}

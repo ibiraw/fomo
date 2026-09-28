@@ -24,6 +24,8 @@ import type { SolanaAccountsPort } from '../../ports/solana-accounts.js';
 export interface TokenMetrics {
   /** % of supply held by the 10 largest real holders; null when unknown. */
   readonly topTenPct: number | null;
+  /** The 5 largest real holders' shares (%), biggest first (empty when unknown). */
+  readonly topHoldersPct: readonly number[];
   /** The dev (creator) wallet, when known. */
   readonly devWallet: string | null;
   /** % of supply the dev holds right now; null when the dev is unknown. */
@@ -59,10 +61,12 @@ export class SolanaTokenMetrics implements TokenMetricsSource {
       if (amount === 0n || owner === INCINERATOR || isOffCurveAddress(owner as Address)) continue; // empty, burned, or a program (pool, curve, locker)
       byOwner.set(owner, (byOwner.get(owner) ?? 0n) + amount);
     }
-    const topTen = [...byOwner.values()].sort((x, y) => (y > x ? 1 : y < x ? -1 : 0)).slice(0, 10).reduce((s, v) => s + v, 0n);
+    const top = [...byOwner.values()].sort((x, y) => (y > x ? 1 : y < x ? -1 : 0)).slice(0, 10);
+    const topTen = top.reduce((s, v) => s + v, 0n);
     const devHolds = dev ? (byOwner.get(dev) ?? 0n) : null;
     return {
       topTenPct: pctOf(topTen, supply.amount),
+      topHoldersPct: top.slice(0, 5).map((v) => pctOf(v, supply.amount)),
       devWallet: dev,
       devHoldsPct: devHolds === null ? null : pctOf(devHolds, supply.amount),
       note: dev ? null : 'dev-unknown',
@@ -136,22 +140,23 @@ export class EvmHolderIndex implements TokenMetricsSource {
   async metrics(address: string): Promise<TokenMetrics> {
     const token = address.toLowerCase() as Hex;
     const idx = await this.index(token);
-    if (idx === 'too-old') return { topTenPct: null, devWallet: null, devHoldsPct: null, note: 'too-old' };
+    if (idx === 'too-old') return { topTenPct: null, topHoldersPct: [], devWallet: null, devHoldsPct: null, note: 'too-old' };
     const supply = await this.erc20.totalSupply(token);
     const ranked = [...idx.balances.entries()].filter(([a, v]) => v > 0n && !BURN.has(a)).sort((x, y) => (y[1] > x[1] ? 1 : y[1] < x[1] ? -1 : 0));
-    let topTen = 0n;
-    let counted = 0;
+    const top: bigint[] = [];
     // Walk down the ranking until 10 wallets are found (pools, curves and other contracts are skipped).
-    for (let i = 0; i < ranked.length && counted < 10; i += this.opts.concurrency) {
+    for (let i = 0; i < ranked.length && top.length < 10; i += this.opts.concurrency) {
       const batch = ranked.slice(i, i + this.opts.concurrency);
       const flags = await Promise.all(batch.map(([a]) => this.isContract(a as Hex)));
       batch.forEach(([, v], j) => {
-        if (!flags[j] && counted < 10) { topTen += v; counted++; }
+        if (!flags[j] && top.length < 10) top.push(v);
       });
     }
+    const topTen = top.reduce((s, v) => s + v, 0n);
     const dev = (idx.dev ??= (await this.rpc.transactionSender(idx.creationTx)).toLowerCase() as Hex);
     return {
       topTenPct: pctOf(topTen, supply),
+      topHoldersPct: top.slice(0, 5).map((v) => pctOf(v, supply)),
       devWallet: dev,
       devHoldsPct: pctOf(idx.balances.get(dev) ?? 0n, supply),
       note: null,

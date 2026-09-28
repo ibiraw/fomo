@@ -432,7 +432,7 @@ describe('WsGateway accounts', () => {
   it('answers token.metrics only for accounts whose version has it', async () => {
     let config: AccessConfig = { ...DEFAULT_ACCESS, publicVersion: '1.8' };
     gateway.setReleases(new ReleaseService(() => config));
-    const metrics = { topTenPct: 12.5, devWallet: null, devHoldsPct: null, note: 'dev-unknown' };
+    const metrics = { topTenPct: 12.5, topHoldersPct: [4, 3], devWallet: null, devHoldsPct: null, note: 'dev-unknown' };
     gateway.setTokenMetrics(new TokenMetricsService(() => ({ metrics: async () => metrics as never })));
     const c = await authed(false);
     c.send({ type: 'token.metrics', reqId: 'm1', mint: MINT });

@@ -48,7 +48,7 @@ describe('SolanaTokenMetrics', () => {
     ]);
     const m = await new SolanaTokenMetrics(accounts, async () => null).metrics(MINT);
     // top 10 of 35, 29..21 → 35 + 225 = 260 of 1000
-    expect(m).toEqual({ topTenPct: 26, devWallet: null, devHoldsPct: null, note: 'dev-unknown' });
+    expect(m).toEqual({ topTenPct: 26, topHoldersPct: [3.5, 2.9, 2.8, 2.7, 2.6], devWallet: null, devHoldsPct: null, note: 'dev-unknown' });
   });
 
   it("takes pump.fun's recorded creator as the dev and reports what it holds", async () => {
@@ -62,7 +62,7 @@ describe('SolanaTokenMetrics', () => {
     expect(await pumpCreator(accounts)(MINT)).toBe(dev);
     expect(await pumpCreator(accounts)('Hx4U8tVw9vT3kJ3ZqA4W5uJ9i1YV2HhT8f1rXz7Cq1Pd')).toBeNull();
     const m = await new SolanaTokenMetrics(accounts, pumpCreator(accounts)).metrics(MINT);
-    expect(m).toEqual({ topTenPct: 4, devWallet: dev, devHoldsPct: 4, note: null });
+    expect(m).toEqual({ topTenPct: 4, topHoldersPct: [4], devWallet: dev, devHoldsPct: 4, note: null });
   });
 });
 
@@ -104,7 +104,7 @@ describe('EvmHolderIndex', () => {
     ];
     const m = await index.metrics(TOKEN);
     // wallets: 1 → 200, 2 → 150, dev → 60 ; pool (contract) and 0x…dead left out
-    expect(m).toEqual({ topTenPct: 41, devWallet: DEV, devHoldsPct: 6, note: null });
+    expect(m).toEqual({ topTenPct: 41, topHoldersPct: [20, 15, 6], devWallet: DEV, devHoldsPct: 6, note: null });
     expect(rpc.getLogsCalls.length).toBeLessThanOrEqual(5);
   });
 
@@ -112,7 +112,7 @@ describe('EvmHolderIndex', () => {
     const { rpc, index } = evmSetup({ maxChunks: 2 });
     rpc.head = 1_000n;
     rpc.history = [transfer(ZERO, addr(1), 1_000n, 10n), transfer(addr(1), addr(2), 5n, 950n)];
-    expect(await index.metrics(TOKEN)).toEqual({ topTenPct: null, devWallet: null, devHoldsPct: null, note: 'too-old' });
+    expect(await index.metrics(TOKEN)).toEqual({ topTenPct: null, topHoldersPct: [], devWallet: null, devHoldsPct: null, note: 'too-old' });
     expect(rpc.getLogsCalls).toHaveLength(2);
   });
 
@@ -154,7 +154,7 @@ describe('TokenMetricsService', () => {
   it('routes by chain, caches for 20 s, shares lookups in flight, and says when a chain has no metrics', async () => {
     let t = 0;
     let calls = 0;
-    const value: TokenMetrics = { topTenPct: 12, devWallet: null, devHoldsPct: null, note: 'dev-unknown' };
+    const value: TokenMetrics = { topTenPct: 12, topHoldersPct: [5], devWallet: null, devHoldsPct: null, note: 'dev-unknown' };
     const svc = new TokenMetricsService((chain) => (chain === 'solana' ? { metrics: async () => { calls++; return value; } } : null), () => t);
     await Promise.all([svc.get(MINT), svc.get(MINT)]);
     expect(calls).toBe(1);

@@ -23,8 +23,7 @@ import { deriveBondingCurve } from '../pricing/addresses.js';
 import { decodeBondingCurve } from '../pricing/decoders.js';
 import { decodeDbcPool } from '../pricing/meteora-dbc.js';
 import type { PoolDirectory } from '../pricing/pool-directory.js';
-import { decodeLaunchLabPool, deriveLaunchLabPool, LAUNCHLAB_TRADING, RAYDIUM_LAUNCHLAB_PROGRAM, type LaunchLabPool } from '../pricing/raydium-launchlab.js';
-import { LAUNCHLAB_QUOTES } from '../pricing/raydium-launchlab-price-feed.js';
+import { findLaunchLabPool, LAUNCHLAB_TRADING, type LaunchLabPool } from '../pricing/raydium-launchlab.js';
 import type { EvmRpcPort, Hex } from '../../ports/evm-rpc.js';
 import type { SolanaAccountsPort } from '../../ports/solana-accounts.js';
 
@@ -79,11 +78,6 @@ export const LAUNCHLAB_PLATFORMS: Readonly<Record<string, string>> = {
   '6BwHHDg3u1854jC8PDLXvR4spTcLNaoBxLJNGC4nTESt': 'stonkfun', // FLIGHT14, 2026-09-28
 };
 
-/** LaunchLab pool account size (the search filter). */
-const LAUNCHLAB_POOL_SIZE = 429;
-/** Where a LaunchLab pool stores its token (base mint). */
-const LAUNCHLAB_BASE_MINT_OFFSET = 205;
-
 /**
  * Raydium LaunchLab and the platforms built on it: the token's pool — found by address for a SOL or USD1 quote, else
  * by searching LaunchLab's pools for the token (any quote).
@@ -96,13 +90,8 @@ export function launchLabDetector(accounts: SolanaAccountsPort): LaunchpadDetect
   });
   return {
     async detect(mint) {
-      for (const quote of LAUNCHLAB_QUOTES) {
-        const pool = decodeOrNull(await accounts.getAccount(await deriveLaunchLabPool(mint as Address, quote as Address)), decodeLaunchLabPool);
-        if (pool && pool.baseMint === mint) return found(pool);
-      }
-      const [addr] = await accounts.findProgramAccounts(RAYDIUM_LAUNCHLAB_PROGRAM, LAUNCHLAB_POOL_SIZE, { offset: LAUNCHLAB_BASE_MINT_OFFSET, bytes: mint });
-      const pool = addr ? decodeOrNull(await accounts.getAccount(addr), decodeLaunchLabPool) : null;
-      return pool && pool.baseMint === mint ? found(pool) : null;
+      const hit = await findLaunchLabPool(accounts, mint);
+      return hit ? found(hit.pool) : null;
     },
   };
 }

@@ -30,6 +30,8 @@ export interface LaunchpadInfo {
 export interface TokenMetricsInfo {
   /** % of supply held by the 10 largest real holders (pools, curves, burns left out); null when unknown. */
   readonly topTenPct: number | null;
+  /** The 5 largest holders' shares (%), biggest first. */
+  readonly topHoldersPct: readonly number[];
   readonly devWallet: string | null;
   readonly devHoldsPct: number | null;
   readonly note: 'too-old' | 'dev-unknown' | null;

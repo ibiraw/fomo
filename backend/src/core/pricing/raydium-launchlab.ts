@@ -1,6 +1,7 @@
 /**
  * @file raydium-launchlab.ts
- * @description Raydium LaunchLab (bonk.fun and others) bonding-curve decoding and PDA derivation.
+ * @description Raydium LaunchLab (bonk.fun, stonkfun and others) bonding-curve decoding, PDA derivation, and finding
+ *              a token's pool whatever it is paired with.
  *              Layout from raydium-io/raydium-idl raydium_launchpad.json, offsets verified on live pools
  *              2026-09-26 (VestingSchedule is 40 bytes, so global_config sits at 141).
  * @author Reborn1987
@@ -9,6 +10,8 @@
 import { getAddressDecoder, getAddressEncoder, getProgramDerivedAddress, type Address } from '@solana/kit';
 
 import { AccountDecodeError } from '../errors.js';
+import type { SolanaAccountsPort } from '../../ports/solana-accounts.js';
+import { WSOL_MINT } from './addresses.js';
 
 export const RAYDIUM_LAUNCHLAB_PROGRAM = 'LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj' as Address;
 /** Anchor "PoolState" discriminator (same name, and so same bytes, as CPMM — tell them apart by owner/PDA). */
@@ -69,6 +72,40 @@ export function decodeCurveType(globalConfig: Uint8Array): number {
 /** Constant-product curve reserves as (base, quote): virtual + real quote vs virtual − real base. */
 export function launchLabReserves(p: LaunchLabPool): { readonly base: bigint; readonly quote: bigint } {
   return { base: p.virtualBase - p.realBase, quote: p.virtualQuote + p.realQuote };
+}
+
+/** Quote tokens most LaunchLab curves are created against (SOL, USD1): their pools are found by address. */
+export const LAUNCHLAB_QUOTES = [WSOL_MINT, 'USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB'] as const;
+
+/** PoolState account size and where it stores the token (base mint): the search filter for other quotes. */
+const POOL_SIZE = 429;
+const BASE_MINT_OFFSET = 205;
+
+/** Decodes a pool, or null when the account is missing, empty (dusted SOL) or not a LaunchLab pool of `mint`. */
+function poolOf(raw: Uint8Array | null, mint: string): LaunchLabPool | null {
+  if (!raw || raw.length === 0) return null;
+  try {
+    const pool = decodeLaunchLabPool(raw);
+    return pool.baseMint === mint ? pool : null;
+  } catch (err) {
+    if (err instanceof AccountDecodeError) return null;
+    throw err;
+  }
+}
+
+/**
+ * The token's LaunchLab pool: by address for a SOL or USD1 quote (cheap), else by searching LaunchLab's pools for the
+ * token — platforms like stonkfun pair with other tokens (tokenized stocks). Null when it has none.
+ */
+export async function findLaunchLabPool(accounts: SolanaAccountsPort, mint: string): Promise<{ readonly address: string; readonly pool: LaunchLabPool } | null> {
+  for (const quote of LAUNCHLAB_QUOTES) {
+    const address = await deriveLaunchLabPool(mint as Address, quote as Address);
+    const pool = poolOf(await accounts.getAccount(address), mint);
+    if (pool) return { address, pool };
+  }
+  const [address] = await accounts.findProgramAccounts(RAYDIUM_LAUNCHLAB_PROGRAM, POOL_SIZE, { offset: BASE_MINT_OFFSET, bytes: mint });
+  const pool = address ? poolOf(await accounts.getAccount(address), mint) : null;
+  return address && pool ? { address, pool } : null;
 }
 
 /** Pool PDA: ["pool", base_mint, quote_mint]. */

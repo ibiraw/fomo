@@ -140,6 +140,25 @@ describe('RaydiumLaunchLabPriceFeed', () => {
     await expect(linear.feed.watch(MINT, () => undefined)).rejects.toThrow(/curve type/);
   });
 
+  it('finds a pool paired with another token by searching (stonkfun + a tokenized stock) and prices it through that token', async () => {
+    const STOCK = 'Xs3oZwbHvqis4NYcf4YKWmEia2eC84wSiVrcYcTqpH8' as Address;
+    const accounts = new FakeAccounts();
+    accounts.data.set(PYTH_SOL_USD_ACCOUNT, pythBytes(10000n, -2));
+    accounts.supplies.set(MINT, { amount: 1_000_000_000_000_000n, decimals: 6 });
+    // 30 stock tokens (9 decimals here) against 1,000M tokens; the stock trades at $250
+    accounts.data.set('3Vc5zM8nzPuvjxXXrTXbY6K1XCxGRB6WFojxQDLddCjN', poolBytes({ vBase: 1_073_000_000_000_000n, vQuote: 30_000_000_000n, rBase: 73_000_000_000_000n, rQuote: 0n, quote: STOCK }));
+    accounts.data.set(CFG, cfgBytes(0));
+    const jup = new (class extends HttpJsonPort { async getJson(): Promise<unknown> { return { [STOCK]: { usdPrice: 250 } }; } })();
+    const quotes = new UsdQuotes(accounts, jup, 'https://jup', 60_000, () => undefined);
+    await quotes.start();
+    const feed = new RaydiumLaunchLabPriceFeed(accounts, quotes, new FakePriceFeed(), () => undefined);
+    const ticks: PriceTick[] = [];
+    await feed.watch(MINT, (t) => ticks.push(t));
+    expect(ticks.at(-1)!.priceUsd).toBeCloseTo(7.5e-6, 12); // 3e-8 stock × $250
+    expect(ticks.at(-1)!.marketCapUsd).toBeCloseTo(7500, 4);
+    await feed.close();
+  });
+
   it('checks every supported quote token and routes bad stream data to onError', async () => {
     expect(LAUNCHLAB_QUOTES).toContain(WSOL_MINT);
     const { accounts, pool, feed, errors } = await setup();
