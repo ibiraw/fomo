@@ -33,7 +33,7 @@ Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), 
 - `npm run watch-evm-price -- <chain>:<0xaddress> [seconds]`
 
 ## Order kinds
-- `limit` (default when `kind` is absent): waits for its trigger. `market` (v2.0.0 quick trades, gated by `quickTrade`): no trigger in the request; stored with `MARKET_TRIGGER` (price ≥ 0, always met), goes straight to `triggered` and the account's queue on create (with or without a price yet), `maxAttempts` ≤ 2 (one slippage retry). Paywall, open-order cap and the sell holding check apply as for limit orders. Monitoring: ⚡ QUICK BUY / QUICK SELL. Column `orders.kind` (migration adds it with default 'limit').
+- `limit` (default when `kind` is absent): waits for its trigger. `market` (v2.0.0 quick trades, gated by `quickTrade`): no trigger in the request; stored with `MARKET_TRIGGER` (price ≥ 0, always met), goes straight to `triggered` and the account's queue on create (with or without a price yet), `maxAttempts` ≤ 2 (one slippage retry). One that hasn't started within `MARKET_MAX_WAIT_MS` (30 s) of the tap — e.g. across a server restart — is cancelled ("expired") instead of trading late. Paywall, open-order cap and the sell holding check apply as for limit orders. Monitoring: ⚡ QUICK BUY / QUICK SELL. Column `orders.kind` (migration adds it with default 'limit').
 
 ## Order lifecycle
 `open → triggered → executing → filled | failed | unknown`, `open/triggered → cancelled`.
