@@ -1,6 +1,6 @@
 /**
  * @file launchpad-feed.test.ts
- * @description four.meme / flap.sh curve feeds (including graduation hand-off) and the DexScreener fallback feed.
+ * @description four.meme / flap.sh / pons curve feeds (including graduation hand-off) and the DexScreener fallback feed.
  * @author Reborn1987
  */
 
@@ -11,7 +11,7 @@ import { FomoError, UnsupportedPoolError } from '../../src/core/errors.js';
 import { DexScreenerPriceFeed, parseDexScreenerPrices } from '../../src/core/evm/dexscreener-price-feed.js';
 import { ERC20_ABI, Erc20Reader } from '../../src/core/evm/erc20.js';
 import { EvmUsdQuotes } from '../../src/core/evm/evm-usd-quotes.js';
-import { flap, fourMeme, LaunchpadPriceFeed } from '../../src/core/evm/launchpad-price-feed.js';
+import { flap, fourMeme, LaunchpadPriceFeed, pons } from '../../src/core/evm/launchpad-price-feed.js';
 import type { Hex } from '../../src/ports/evm-rpc.js';
 import { HttpJsonPort } from '../../src/ports/http-json.js';
 import { PriceFeedPort, type PriceListener, type PriceTick, type PriceWatch } from '../../src/ports/price-feed.js';
@@ -145,6 +145,72 @@ class FakeHttp extends HttpJsonPort {
     return this.docs[url] ?? [];
   }
 }
+
+describe('pons curve feed (a curve contract per token)', () => {
+  const PONS = '0x7ed598bcef8bd9edd8c97a195c6d13f40801ec7e' as Hex;
+  const CURVE = '0x70236fd97bf2187ad558e70fbc7c6e5701b2b189';
+  const USDG = '0x5fc5360d0400a0fd4f2af552add042d716f1d168';
+  const WETH = '0x0bd7d308f8e1639fab988df18a8011f41eacad73';
+  const settle = async (): Promise<void> => { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)); };
+
+  /** A pons token whose curve answers from mutable state. */
+  function ponsSetup(state: { quote: string; quoteReserve: bigint; tokenReserve: bigint; graduated?: boolean; factory?: string }) {
+    const rpc = new FakeEvmRpc('robinhood');
+    rpc.on(TOKEN, ERC20_ABI, 'decimals', 18).on(TOKEN, ERC20_ABI, 'totalSupply', 10n ** 27n).on(USDG, ERC20_ABI, 'decimals', 6);
+    rpc.raw(TOKEN, '0x7165485d', words(CURVE));
+    rpc.raw(CURVE, '0xc45a0155', () => words(state.factory ?? PONS));
+    rpc.raw(CURVE, '0x0902f1ac', () => words(state.quoteReserve, state.tokenReserve));
+    rpc.raw(CURVE, '0x3de35b79', () => words(state.quote));
+    rpc.raw(CURVE, '0xe7c2b772', () => words(state.graduated ?? false));
+    const quotes = new EvmUsdQuotes('robinhood', new Set([USDG]), WETH);
+    const pools = new PoolsStub({ [WETH]: 2_500, [TOKEN]: 0.0002 });
+    quotes.setFeed(pools);
+    const errors: unknown[] = [];
+    const feed = new LaunchpadPriceFeed(rpc, new Erc20Reader(rpc), quotes, pons(PONS), pools, (e) => errors.push(e), 5);
+    return { rpc, feed, errors };
+  }
+
+  it('prices from the curve reserves in USDG and re-reads them after each log from the curve', async () => {
+    const state = { quote: USDG, quoteReserve: 6_720_567_724n, tokenReserve: 481_506_943_775n * 10n ** 15n };
+    const { rpc, feed } = ponsSetup(state);
+    const ticks: PriceTick[] = [];
+    const w = await feed.watch(`robinhood:${TOKEN}`, (t) => ticks.push(t));
+    expect(ticks[0]).toMatchObject({ source: 'pons' });
+    expect(ticks[0]!.marketCapUsd).toBeCloseTo(13_957.5, 0); // 6,720.57 USDG ÷ 481.5M tokens × 1B supply
+    state.quoteReserve = 3_360_283_862n; // someone sold: half the USDG
+    rpc.emit({ address: OTHER, topics: ['0xdead'], data: '0x' }); // not the curve
+    await settle();
+    expect(ticks).toHaveLength(1);
+    rpc.emit({ address: CURVE, topics: ['0x8113d738abdcb6b38357e9d53a54a7157861a09031b453651f0fe7fe151f59df'], data: '0x' });
+    await settle();
+    expect(ticks.at(-1)!.marketCapUsd).toBeCloseTo(6_978.7, 0);
+    w.stop();
+    expect(rpc.live()).toBe(0);
+  });
+
+  it('prices native-ETH curves through the ETH price, and hands a graduating token to the pools', async () => {
+    const state = { quote: ZERO, quoteReserve: 1_680n * 10n ** 15n, tokenReserve: 10n ** 27n, graduated: false };
+    const { rpc, feed } = ponsSetup(state);
+    const ticks: PriceTick[] = [];
+    await feed.watch(`robinhood:${TOKEN}`, (t) => ticks.push(t));
+    expect(ticks[0]!.priceUsd).toBeCloseTo(4.2e-6, 12); // 1.68 ETH / 1B tokens × $2,500
+    state.graduated = true;
+    rpc.emit({ address: CURVE, topics: ['0x8113d738abdcb6b38357e9d53a54a7157861a09031b453651f0fe7fe151f59df'], data: '0x' });
+    await settle();
+    expect(ticks.at(-1)).toMatchObject({ source: 'v2-pool', priceUsd: 0.0002 });
+    expect(rpc.subs.find((s) => s.filter.address === CURVE)?.stopped).toBe(true);
+  });
+
+  it("rejects tokens without a pons curve, someone else's curve, and graduated curves", async () => {
+    const graduated = ponsSetup({ quote: USDG, quoteReserve: 1n, tokenReserve: 0n });
+    await expect(graduated.feed.watch(`robinhood:${TOKEN}`, () => undefined)).rejects.toThrow(/left the pons curve/);
+    const foreign = ponsSetup({ quote: USDG, quoteReserve: 1n, tokenReserve: 1n, factory: OTHER });
+    await expect(foreign.feed.watch(`robinhood:${TOKEN}`, () => undefined)).rejects.toThrow(/not a pons token/);
+    const plain = ponsSetup({ quote: USDG, quoteReserve: 1n, tokenReserve: 1n });
+    plain.rpc.raw(TOKEN, '0x7165485d', '0x');
+    await expect(plain.feed.watch(`robinhood:${TOKEN}`, () => undefined)).rejects.toThrow(/not a pons token/);
+  });
+});
 
 describe('DexScreenerPriceFeed', () => {
   beforeEach(() => vi.useFakeTimers());

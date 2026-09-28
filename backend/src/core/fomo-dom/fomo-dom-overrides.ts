@@ -43,6 +43,7 @@ export const FomoDomOverridesSchema = z
     quickTradeTabs: Words,
     sideTabInactiveClass: Classes,
     feedItem: Text,
+    xLinkLabels: Words,
   })
   .partial()
   .strict();

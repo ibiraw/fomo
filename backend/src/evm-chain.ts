@@ -12,7 +12,7 @@ import { Erc20Reader } from './core/evm/erc20.js';
 import { EVM_ADDRESSES } from './core/evm/evm-addresses.js';
 import { EvmPoolPriceFeed } from './core/evm/evm-pool-price-feed.js';
 import { EvmUsdQuotes } from './core/evm/evm-usd-quotes.js';
-import { flap, fourMeme, LaunchpadPriceFeed } from './core/evm/launchpad-price-feed.js';
+import { flap, fourMeme, LaunchpadPriceFeed, pons } from './core/evm/launchpad-price-feed.js';
 import { evmCodeTemplateDetector } from './core/tokens/code-templates.js';
 import { evmLaunchpadDetector, type LaunchpadDetector } from './core/tokens/launchpad-service.js';
 import { CompositePriceFeed } from './core/pricing/composite-price-feed.js';
@@ -61,6 +61,7 @@ export function buildEvmChain(
   const protocols = [
     ...(addr.fourMeme ? [{ protocol: fourMeme(addr.fourMeme.manager, addr.fourMeme.helper), ctx: 'four-meme' }] : []),
     ...(addr.flapPortal ? [{ protocol: flap(addr.flapPortal), ctx: 'flap' }] : []),
+    ...(addr.ponsFactory ? [{ protocol: pons(addr.ponsFactory), ctx: 'pons' }] : []),
   ];
   const curves: PriceFeedPort[] = protocols.map(({ protocol, ctx }) => new LaunchpadPriceFeed(rpc, erc20, quotes, protocol, afterCurve, logError(`${ctx}:${chain}`)));
   const onchain = new CompositePriceFeed([...curves, pools]);

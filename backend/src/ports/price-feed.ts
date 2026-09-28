@@ -7,7 +7,7 @@
 /** Solana on-chain sources, EVM on-chain sources, then the polled fallbacks. */
 export type PriceSource =
   | 'pump-curve' | 'pump-swap' | 'raydium-launchlab' | 'raydium-cpmm' | 'meteora-dbc' | 'meteora-damm2'
-  | 'v2-pool' | 'v3-pool' | 'v4-pool' | 'four-meme' | 'flap'
+  | 'v2-pool' | 'v3-pool' | 'v4-pool' | 'four-meme' | 'flap' | 'pons'
   | 'jupiter' | 'dexscreener';
 
 /** One live price observation for a token. */

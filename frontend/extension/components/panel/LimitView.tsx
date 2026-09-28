@@ -11,6 +11,7 @@ import { NewOrderForm } from '@/components/orders/NewOrderForm';
 import { OrderList } from '@/components/orders/OrderList';
 import { useBackground } from '@/hooks/use-background';
 import { useFomoLaunchpad } from '@/hooks/use-fomo-launchpad';
+import { useFomoXLink } from '@/hooks/use-fomo-x-link';
 import { useFomoPosition } from '@/hooks/use-fomo-position';
 import { useFomoSupply } from '@/hooks/use-fomo-supply';
 import { useHolds } from '@/hooks/use-holds';
@@ -48,6 +49,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
   const supply = useFomoSupply(mint);
   const heldTokens = useFomoPosition(mint);
   const pageLaunchpad = useFomoLaunchpad(mint);
+  const pageXLink = useFomoXLink(mint);
   const holds = useHolds(mint, state?.status === 'connected', send, state?.orders ?? []);
   const [scope, setScope] = useState<'token' | 'all'>('token');
   const release = useRelease();
@@ -67,7 +69,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
     <div className="space-y-4 p-1 pt-2">
       {notice && <p className="rounded-md bg-sell/15 p-2 text-xs text-sell">{notice}</p>}
       {state.status === 'connected' && <TokenInsights key={`i:${mint}`} mint={mint} send={send} release={release} pageLaunchpad={pageLaunchpad} priceSource={state.ticks[mint]?.source ?? null} />}
-      {state.status === 'connected' && hasFeature(release, 'xPost') && <TokenXCard key={`x:${mint}`} mint={mint} send={send} />}
+      {state.status === 'connected' && hasFeature(release, 'xPost') && <TokenXCard key={`x:${mint}`} mint={mint} send={send} pageLink={pageXLink} />}
       <UnlockBanner status={state.billing} where="panel" />
       {priceError ? (
         <div className="space-y-1.5 rounded-lg border bg-card p-3">

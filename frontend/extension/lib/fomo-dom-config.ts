@@ -57,6 +57,8 @@ export interface FomoDomConfig {
   readonly sideTabInactiveClass: string;
   /** One item (trade or post) in the side panel's lists. */
   readonly feedItem: string;
+  /** Text of the token's X button in About ("Twitter"); only an x.com / twitter.com link with exactly this text counts. */
+  readonly xLinkLabels: readonly string[];
 }
 
 /** Built-in values (what fomo.family looked like when this version shipped). */
@@ -85,6 +87,7 @@ export const DEFAULT_FOMO_DOM: FomoDomConfig = {
   quickTradeTabs: ['Alerts', 'Feed'],
   sideTabInactiveClass: 'text-text-secondary',
   feedItem: '.border-b.border-bg-secondary',
+  xLinkLabels: ['Twitter'],
 };
 
 /** Checks that a string is a usable CSS selector (injectable; content scripts pass a DOM-backed check). */
@@ -150,6 +153,7 @@ export function parseFomoDomConfig(raw: unknown, isSelector: SelectorCheck = dom
     quickTradeTabs: words('quickTradeTabs') ?? d.quickTradeTabs,
     sideTabInactiveClass: cls('sideTabInactiveClass') ?? d.sideTabInactiveClass,
     feedItem: sel('feedItem') ?? d.feedItem,
+    xLinkLabels: words('xLinkLabels') ?? d.xLinkLabels,
   };
 }
 

@@ -139,7 +139,7 @@ export function meteoraDbcDetector(accounts: SolanaAccountsPort, directory: Pool
 
 /** An EVM launchpad (four.meme, flap.sh): its contract knows every token it launched. */
 export function evmLaunchpadDetector(rpc: EvmRpcPort, protocol: LaunchpadProtocol): LaunchpadDetector {
-  const name = protocol.name === 'four-meme' ? 'four.meme' : 'flap.sh';
+  const name = { 'four-meme': 'four.meme', flap: 'flap.sh', pons: 'pons' }[protocol.name];
   return {
     async detect(address) {
       let state: CurveState | null;

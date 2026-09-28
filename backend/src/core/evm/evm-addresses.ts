@@ -19,6 +19,8 @@ export interface EvmChainAddresses {
   readonly fourMeme: { readonly manager: Hex; readonly helper: Hex } | null;
   /** flap.sh Portal (trade events and state reads). */
   readonly flapPortal: Hex | null;
+  /** pons factory (Robinhood): creates one curve contract per token; a token's curve reports this as its factory. */
+  readonly ponsFactory: Hex | null;
 }
 
 export const EVM_ADDRESSES: Record<EvmChain, EvmChainAddresses> = {
@@ -28,6 +30,7 @@ export const EVM_ADDRESSES: Record<EvmChain, EvmChainAddresses> = {
     wrappedNative: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
     fourMeme: null,
     flapPortal: null,
+    ponsFactory: null,
   },
   base: {
     v4: { poolManager: '0x498581ff718922c3f8e6a244956af099b2652b2b', stateView: '0xa3c0c9b65bad0b08107aa264b0f3db444b867a71' },
@@ -35,6 +38,7 @@ export const EVM_ADDRESSES: Record<EvmChain, EvmChainAddresses> = {
     wrappedNative: '0x4200000000000000000000000000000000000006',
     fourMeme: null,
     flapPortal: '0x0000bc1c4fd15dd79029af8f5d77d68ae4490000',
+    ponsFactory: null,
   },
   bnb: {
     v4: { poolManager: '0x28e2ea090877bf75740558f6bfb36a5ffee9e9df', stateView: '0xd13dd3d6e93f276fafc9db9e6bb47c1180aee0c4' },
@@ -42,6 +46,7 @@ export const EVM_ADDRESSES: Record<EvmChain, EvmChainAddresses> = {
     wrappedNative: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
     fourMeme: { manager: '0x5c952063c7fc8610ffdb798152d69f0b9550762b', helper: '0xf251f83e40a78868fcfa3fa4599dad6494e46034' },
     flapPortal: '0xe2ce6ab80874fa9fa2aae65d277dd6b8e65c9de0',
+    ponsFactory: null,
   },
   robinhood: {
     v4: { poolManager: '0x8366a39cc670b4001a1121b8f6a443a643e40951', stateView: '0xf3334192d15450cdd385c8b70e03f9a6bd9e673b' },
@@ -49,6 +54,7 @@ export const EVM_ADDRESSES: Record<EvmChain, EvmChainAddresses> = {
     wrappedNative: '0x0bd7d308f8e1639fab988df18a8011f41eacad73',
     fourMeme: null,
     flapPortal: '0x26605f322f7ff986f381bb9a6e3f5dab0beaeb09',
+    ponsFactory: '0x7ed598bcef8bd9edd8c97a195c6d13f40801ec7e', // checked 2026-09-28: LCAP, MOLE, INSIDER
   },
   arc: {
     v4: { poolManager: '0x8366a39cc670b4001a1121b8f6a443a643e40951', stateView: '0xf3334192d15450cdd385c8b70e03f9a6bd9e673b' },
@@ -56,5 +62,6 @@ export const EVM_ADDRESSES: Record<EvmChain, EvmChainAddresses> = {
     wrappedNative: '0x3600000000000000000000000000000000000000',
     fourMeme: null,
     flapPortal: null,
+    ponsFactory: null,
   },
 };

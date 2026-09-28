@@ -166,6 +166,20 @@ export function readLaunchpadName(doc: Document, symbol: string): string | null 
   return null;
 }
 
+/**
+ * The page token's X link as fomo shows it: the About section's "Twitter" button (text in `xLinkLabels`, observed
+ * 2026-09-28). X links inside posts show their URL as text, so they never match. Null when fomo shows none.
+ */
+export function readTokenXLink(doc: Document): string | null {
+  const labels = fomoDom().xLinkLabels;
+  for (const a of doc.querySelectorAll<HTMLAnchorElement>('a[href]')) {
+    if (!labels.includes(a.textContent?.trim() ?? '')) continue;
+    const href = a.getAttribute('href') ?? '';
+    if (/^https:\/\/(?:www\.|mobile\.)?(?:x|twitter)\.com\//i.test(href)) return href;
+  }
+  return null;
+}
+
 /** fomo usernames as they appear in profile links. Mirror of the server's check. */
 export const FOMO_USERNAME_RE = /^[A-Za-z0-9_.-]{1,40}$/;
 

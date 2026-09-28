@@ -13,6 +13,7 @@ import { RefreshButton } from '@/components/RefreshButton';
 import type { SendFn } from '@/hooks/use-background';
 import { ageColor, timeAgo } from '@/lib/format';
 import type { TokenInfo } from '@/lib/messages';
+import type { XLink } from '@/lib/x-link';
 import type { XLatest } from '@/lib/x-latest';
 
 /** Re-renders every 30s so "12m ago" stays current. */
@@ -31,8 +32,11 @@ function sourceLabel(t: NonNullable<TokenInfo['twitter']>): string {
   return `@${t.handle}`;
 }
 
-/** X activity card for one token. */
-export function TokenXCard({ mint, send }: { mint: string; send: SendFn }) {
+/**
+ * X activity card for one token. `pageLink` is the X link fomo shows on the token page (Limit panel only), used when
+ * the server knows none.
+ */
+export function TokenXCard({ mint, send, pageLink = null }: { mint: string; send: SendFn; pageLink?: XLink | null }) {
   const now = useNow();
   const [showPost, setShowPost] = useState(false);
 
@@ -42,7 +46,7 @@ export function TokenXCard({ mint, send }: { mint: string; send: SendFn }) {
     staleTime: 30 * 60_000,
     retry: 1,
   });
-  const twitter = info.data?.twitter ?? null;
+  const twitter = info.data?.twitter ?? pageLink;
   const latest = useQuery({
     queryKey: ['x.latest', twitter?.url],
     queryFn: () => send({ type: 'x.latest', url: twitter!.url }) as Promise<XLatest>,
@@ -54,8 +58,8 @@ export function TokenXCard({ mint, send }: { mint: string; send: SendFn }) {
     if (twitter) void send({ type: 'x.latest', url: twitter.url, force: true }).then(() => latest.refetch());
   };
 
-  if (info.isPending) return <p className="text-xs text-muted-foreground">Looking up token socials…</p>;
-  if (info.isError) return <p className="text-xs text-muted-foreground">Socials unavailable: {info.error.message}</p>;
+  if (!twitter && info.isPending) return <p className="text-xs text-muted-foreground">Looking up token socials…</p>;
+  if (!twitter && info.isError) return <p className="text-xs text-muted-foreground">Socials unavailable: {info.error.message}</p>;
   if (!twitter) return <p className="text-xs text-muted-foreground">No X account listed for this token.</p>;
 
   const result = latest.data?.result;

@@ -48,7 +48,7 @@ export interface PriceTick {
   /** On-chain sources are sub-second; 'jupiter' and 'dexscreener' are polled fallbacks (a few seconds behind). */
   readonly source:
     | 'pump-curve' | 'pump-swap' | 'raydium-launchlab' | 'raydium-cpmm' | 'meteora-dbc' | 'meteora-damm2'
-    | 'v2-pool' | 'v3-pool' | 'v4-pool' | 'four-meme' | 'flap'
+    | 'v2-pool' | 'v3-pool' | 'v4-pool' | 'four-meme' | 'flap' | 'pons'
     | 'jupiter' | 'dexscreener';
   readonly receivedAt: number;
 }

@@ -144,7 +144,7 @@ export function shortNote(o: Pick<Order, 'lastError' | 'status'>): string | null
  */
 export function curveStatusFromSource(source: PriceTick['source'] | null | undefined): 'curve' | 'graduated' | null {
   if (!source) return null;
-  if (source === 'pump-curve' || source === 'raydium-launchlab' || source === 'meteora-dbc' || source === 'four-meme' || source === 'flap') return 'curve';
+  if (source === 'pump-curve' || source === 'raydium-launchlab' || source === 'meteora-dbc' || source === 'four-meme' || source === 'flap' || source === 'pons') return 'curve';
   if (source === 'jupiter' || source === 'dexscreener') return null;
   return 'graduated';
 }
