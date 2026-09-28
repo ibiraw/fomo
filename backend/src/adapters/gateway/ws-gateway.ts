@@ -90,6 +90,18 @@ interface Client {
   lastSpot: { readonly text: string; readonly at: number } | null;
 }
 
+/**
+ * The trade part of fomo's toast: whitespace squeezed and the toast's own relative time ("Just now", "2m ago"), which
+ * textContent glues onto the token name ("Buying $25.00 QCATJust now"), removed.
+ */
+export function spotText(detail: string): string {
+  return detail
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\s*(?:just now|\d+\s*(?:s|sec|secs|seconds?|m|min|mins|minutes?|h|hr|hrs|hours?|d|days?)\s*ago)$/i, '')
+    .trim();
+}
+
 /** Spot-trade reports: at most one per connection per this window, and the same text only once a minute. */
 const SPOT_MIN_GAP_MS = 3_000;
 const SPOT_REPEAT_MS = 60_000;
@@ -485,7 +497,7 @@ export class WsGateway extends TradeExecutorPort {
       case 'trade.spot':
         return this.reply(client, msg.reqId, async () => {
           const now = this.now();
-          const text = msg.detail.replace(/\s+/g, ' ').trim();
+          const text = spotText(msg.detail);
           const last = client.lastSpot;
           const skip = last !== null && (now - last.at < SPOT_MIN_GAP_MS || (last.text === text && now - last.at < SPOT_REPEAT_MS));
           if (skip) return { logged: false };

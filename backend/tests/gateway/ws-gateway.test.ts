@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
-import { WsGateway, type GatewayLimits } from '../../src/adapters/gateway/ws-gateway.js';
+import { spotText, WsGateway, type GatewayLimits } from '../../src/adapters/gateway/ws-gateway.js';
 import { SqliteAccountStoreAdapter } from '../../src/adapters/storage/sqlite-account-store.adapter.js';
 import { SqliteOrderStoreAdapter } from '../../src/adapters/storage/sqlite-order-store.adapter.js';
 import { AccountService } from '../../src/core/accounts/account-service.js';
@@ -345,6 +345,13 @@ describe('WsGateway accounts', () => {
     ext.send({ type: 'layout.status', reqId: 'v', newVersion: true }); // a "new version" report doesn't resume
     expect((await ext.next((m) => m.reqId === 'v')).data).toEqual({ paused: true });
     await vi.waitFor(() => expect(gateway.isReady(ext.userId)).toBe(true)); // automatic retry after layoutRetryMs
+  });
+
+  it("strips the toast's own relative time from spot-trade texts", () => {
+    expect(spotText('Buying $25.00 QCATJust now')).toBe('Buying $25.00 QCAT');
+    expect(spotText('Selling  1.2M KEK 2m ago')).toBe('Selling 1.2M KEK');
+    expect(spotText('Buying $3.00 KEK 15 seconds ago')).toBe('Buying $3.00 KEK');
+    expect(spotText('Buying $3.00 AGO')).toBe('Buying $3.00 AGO'); // a token named AGO stays
   });
 
   it('logs spot trades made on fomo, but not repeats or floods', async () => {
