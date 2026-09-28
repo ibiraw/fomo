@@ -74,7 +74,7 @@ export function orderEntry(icon: string, who: string, action: string, mint: stri
 export function describeOrder(o: Order, who: string): string | null {
   const amount = o.amount.kind === 'usd' ? `$${o.amount.value}` : `${o.amount.value}%`;
   const target = `${o.trigger.metric === 'marketCap' ? 'MC' : 'price'} ${o.trigger.direction === 'below' ? '≤' : '≥'} ${usdCompact(o.trigger.value)}`;
-  const what = `${orderKind(o)} ${amount}`;
+  const what = `**${orderKind(o).toUpperCase()}** ${amount}`; // bold in Telegram: the transaction type
   const entry = (action: string, detail: EntryDetail | null = null) => orderEntry(orderIcon(o), who, action, o.mint, detail);
   const market = (text: string): EntryDetail => ({ kind: 'market', text });
   const reason = (text: string | null): EntryDetail | null => (text ? { kind: 'reason', text } : null);

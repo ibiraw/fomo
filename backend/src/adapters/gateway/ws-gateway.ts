@@ -502,7 +502,7 @@ export class WsGateway extends TradeExecutorPort {
           const skip = last !== null && (now - last.at < SPOT_MIN_GAP_MS || (last.text === text && now - last.at < SPOT_REPEAT_MS));
           if (skip) return { logged: false };
           client.lastSpot = { text, at: now };
-          const [icon, name] = msg.side === 'buy' ? ['🛒', 'Spot buy'] : ['💸', 'Spot sell'];
+          const [icon, name] = msg.side === 'buy' ? ['🛒', '**SPOT BUY**'] : ['💸', '**SPOT SELL**']; // bold in Telegram
           this.opts.onActivity?.('order', orderEntry(icon, label(this.requireAccounts().get(userId)), `${name} on fomo: ${text}`, msg.mint ?? null));
           return { logged: true };
         });
