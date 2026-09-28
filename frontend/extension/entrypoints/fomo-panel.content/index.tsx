@@ -15,8 +15,8 @@ import { LimitView, type MintStore } from '@/components/panel/LimitView';
 import { loadDefaultTab, onDefaultTabChange, type DefaultTab } from '@/hooks/use-default-tab';
 import { loadTheme, onThemeChange } from '@/hooks/use-theme';
 import { followFomoDom } from '@/lib/fomo-dom-config';
-import { appendViewAfter, ensureLimitTab, ensurePageStyle, LIMIT_HOST_TAG, setLimitActive, VIEW_ATTR } from '@/lib/fomo-inject';
-import { applyPanelVars, type Theme } from '@/lib/themes';
+import { appendViewAfter, ensureLimitTab, ensurePageStyle, LIMIT_HOST_TAG, setLimitActive, setPageTheme, VIEW_ATTR } from '@/lib/fomo-inject';
+import { applyPanelVars, fomoOverrideCss, type Theme } from '@/lib/themes';
 import { mintFromFomoUrl } from '@/lib/format';
 
 /** Tiny external store holding the current page's mint. */
@@ -43,9 +43,10 @@ export default defineContentScript({
     // Page-layout knowledge (selectors, labels): the server's overrides if any, before the first attach.
     await followFomoDom();
     ensurePageStyle(document);
-    // Theme: our Limit panel only (fomo's page keeps its own colors); follow changes from the popup live.
+    // Theme: recolor fomo's page (its CSS variables) and our view; follow changes from the popup live.
     let theme: Theme = await loadTheme();
     const applyTheme = (): void => {
+      setPageTheme(document, fomoOverrideCss(theme));
       const host = document.querySelector<HTMLElement>(LIMIT_HOST_TAG);
       if (host) applyPanelVars(host, theme);
     };

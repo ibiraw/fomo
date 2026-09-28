@@ -106,7 +106,7 @@ export default function App() {
             </SettingsCard>
             {hasFeature(release, 'themes') && <SettingsCard className="space-y-2">
               <h2 className="text-sm font-semibold">Theme</h2>
-              <p className="text-xs text-muted-foreground">Recolors this popup and the Limit panel on fomo. fomo itself keeps its own colors.</p>
+              <p className="text-xs text-muted-foreground">Recolors fomo.family and the Limit panel in every open fomo tab.</p>
               <ThemePicker />
             </SettingsCard>}
             {hasFeature(release, 'sounds') && <OrderSounds />}

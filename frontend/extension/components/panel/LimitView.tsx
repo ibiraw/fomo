@@ -9,7 +9,6 @@ import { useState, useSyncExternalStore } from 'react';
 
 import { NewOrderForm } from '@/components/orders/NewOrderForm';
 import { OrderList } from '@/components/orders/OrderList';
-import { ThemePicker } from '@/components/ThemePicker';
 import { useBackground } from '@/hooks/use-background';
 import { useFomoSupply } from '@/hooks/use-fomo-supply';
 import { useHolds } from '@/hooks/use-holds';
@@ -111,12 +110,6 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
           />
         )}
       </div>
-      {hasFeature(release, 'themes') && (
-        <div className="flex items-center justify-between gap-2 border-t pt-3">
-          <span className="text-xs text-muted-foreground">Theme</span>
-          <ThemePicker compact />
-        </div>
-      )}
     </div>
   );
 }

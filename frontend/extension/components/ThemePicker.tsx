@@ -1,6 +1,6 @@
 /**
  * @file ThemePicker.tsx
- * @description Theme swatches. Choosing one recolors the popup and the Limit panel in every open tab (not fomo's own page).
+ * @description Theme swatches (popup Settings only). Choosing one recolors fomo.family and the Limit panel in every open tab.
  * @author Reborn1987
  */
 
@@ -10,28 +10,9 @@ import { useTheme } from '@/hooks/use-theme';
 import { THEMES } from '@/lib/themes';
 import { cn } from '@/lib/utils';
 
-/** Grid of theme buttons; `compact` shows dots only (for the Limit panel). */
-export function ThemePicker({ compact = false }: { compact?: boolean }) {
+/** Grid of theme buttons. */
+export function ThemePicker() {
   const [theme, choose] = useTheme();
-
-  if (compact) {
-    return (
-      <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Theme">
-        {THEMES.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="radio"
-            aria-checked={theme.id === t.id}
-            title={t.name}
-            onClick={() => void choose(t.id)}
-            className={cn('size-6 rounded-full border-2 transition-transform hover:scale-110', theme.id === t.id ? 'border-foreground' : 'border-transparent')}
-            style={{ background: `linear-gradient(135deg, ${t.bg} 0 50%, ${t.brand} 50% 100%)` }}
-          />
-        ))}
-      </div>
-    );
-  }
 
   return (
     <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Theme">
