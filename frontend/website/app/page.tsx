@@ -33,7 +33,7 @@ export default function Home() {
           <TryIt />
         </section>
         <Features />
-        {isReleased('1.2') && <section id="themes" className="mx-auto max-w-6xl px-5 pb-24">
+        {isReleased('1.1.0') && <section id="themes" className="mx-auto max-w-6xl px-5 pb-24">
           <SectionHead eyebrow="Themes" title="Make fomo yours" sub="Pick a theme in the extension and it recolors fomo.family and your Limit panel — in every open tab, instantly." />
           <Themes />
         </section>}

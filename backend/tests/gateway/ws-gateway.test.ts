@@ -406,15 +406,15 @@ describe('WsGateway accounts', () => {
     let config: AccessConfig = { ...DEFAULT_ACCESS };
     gateway.setReleases(new ReleaseService(() => config));
     const c = await authed(false);
-    expect(c.msgs.find((m) => m.type === 'welcome')).toMatchObject({ release: { version: '1.0', features: [], early: false } });
+    expect(c.msgs.find((m) => m.type === 'welcome')).toMatchObject({ release: { version: '1.0.0', features: [], early: false } });
     config = { ...config, earlyAccess: [accounts.get(c.userId).shortId] };
     gateway.pushAccess();
     const pushed = await c.next((m) => m.type === 'release');
     expect(pushed.release).toMatchObject({ version: LATEST_VERSION, early: true });
     accounts.delete(c.userId); // deleted while still connected: no crash, it gets the public version
-    config = { ...config, publicVersion: '1.2' };
+    config = { ...config, publicVersion: '1.1.0' };
     gateway.pushAccess();
-    await c.next((m) => m.type === 'release' && (m.release as { version: string }).version === '1.2');
+    await c.next((m) => m.type === 'release' && (m.release as { version: string }).version === '1.1.0');
   });
 
   it('answers token.launchpad only for accounts whose version has it', async () => {
@@ -423,21 +423,21 @@ describe('WsGateway accounts', () => {
     gateway.setLaunchpads(new LaunchpadService(() => [{ detect: async () => ({ id: 'pump', name: 'pump.fun', onCurve: true }) }]));
     const c = await authed(false);
     c.send({ type: 'token.launchpad', reqId: 'l1', mint: MINT });
-    expect(await c.next((m) => m.reqId === 'l1')).toMatchObject({ ok: false, error: 'This arrives in limit v1.8' });
+    expect(await c.next((m) => m.reqId === 'l1')).toMatchObject({ ok: false, error: 'This arrives in limit v1.3.0' });
     config = { ...config, earlyAccess: [accounts.get(c.userId).shortId] };
     c.send({ type: 'token.launchpad', reqId: 'l2', mint: MINT });
     expect(await c.next((m) => m.reqId === 'l2')).toMatchObject({ ok: true, data: { id: 'pump', name: 'pump.fun', onCurve: true } });
   });
 
   it('answers token.metrics only for accounts whose version has it', async () => {
-    let config: AccessConfig = { ...DEFAULT_ACCESS, publicVersion: '1.8' };
+    let config: AccessConfig = { ...DEFAULT_ACCESS, publicVersion: '1.3.0' };
     gateway.setReleases(new ReleaseService(() => config));
     const metrics = { topTenPct: 12.5, topHoldersPct: [4, 3], devWallet: null, devName: null, devHoldsPct: null, note: 'dev-unknown' };
     gateway.setTokenMetrics(new TokenMetricsService(() => ({ metrics: async () => metrics as never })));
     const c = await authed(false);
     c.send({ type: 'token.metrics', reqId: 'm1', mint: MINT });
-    expect(await c.next((m) => m.reqId === 'm1')).toMatchObject({ ok: false, error: 'This arrives in limit v1.9' });
-    config = { ...config, publicVersion: '1.9' };
+    expect(await c.next((m) => m.reqId === 'm1')).toMatchObject({ ok: false, error: 'This arrives in limit v1.4.0' });
+    config = { ...config, publicVersion: '1.4.0' };
     c.send({ type: 'token.metrics', reqId: 'm2', mint: MINT });
     expect(await c.next((m) => m.reqId === 'm2')).toMatchObject({ ok: true, data: metrics });
   });

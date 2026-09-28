@@ -3,19 +3,20 @@
  * @description The public version the site describes, and the "What's new" list. Sections for later features
  *              (themes, sounds, the X post checker…) only show once SITE_VERSION reaches their version — raise it
  *              together with `publicVersion` in the server's access.json, and add a CHANGELOG entry dated that day.
- *              Roadmap (mirror of backend/src/core/releases/releases.ts): 1.0 limit orders on every chain ·
- *              1.2 themes + sounds · 1.7 the token's latest X post · 1.8 launchpad · 1.9 token metrics.
+ *              Roadmap (mirror of backend/src/core/releases/releases.ts): 1.0.0 limit orders on every chain ·
+ *              1.1.0 themes + sounds · 1.2.0 the token's latest X post · 1.3.0 launchpad · 1.4.0 token metrics ·
+ *              2.0.0 quick Buy/Sell buttons in fomo's Feed and Alerts.
  * @author Reborn1987
  */
 
 /** The version the public has. */
-export const SITE_VERSION = '1.0';
+export const SITE_VERSION = '1.0.0';
 
-/** Numeric compare of "major.minor" versions. */
+/** Numeric compare of "major.minor.patch" versions. */
 function compare(a: string, b: string): number {
-  const [a1 = 0, a2 = 0] = a.split('.').map(Number);
-  const [b1 = 0, b2 = 0] = b.split('.').map(Number);
-  return a1 - b1 || a2 - b2;
+  const [a1 = 0, a2 = 0, a3 = 0] = a.split('.').map(Number);
+  const [b1 = 0, b2 = 0, b3 = 0] = b.split('.').map(Number);
+  return a1 - b1 || a2 - b2 || a3 - b3;
 }
 
 /** True when the public version includes `version`. */
@@ -33,7 +34,7 @@ export interface ChangelogEntry {
 /** Newest first; only released versions are shown. */
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
-    version: '1.0',
+    version: '1.0.0',
     date: '2026-09-28',
     title: 'Limit orders for fomo',
     items: [

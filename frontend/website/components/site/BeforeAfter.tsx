@@ -220,7 +220,7 @@ const LIMIT_ADDS: readonly string[] = [
   'Take profit and stop loss on anything you hold',
   'Runs while you’re away (browser stays open)',
   'Solana, Ethereum, Base, BNB, Robinhood and Arc',
-  isReleased('1.2') ? 'Fill sounds, auto-cancel when you sell out' : 'Auto-cancel when you sell out',
+  isReleased('1.1.0') ? 'Fill sounds, auto-cancel when you sell out' : 'Auto-cancel when you sell out',
 ];
 
 /** The comparison section body. */

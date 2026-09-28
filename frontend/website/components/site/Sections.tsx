@@ -43,7 +43,7 @@ export function SiteHeader() {
         <nav className="hidden gap-6 text-sm text-muted-foreground md:flex">
           <Link href="/#demo" className="hover:text-foreground">Demo</Link>
           <Link href="/#features" className="hover:text-foreground">Features</Link>
-          {isReleased('1.2') && <Link href="/#themes" className="hover:text-foreground">Themes</Link>}
+          {isReleased('1.1.0') && <Link href="/#themes" className="hover:text-foreground">Themes</Link>}
           <Link href="/#how" className="hover:text-foreground">How it works</Link>
           <Link href="/#pricing" className="hover:text-foreground">Pricing</Link>
           <Link href="/#get" className="hover:text-foreground">Get limit</Link>
@@ -112,7 +112,7 @@ const FEATURES: readonly { icon: typeof Timer; title: string; body: string; sinc
   { icon: MousePointerClick, title: 'A native Limit tab', body: "Sits next to fomo's Buy and Sell. Presets, a −100% to +100% market-cap slider, and the order type worked out for you." },
   { icon: Radio, title: 'Live on-chain prices', body: 'Reads launchpad curves and DEX pools straight from the chain on Solana, Base, Ethereum, BNB, Robinhood and Arc — sub-second. Anything else falls back to a slower price, clearly marked.' },
   { icon: CircleCheck, title: 'Confirmed on-chain', body: 'A fill only counts when your wallet balance actually changes — no guessing from the page.' },
-  { icon: Timer, since: '1.7', title: "The token's last post", body: "See how long ago the token's X account last posted — green when fresh, red when it's gone quiet — with a preview." },
+  { icon: Timer, since: '1.2.0', title: "The token's last post", body: "See how long ago the token's X account last posted — green when fresh, red when it's gone quiet — with a preview." },
   { icon: BellOff, title: 'Auto-cancel', body: 'Sold out of a token? Its leftover take-profits and stop-losses cancel themselves.' },
   { icon: Activity, title: 'Built for speed', body: 'One trade at a time, re-checked before firing, retried on slippage. Trigger to filled in about 2.6 seconds.' },
 ];
@@ -136,7 +136,7 @@ export function Features() {
 }
 
 const PARTS = [
-  { icon: Layers, name: 'Browser extension', where: 'in Chrome or Brave', points: ['Adds the Limit tab to fomo', "Clicks fomo's own Buy / Sell", ...(isReleased('1.7') ? ['Reads the token’s latest X post'] : ['Shows your orders on every token page'])] },
+  { icon: Layers, name: 'Browser extension', where: 'in Chrome or Brave', points: ['Adds the Limit tab to fomo', "Clicks fomo's own Buy / Sell", ...(isReleased('1.2.0') ? ['Reads the token’s latest X post'] : ['Shows your orders on every token page'])] },
   { icon: Activity, name: 'limit server', where: 'always on', points: ['Keeps your orders', 'Watches live prices, triggers orders', 'Confirms fills from your wallet'] },
   { icon: Radio, name: 'Blockchains', where: 'public, read-only', points: ['Solana, Base, Ethereum, BNB, Robinhood, Arc', 'Live pool prices and your balances', 'No keys, read-only'] },
 ] as const;

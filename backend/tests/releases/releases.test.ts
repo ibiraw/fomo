@@ -18,30 +18,30 @@ import {
 
 describe('featuresOf', () => {
   it('adds each version on top of the earlier ones', () => {
-    expect(featuresOf('1.0')).toEqual([]);
-    expect(featuresOf('1.2')).toEqual(['themes', 'sounds']);
-    expect(featuresOf('1.7')).toEqual(['themes', 'sounds', 'xPost']);
-    expect(featuresOf(LATEST_VERSION)).toEqual(['themes', 'sounds', 'xPost', 'launchpad', 'tokenMetrics']);
-    expect(() => featuresOf('1.5')).toThrow(/Unknown version/);
+    expect(featuresOf('1.0.0')).toEqual([]);
+    expect(featuresOf('1.1.0')).toEqual(['themes', 'sounds']);
+    expect(featuresOf('1.2.0')).toEqual(['themes', 'sounds', 'xPost']);
+    expect(featuresOf(LATEST_VERSION)).toEqual(['themes', 'sounds', 'xPost', 'launchpad', 'tokenMetrics', 'quickTrade']);
+    expect(() => featuresOf('1.5.0')).toThrow(/Unknown version/);
   });
 });
 
 describe('parseAccessConfig', () => {
   it('accepts a full file and fills in the optional lists', () => {
-    expect(parseAccessConfig('{"publicVersion":"1.2","earlyAccess":["LM-7K3Q2P"],"freeUntil":{"LM-7K3Q2P":"2026-11-01"}}'))
-      .toEqual({ ok: true, config: { publicVersion: '1.2', earlyAccess: ['LM-7K3Q2P'], freeUntil: { 'LM-7K3Q2P': '2026-11-01' } } });
-    expect(parseAccessConfig('{"publicVersion":"1.0"}')).toEqual({ ok: true, config: DEFAULT_ACCESS });
+    expect(parseAccessConfig('{"publicVersion":"1.1.0","earlyAccess":["LM-7K3Q2P"],"freeUntil":{"LM-7K3Q2P":"2026-11-01"}}'))
+      .toEqual({ ok: true, config: { publicVersion: '1.1.0', earlyAccess: ['LM-7K3Q2P'], freeUntil: { 'LM-7K3Q2P': '2026-11-01' } } });
+    expect(parseAccessConfig('{"publicVersion":"1.0.0"}')).toEqual({ ok: true, config: DEFAULT_ACCESS });
   });
 
   it('rejects bad JSON, unknown versions or fields, malformed ids and impossible dates', () => {
     for (const bad of [
       'nope',
       '{}',
-      '{"publicVersion":"1.5"}',
-      '{"publicVersion":"1.0","earlyAcess":[]}', // typo → reported, not ignored
-      '{"publicVersion":"1.0","earlyAccess":["lm-7k3q2p"]}',
-      '{"publicVersion":"1.0","freeUntil":{"LM-7K3Q2P":"next week"}}',
-      '{"publicVersion":"1.0","freeUntil":{"LM-7K3Q2P":"2026-13-45"}}',
+      '{"publicVersion":"1.5.0"}',
+      '{"publicVersion":"1.0.0","earlyAcess":[]}', // typo → reported, not ignored
+      '{"publicVersion":"1.0.0","earlyAccess":["lm-7k3q2p"]}',
+      '{"publicVersion":"1.0.0","freeUntil":{"LM-7K3Q2P":"next week"}}',
+      '{"publicVersion":"1.0.0","freeUntil":{"LM-7K3Q2P":"2026-13-45"}}',
     ]) {
       expect(parseAccessConfig(bad).ok, bad).toBe(false);
     }
@@ -49,11 +49,11 @@ describe('parseAccessConfig', () => {
 });
 
 describe('ReleaseService', () => {
-  const config: AccessConfig = { publicVersion: '1.2', earlyAccess: ['LM-FR1END'], freeUntil: { 'LM-FR1END': '2026-11-01' } };
+  const config: AccessConfig = { publicVersion: '1.1.0', earlyAccess: ['LM-FR1END'], freeUntil: { 'LM-FR1END': '2026-11-01' } };
   const releases = new ReleaseService(() => config, new Set(['legacy']));
 
   it('gives the public version to everyone, and every feature to early access and the owner', () => {
-    expect(releases.viewFor({ id: 'u1', shortId: 'LM-ABC123' })).toEqual({ version: '1.2', features: ['themes', 'sounds'], early: false });
+    expect(releases.viewFor({ id: 'u1', shortId: 'LM-ABC123' })).toEqual({ version: '1.1.0', features: ['themes', 'sounds'], early: false });
     expect(releases.viewFor({ id: 'u2', shortId: 'LM-FR1END' })).toEqual({ version: LATEST_VERSION, features: featuresOf(LATEST_VERSION), early: true });
     expect(releases.viewFor({ id: 'legacy', shortId: 'LM-WFA346' }).early).toBe(true);
   });
@@ -90,13 +90,13 @@ describe('FileAccessConfigAdapter', () => {
     a.start((c) => changes.push(c));
     a.stop();
 
-    write('{"publicVersion":"1.7","earlyAccess":["LM-7K3Q2P"]}');
+    write('{"publicVersion":"1.2.0","earlyAccess":["LM-7K3Q2P"]}');
     const b = new FileAccessConfigAdapter(file, (e) => errors.push(e));
-    expect(b.current()).toMatchObject({ publicVersion: '1.7', earlyAccess: ['LM-7K3Q2P'] });
+    expect(b.current()).toMatchObject({ publicVersion: '1.2.0', earlyAccess: ['LM-7K3Q2P'] });
 
     write('{"publicVersion":"9.9"}');
     expect(b.reload()).toBe(false);
-    expect(b.current().publicVersion).toBe('1.7');
+    expect(b.current().publicVersion).toBe('1.2.0');
     expect(String(errors[0])).toMatch(/not applied/);
 
     unlinkSync(file);

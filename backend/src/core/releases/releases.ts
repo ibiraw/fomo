@@ -4,26 +4,29 @@
  *              is on and which features that version has. The public version is raised by editing the access file
  *              (DATA_DIR/access.json); early-access accounts (friends, testers) always get every feature built so far.
  *
- *              v1.0  limit orders (limit, breakout, take profit, stop loss) on every chain
- *              v1.2  themes and order sounds
- *              v1.7  the token's latest X post
- *              v1.8  which launchpad a token came from
- *              v1.9  token metrics (dev holdings / dev sold, top 10 holders' share)
+ *              v1.0.0  limit orders (limit, breakout, take profit, stop loss) on every chain
+ *              v1.1.0  themes and order sounds
+ *              v1.2.0  the token's latest X post
+ *              v1.3.0  which launchpad a token came from
+ *              v1.4.0  token metrics (top 10 holders' share, dev holdings)
+ *              v2.0.0  quick Buy/Sell buttons in fomo's Feed and Alerts (trade right away)
+ *              Fixes between releases would be 1.0.1, 1.0.2 … (same features).
  * @author Reborn1987
  */
 
 import { z } from 'zod';
 
 /** A feature that can be switched on by a release. */
-export type Feature = 'themes' | 'sounds' | 'xPost' | 'launchpad' | 'tokenMetrics';
+export type Feature = 'themes' | 'sounds' | 'xPost' | 'launchpad' | 'tokenMetrics' | 'quickTrade';
 
 /** Every version in order, with the features it adds. */
 export const RELEASES: readonly { readonly version: string; readonly adds: readonly Feature[] }[] = [
-  { version: '1.0', adds: [] },
-  { version: '1.2', adds: ['themes', 'sounds'] },
-  { version: '1.7', adds: ['xPost'] },
-  { version: '1.8', adds: ['launchpad'] },
-  { version: '1.9', adds: ['tokenMetrics'] },
+  { version: '1.0.0', adds: [] },
+  { version: '1.1.0', adds: ['themes', 'sounds'] },
+  { version: '1.2.0', adds: ['xPost'] },
+  { version: '1.3.0', adds: ['launchpad'] },
+  { version: '1.4.0', adds: ['tokenMetrics'] },
+  { version: '2.0.0', adds: ['quickTrade'] },
 ];
 
 export const FIRST_VERSION = RELEASES[0]!.version;
@@ -44,7 +47,7 @@ export function versionOf(feature: Feature): string {
 
 /** What one account sees. */
 export interface ReleaseView {
-  /** Version shown to the user ("1.0"). */
+  /** Version shown to the user ("1.0.0"). */
   readonly version: string;
   readonly features: readonly Feature[];
   /** Early access: every feature built so far, before it is public. */

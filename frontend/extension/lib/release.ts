@@ -3,12 +3,12 @@
  * @description Staged releases: the server tells each account which version it is on and which features that version
  *              has (`release` in the welcome, pushed when it changes). The background stores it (storage.local.release)
  *              so the popup, the Limit panel and fomo tabs all follow it live. Until the server has said otherwise,
- *              only v1.0 (limit orders) shows — a feature never flashes up for someone who doesn't have it.
+ *              only v1.0.0 (limit orders) shows — a feature never flashes up for someone who doesn't have it.
  * @author Reborn1987
  */
 
 /** A feature switched on by a release (mirror of backend/src/core/releases/releases.ts). */
-export type Feature = 'themes' | 'sounds' | 'xPost' | 'launchpad' | 'tokenMetrics';
+export type Feature = 'themes' | 'sounds' | 'xPost' | 'launchpad' | 'tokenMetrics' | 'quickTrade';
 
 /** What this account sees. */
 export interface ReleaseView {
@@ -21,15 +21,15 @@ export interface ReleaseView {
 export const RELEASE_STORAGE_KEY = 'release';
 
 /** Shown before the server has told us anything: the first version, no extras. */
-export const BASE_RELEASE: ReleaseView = { version: '1.0', features: [], early: false };
+export const BASE_RELEASE: ReleaseView = { version: '1.0.0', features: [], early: false };
 
-const FEATURES: readonly Feature[] = ['themes', 'sounds', 'xPost', 'launchpad', 'tokenMetrics'];
+const FEATURES: readonly Feature[] = ['themes', 'sounds', 'xPost', 'launchpad', 'tokenMetrics', 'quickTrade'];
 
 /** The stored value as a release view (anything malformed → the base release). */
 export function toRelease(value: unknown): ReleaseView {
   if (!value || typeof value !== 'object') return BASE_RELEASE;
   const v = value as Record<string, unknown>;
-  if (typeof v.version !== 'string' || !/^\d+\.\d+$/.test(v.version) || !Array.isArray(v.features)) return BASE_RELEASE;
+  if (typeof v.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(v.version) || !Array.isArray(v.features)) return BASE_RELEASE;
   return {
     version: v.version,
     features: v.features.filter((f): f is Feature => FEATURES.includes(f as Feature)),
