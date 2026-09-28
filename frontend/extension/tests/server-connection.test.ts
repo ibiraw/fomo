@@ -43,6 +43,7 @@ beforeEach(() => {
     onTick: vi.fn(),
     onBilling: vi.fn(),
     onFomoDom: vi.fn(),
+    onRelease: vi.fn(),
     onExecute: vi.fn(async (): Promise<ExecutionResult> => ({ ok: true, detail: 'done' })),
   };
   conn = new ServerConnection((url) => {
@@ -144,6 +145,9 @@ describe('ServerConnection', () => {
     expect(handlers.onFomoDom).toHaveBeenLastCalledWith(null);
     s.recv({ type: 'fomoDom', overrides: { amountInput: 'input.amount' } });
     expect(handlers.onFomoDom).toHaveBeenLastCalledWith({ amountInput: 'input.amount' });
+    expect(handlers.onRelease).toHaveBeenLastCalledWith(null); // welcome without release rules
+    s.recv({ type: 'release', release: { version: '1.2', features: ['themes', 'sounds'], early: false } });
+    expect(handlers.onRelease).toHaveBeenLastCalledWith({ version: '1.2', features: ['themes', 'sounds'], early: false });
     s.drop(4003);
     expect(conn.getStatus()).toBe('deleted');
     vi.advanceTimersByTime(60_000);

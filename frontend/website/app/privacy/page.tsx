@@ -8,6 +8,7 @@ import type { Metadata } from 'next';
 
 import { PolicyBlock } from '@/components/site/PolicyBlock';
 import { SiteFooter, SiteHeader } from '@/components/site/Sections';
+import { isReleased } from '@/lib/releases';
 
 export const metadata: Metadata = {
   title: 'Privacy — limit',
@@ -53,8 +54,8 @@ export default function Privacy() {
         <PolicyBlock title="What stays in your browser">
           <ul className="list-disc space-y-2 pl-5">
             <li><b className="text-foreground">The fomo page.</b> The extension reads the token page you are on (market cap, balance, the trade panel) and clicks fomo&apos;s own Buy and Sell buttons when an order triggers. Page content is not sent to our server beyond the order details above.</li>
-            <li><b className="text-foreground">X (Twitter).</b> If you open a token&apos;s latest post, the extension reads it with your own x.com session in a background tab and shows it to you. Nothing from X is sent to our server.</li>
-            <li><b className="text-foreground">Settings.</b> Theme, sounds, default tab and your account secret are kept in Chrome&apos;s extension storage on your computer.</li>
+            {isReleased('1.7') && <li><b className="text-foreground">X (Twitter).</b> If you open a token&apos;s latest post, the extension reads it with your own x.com session in a background tab and shows it to you. Nothing from X is sent to our server.</li>}
+            <li><b className="text-foreground">Settings.</b> {isReleased('1.2') ? 'Theme, sounds, default tab' : 'Your default tab'} and your account secret are kept in Chrome&apos;s extension storage on your computer.</li>
           </ul>
         </PolicyBlock>
 

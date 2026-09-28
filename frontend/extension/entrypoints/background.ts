@@ -18,6 +18,7 @@ import {
 } from '@/lib/messages';
 import { ServerConnection, type ConnectionStatus } from '@/lib/server-connection';
 import { FOMO_DOM_STORAGE_KEY } from '@/lib/fomo-dom-config';
+import { hasFeature, loadRelease, RELEASE_STORAGE_KEY, toRelease } from '@/lib/release';
 import type { FomoHealthMessage } from '@/lib/fomo-health-watch';
 import type { SpotTradeMessage } from '@/lib/fomo-spot-watch';
 import { XLatestService } from '@/lib/x-latest';
@@ -53,6 +54,7 @@ function ensureOffscreen(): Promise<void> {
 
 /** Plays an order sound if the user has sounds on. */
 async function playSound(event: SoundEvent): Promise<void> {
+  if (!hasFeature(await loadRelease(), 'sounds')) return; // order sounds arrive with v1.2
   const settings = await loadSoundSettings();
   if (!settings.enabled || settings.volume <= 0) return;
   await ensureOffscreen();
@@ -130,6 +132,11 @@ export default defineBackground({
       onFomoDom: (overrides) => {
         const op = overrides ? browser.storage.local.set({ [FOMO_DOM_STORAGE_KEY]: overrides }) : browser.storage.local.remove(FOMO_DOM_STORAGE_KEY);
         void op.catch((err: unknown) => console.error('[limit] could not save fomo layout overrides', err));
+      },
+      // The account's version and features: the popup, panel and fomo tabs follow this storage key.
+      onRelease: (release) => {
+        const op = release ? browser.storage.local.set({ [RELEASE_STORAGE_KEY]: toRelease(release) }) : browser.storage.local.remove(RELEASE_STORAGE_KEY);
+        void op.catch((err: unknown) => console.error('[limit] could not save the release', err));
       },
       onExecute: async (o) => {
         trading = true;
@@ -298,6 +305,7 @@ export default defineBackground({
         } else if (req.type === 'billing.claim') {
           data = await conn.request('billing.claim', { tx: req.tx });
         } else if (req.type === 'x.latest') {
+          if (!hasFeature(await loadRelease(), 'xPost')) throw new Error('The X post checker is not in your version yet');
           data = await xLatest.get(req.url, req.force ?? false);
         }
         reply({ type: 'reply', reqId: req.reqId, ok: true, data });

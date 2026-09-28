@@ -22,6 +22,8 @@ import type { ConnectionStatus } from '@/lib/server-connection';
 import { UnlockBanner } from '@/components/UnlockSection';
 
 import { TokenXCard } from './TokenXCard';
+import { useRelease } from '@/hooks/use-release';
+import { hasFeature } from '@/lib/release';
 
 /** External store for the current page's mint (updated on FOMO's client-side navigation). */
 export interface MintStore {
@@ -44,6 +46,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
   const supply = useFomoSupply(mint);
   const holds = useHolds(mint, state?.status === 'connected', send, state?.orders ?? []);
   const [scope, setScope] = useState<'token' | 'all'>('token');
+  const release = useRelease();
   const allOrders = state?.orders ?? [];
   const labels = useTokenSymbols(allOrders.map((o) => o.mint), send, state?.status === 'connected');
   const priceError = useWatchPrice(mint, state?.status === 'connected', send);
@@ -59,7 +62,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
   return (
     <div className="space-y-4 p-1 pt-2">
       {notice && <p className="rounded-md bg-sell/15 p-2 text-xs text-sell">{notice}</p>}
-      {state.status === 'connected' && <TokenXCard key={`x:${mint}`} mint={mint} send={send} />}
+      {state.status === 'connected' && hasFeature(release, 'xPost') && <TokenXCard key={`x:${mint}`} mint={mint} send={send} />}
       <UnlockBanner status={state.billing} where="panel" />
       {priceError ? (
         <div className="space-y-1.5 rounded-lg border bg-card p-3">
@@ -108,10 +111,12 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
           />
         )}
       </div>
-      <div className="flex items-center justify-between gap-2 border-t pt-3">
-        <span className="text-xs text-muted-foreground">Theme</span>
-        <ThemePicker compact />
-      </div>
+      {hasFeature(release, 'themes') && (
+        <div className="flex items-center justify-between gap-2 border-t pt-3">
+          <span className="text-xs text-muted-foreground">Theme</span>
+          <ThemePicker compact />
+        </div>
+      )}
     </div>
   );
 }

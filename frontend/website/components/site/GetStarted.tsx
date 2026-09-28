@@ -12,8 +12,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SectionHead } from './Sections';
 
-/** Where the packed extension is served (copied into the site root on deploy). */
-export const EXTENSION_ZIP = '/limit.zip';
+/**
+ * Where the packed extension is served (copied into the site root on deploy). Served with no-store, so updates are
+ * live at once; the query only skips a copy Cloudflare cached before that header existed.
+ */
+export const EXTENSION_ZIP = '/limit.zip?v=2';
 
 /** Paywall defaults (backend config). */
 const FREE_ORDERS = 3;

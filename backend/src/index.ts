@@ -15,7 +15,9 @@ import { SqliteOrderStoreAdapter } from './adapters/storage/sqlite-order-store.a
 import { buildBilling } from './billing-setup.js';
 import { loadConfig } from './config.js';
 import { SqliteActivityStoreAdapter } from './adapters/storage/sqlite-activity-store.adapter.js';
+import { FileAccessConfigAdapter } from './adapters/config/file-access-config.adapter.js';
 import { FileFomoDomAdapter } from './adapters/config/file-fomo-dom.adapter.js';
+import { ReleaseService } from './core/releases/releases.js';
 import { TelegramNotifierAdapter } from './adapters/telegram/telegram-notifier.adapter.js';
 import { ActivityRelay } from './core/monitoring/activity-relay.js';
 import { ErrorLog, errorHeadline } from './core/monitoring/error-log.js';
@@ -152,12 +154,20 @@ async function main(): Promise<void> {
     filled: store.list(['filled'], userId).length,
     waiting: store.list(['open', 'triggered', 'executing'], userId).length,
   });
+  // Staged releases and friends: DATA_DIR/access.json holds the public version, the early-access list and free-until
+  // dates (by limit ID). Edits go live within seconds. The owner always has early access.
+  const access = new FileAccessConfigAdapter(join(dirname(cfg.dbPath), 'access.json'), logError('access'));
+  const releases = new ReleaseService(() => access.current(), new Set([LEGACY_ACCOUNT_ID]));
+  const freeUntil = (userId: string): number | null => {
+    const a = accountStore.get(userId);
+    return a ? releases.freeUntil(a.shortId) : null;
+  };
   const billing = cfg.paywall
     ? await buildBilling({
       cfg, paywall: cfg.paywall, accounts: accountStore, solana: accounts,
       evm: new Map([...evm].map(([c, p]) => [c, { rpc: p.rpc, erc20: p.erc20 }] as const)),
       feed, orderCounts, onChange: (userId) => gateway.pushBilling(userId), log, logError,
-      activity: (kind, text) => relay.record(kind, text), who,
+      activity: (kind, text) => relay.record(kind, text), who, freeUntil,
     })
     : null;
   // The owner never pays.
@@ -175,6 +185,7 @@ async function main(): Promise<void> {
   // Open sells are cancelled once their account no longer holds the token.
   guard = new HoldingsGuard(engine, confirmerFor, 20_000, logError('holdings'));
   gateway.attach(engine, accountService, walletConfirmers, new TokenInfoService(accounts, http, Date.now, erc20ByChain), billing?.service ?? null);
+  gateway.setReleases(releases);
 
   await quotes.start();
   await feed.start();
@@ -187,6 +198,10 @@ async function main(): Promise<void> {
     const n = overrides ? Object.keys(overrides).length : 0;
     log(`fomo layout overrides ${n ? `updated (${n} fields)` : 'cleared'} → pushed to extensions`);
     relay.record('server', `fomo layout overrides ${n ? `updated: ${Object.keys(overrides!).join(', ')}` : 'cleared (built-ins)'}`);
+  });
+  access.start((c) => {
+    gateway.pushAccess();
+    log(`access updated: public v${c.publicVersion}, ${c.earlyAccess.length} early access, ${Object.keys(c.freeUntil).length} free until a date`);
   });
   await gateway.listen();
   await engine.start();
@@ -205,6 +220,7 @@ async function main(): Promise<void> {
     guard?.stop();
     relay.stop();
     fomoDom.stop();
+    access.stop();
     outages.stop();
     await relay.deliver(); // flush what's queued
     billing?.stop();

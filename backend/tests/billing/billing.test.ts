@@ -37,17 +37,39 @@ function setup(opts: { token?: boolean; tokenPrice?: number | null } = {}) {
   const store = new SqliteBillingStoreAdapter(':memory:');
   const used = new Map<string, { filled: number; waiting: number }>();
   const changed: string[] = [];
+  const free = new Map<string, number>();
   let price: number | null = opts.tokenPrice === undefined ? 0.01 : opts.tokenPrice;
   const svc = new BillingService(
     store, accounts, PLAN, { solana: SOL_TREASURY, evm: EVM_TREASURY }, STABLE_ASSETS, opts.token ? TOKEN : null,
-    () => price, (id) => used.get(id) ?? { filled: 0, waiting: 0 }, (id) => changed.push(id), () => t,
+    () => price, (id) => used.get(id) ?? { filled: 0, waiting: 0 }, (id) => changed.push(id), () => t, (id) => free.get(id) ?? null,
   );
   const alice = accounts.create('h1', { solana: USER_SOL, evm: USER_EVM });
   const bob = accounts.create('h2', { solana: null, evm: null });
   const pay = (p: Partial<IncomingTransfer> & { amount: number; asset: PaymentAsset }): string | null =>
     svc.receive({ chain: p.asset.chain, txId: p.txId ?? `tx${Math.random()}`, from: p.from ?? STRANGER, asset: p.asset, amountRaw: raw(p.amount, p.asset.decimals) }).userId;
-  return { svc, store, accounts, used, changed, alice, bob, pay, advance: (ms: number) => { t += ms; }, setPrice: (v: number | null) => { price = v; } };
+  return { svc, store, accounts, used, changed, free, alice, bob, pay, advance: (ms: number) => { t += ms; }, setPrice: (v: number | null) => { price = v; } };
 }
+
+describe('BillingService free periods (friends)', () => {
+  it('is active until the free date without counting as paid, then falls back to the trial', () => {
+    const { svc, used, free, alice, advance } = setup();
+    used.set(alice.id, { filled: 3, waiting: 0 });
+    expect(() => svc.assertCanPlaceOrder(alice.id)).toThrow(PaymentRequiredError);
+    free.set(alice.id, 1_000 + 10 * DAY);
+    expect(() => svc.assertCanPlaceOrder(alice.id)).not.toThrow();
+    expect(svc.status(alice.id)).toMatchObject({ unlocked: true, everPaid: false, paidUntil: 1_000 + 10 * DAY });
+    advance(10 * DAY);
+    expect(svc.status(alice.id)).toMatchObject({ unlocked: false, everPaid: false, paidUntil: 1_000 + 10 * DAY });
+    expect(() => svc.assertCanPlaceOrder(alice.id)).toThrow(/free orders/);
+  });
+
+  it('adds a payment made during a free period after it ends, so no days are lost', () => {
+    const { svc, free, alice, pay } = setup();
+    free.set(alice.id, 1_000 + 10 * DAY);
+    expect(pay({ amount: 50, asset: asset('base'), from: USER_EVM })).toBe(alice.id);
+    expect(svc.status(alice.id)).toMatchObject({ unlocked: true, everPaid: true, paidUntil: 1_000 + 40 * DAY });
+  });
+});
 
 describe('BillingService trial', () => {
   it('uses a free order per fill, holds one per waiting order, then asks for payment; unlocked accounts are never blocked', () => {

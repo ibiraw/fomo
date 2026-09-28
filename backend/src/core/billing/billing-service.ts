@@ -2,7 +2,8 @@
  * @file billing-service.ts
  * @description Monthly access: each payment of the price in USDC (USDG on Robinhood) on any supported chain — or,
  *              once it exists, the platform token at a discount — adds one period (30 days) after the current paid-up
- *              date. New accounts get a few free orders first; the owner has permanent access.
+ *              date. New accounts get a few free orders first; the owner has permanent access; an account can also
+ *              be free until a date (friends; `freeUntil`, from the access file) without that counting as a payment.
  *
  *              Matching a payment to an account:
  *              1. Sent from a wallet an account uses on fomo (read from the user's fomo login) → that account.
@@ -141,6 +142,7 @@ export class BillingService {
    * @param tokenUsd live USD price of the token (null when unknown)
    * @param orderCounts an account's filled and waiting orders (only fills use up free orders)
    * @param onChange called with the account id whenever its billing changes
+   * @param now clock @param freeUntil end of an account's free period (ms), or null when it has none
    */
   constructor(
     private readonly store: BillingStorePort,
@@ -153,6 +155,7 @@ export class BillingService {
     private readonly orderCounts: (userId: string) => OrderCounts,
     private readonly onChange: (userId: string) => void = () => undefined,
     private readonly now: () => number = Date.now,
+    private readonly freeUntil: (userId: string) => number | null = () => null,
   ) {}
 
   /**
@@ -190,7 +193,7 @@ export class BillingService {
     return {
       unlocked,
       permanent,
-      paidUntil: permanent || !paid ? null : paid.paidUntil,
+      paidUntil: permanent ? null : this.activeUntil(userId) || null,
       everPaid,
       periodDays: this.plan.periodDays,
       freeOrdersLeft: left,
@@ -264,7 +267,8 @@ export class BillingService {
     const credit = this.store.creditUsd(userId);
     let extended = false;
     while (credit - access.spentUsd >= this.plan.priceUsd * UNLOCK_TOLERANCE) {
-      access = { spentUsd: access.spentUsd + this.plan.priceUsd, paidUntil: Math.max(now, access.paidUntil) + this.plan.periodDays * DAY_MS };
+      // After the later of now, the paid-up date and any free period, so paying during a free period loses nothing.
+      access = { spentUsd: access.spentUsd + this.plan.priceUsd, paidUntil: Math.max(now, access.paidUntil, this.freeUntil(userId) ?? 0) + this.plan.periodDays * DAY_MS };
       extended = true;
     }
     if (extended) {
@@ -331,7 +335,12 @@ export class BillingService {
   /** Permanent, or paid up past `now`. */
   private isActive(userId: string, now: number): boolean {
     if (this.store.unlockedAt(userId) !== null) return true;
-    return (this.store.access(userId)?.paidUntil ?? 0) > now;
+    return this.activeUntil(userId) > now;
+  }
+
+  /** The later of the paid-up date and the end of any free period (0 when neither). */
+  private activeUntil(userId: string): number {
+    return Math.max(this.store.access(userId)?.paidUntil ?? 0, this.freeUntil(userId) ?? 0);
   }
 
   /** Payment code carried by the amount, or null. */

@@ -10,6 +10,8 @@
 'use client';
 
 import { Check, Minus, Moon } from 'lucide-react';
+
+import { isReleased } from '@/lib/releases';
 import { useReducedMotion } from 'motion/react';
 import { useState } from 'react';
 
@@ -212,14 +214,14 @@ function Side({ label, accent, t, caption, children, target, away, toast }: {
 }
 
 const FOMO_HAS = ['Buy and Sell at the current price', 'Your positions and PnL', 'Cash and wallet on every chain it supports'] as const;
-const LIMIT_ADDS = [
+const LIMIT_ADDS: readonly string[] = [
   'Limit buy: buy the dip at your price',
   'Breakout buy: buy when it runs past a level',
   'Take profit and stop loss on anything you hold',
-  'Runs while you’re away (Chrome stays open)',
+  'Runs while you’re away (browser stays open)',
   'Solana, Ethereum, Base, BNB, Robinhood and Arc',
-  'Fill sounds, auto-cancel when you sell out',
-] as const;
+  isReleased('1.2') ? 'Fill sounds, auto-cancel when you sell out' : 'Auto-cancel when you sell out',
+];
 
 /** The comparison section body. */
 export function BeforeAfter() {

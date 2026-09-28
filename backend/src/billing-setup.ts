@@ -41,6 +41,8 @@ interface Deps {
   /** Short id of an account for messages. */
   readonly who: (userId: string) => string;
   readonly logError: (ctx: string) => (err: unknown) => void;
+  /** End of an account's free period (ms; friends in the access file), or null. */
+  readonly freeUntil: (userId: string) => number | null;
 }
 
 /** Resolves the platform token's decimals and symbol from its chain. */
@@ -74,6 +76,8 @@ export async function buildBilling(d: Deps): Promise<BillingParts> {
     () => tokenPrice,
     d.orderCounts,
     d.onChange,
+    Date.now,
+    d.freeUntil,
   );
 
   const receive = (t: Parameters<BillingService['receive']>[0]): void => {

@@ -21,6 +21,7 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { isReleased } from '@/lib/releases';
 import { LogoWord, MoonMark } from './Logo';
 
 /** Lowercase wordmark. */
@@ -42,10 +43,11 @@ export function SiteHeader() {
         <nav className="hidden gap-6 text-sm text-muted-foreground md:flex">
           <Link href="/#demo" className="hover:text-foreground">Demo</Link>
           <Link href="/#features" className="hover:text-foreground">Features</Link>
-          <Link href="/#themes" className="hover:text-foreground">Themes</Link>
+          {isReleased('1.2') && <Link href="/#themes" className="hover:text-foreground">Themes</Link>}
           <Link href="/#how" className="hover:text-foreground">How it works</Link>
           <Link href="/#pricing" className="hover:text-foreground">Pricing</Link>
           <Link href="/#get" className="hover:text-foreground">Get limit</Link>
+          <Link href="/#updates" className="hover:text-foreground">What&apos;s new</Link>
           <Link href="/#faq" className="hover:text-foreground">FAQ</Link>
         </nav>
         <Badge variant="outline" className="border-brand/40 text-brand">Unofficial</Badge>
@@ -105,14 +107,15 @@ export function SectionHead({ eyebrow, title, sub }: { eyebrow: string; title: s
   );
 }
 
-const FEATURES = [
+/** Feature cards; `since` hides a card until that version is public. */
+const FEATURES: readonly { icon: typeof Timer; title: string; body: string; since?: string }[] = [
   { icon: MousePointerClick, title: 'A native Limit tab', body: "Sits next to fomo's Buy and Sell. Presets, a −100% to +100% market-cap slider, and the order type worked out for you." },
   { icon: Radio, title: 'Live on-chain prices', body: 'Reads launchpad curves and DEX pools straight from the chain on Solana, Base, Ethereum, BNB, Robinhood and Arc — sub-second. Anything else falls back to a slower price, clearly marked.' },
   { icon: CircleCheck, title: 'Confirmed on-chain', body: 'A fill only counts when your wallet balance actually changes — no guessing from the page.' },
-  { icon: Timer, title: "The token's last post", body: "See how long ago the token's X account last posted — green when fresh, red when it's gone quiet — with a preview." },
+  { icon: Timer, since: '1.7', title: "The token's last post", body: "See how long ago the token's X account last posted — green when fresh, red when it's gone quiet — with a preview." },
   { icon: BellOff, title: 'Auto-cancel', body: 'Sold out of a token? Its leftover take-profits and stop-losses cancel themselves.' },
   { icon: Activity, title: 'Built for speed', body: 'One trade at a time, re-checked before firing, retried on slippage. Trigger to filled in about 2.6 seconds.' },
-] as const;
+];
 
 /** Feature grid. */
 export function Features() {
@@ -120,7 +123,7 @@ export function Features() {
     <section id="features" className="mx-auto max-w-6xl px-5 py-24">
       <SectionHead eyebrow="Features" title="Everything fomo's panel is missing" />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {FEATURES.map((f) => (
+        {FEATURES.filter((f) => f.since === undefined || isReleased(f.since)).map((f) => (
           <div key={f.title} className="rounded-2xl border bg-card p-5">
             <f.icon className="size-5 text-brand" aria-hidden />
             <h3 className="mt-3 font-semibold">{f.title}</h3>
@@ -133,7 +136,7 @@ export function Features() {
 }
 
 const PARTS = [
-  { icon: Layers, name: 'Browser extension', where: 'in Chrome or Brave', points: ['Adds the Limit tab to fomo', "Clicks fomo's own Buy / Sell", 'Reads the token’s latest X post'] },
+  { icon: Layers, name: 'Browser extension', where: 'in Chrome or Brave', points: ['Adds the Limit tab to fomo', "Clicks fomo's own Buy / Sell", ...(isReleased('1.7') ? ['Reads the token’s latest X post'] : ['Shows your orders on every token page'])] },
   { icon: Activity, name: 'limit server', where: 'always on', points: ['Keeps your orders', 'Watches live prices, triggers orders', 'Confirms fills from your wallet'] },
   { icon: Radio, name: 'Blockchains', where: 'public, read-only', points: ['Solana, Base, Ethereum, BNB, Robinhood, Arc', 'Live pool prices and your balances', 'No keys, read-only'] },
 ] as const;

@@ -27,6 +27,8 @@ import { applyPanelVars } from '@/lib/themes';
 import type { ConnectionStatus } from '@/lib/server-connection';
 import { cn } from '@/lib/utils';
 import { SettingsCard } from '@/components/SettingsCard';
+import { useRelease } from '@/hooks/use-release';
+import { hasFeature } from '@/lib/release';
 
 const STATUS_TEXT: Record<ConnectionStatus, string> = {
   connected: 'Connected',
@@ -42,6 +44,7 @@ export default function App() {
   const { state, send } = useBackground();
   const [tabMint, setTabMint] = useState<string | null>(null);
   const [theme] = useTheme();
+  const release = useRelease();
   const [defaultTab, setDefaultTab] = useDefaultTab();
   const holds = useHolds(tabMint, state?.status === 'connected', send, state?.orders ?? []);
   const labels = useTokenSymbols((state?.orders ?? []).map((o) => o.mint), send, state?.status === 'connected');
@@ -64,6 +67,7 @@ export default function App() {
         <h1 className="flex items-center gap-2 text-base font-bold" aria-label="limit">
           <img src="/icon/48.png" alt="" className="size-6 rounded-md" />
           <span aria-hidden="true">l<span className="wm-i">ı</span>m<span className="wm-i">ı</span>t</span>
+          <span className="text-[11px] font-medium text-muted-foreground">v{release.version}</span>
         </h1>
         <Badge className={cn(state.status === 'connected' ? 'bg-buy/20 text-buy' : 'bg-sell/20 text-sell')}>{STATUS_TEXT[state.status]}</Badge>
       </header>
@@ -82,7 +86,7 @@ export default function App() {
             {state.status === 'disconnected' && (
               <p className="mb-3 text-sm text-sell">Can't reach the limit server. It reconnects on its own — check your internet connection.</p>
             )}
-            {tabMint && state.status === 'connected' && <div className="mb-3"><TokenXCard mint={tabMint} send={send} /></div>}
+            {tabMint && state.status === 'connected' && hasFeature(release, 'xPost') && <div className="mb-3"><TokenXCard mint={tabMint} send={send} /></div>}
             {priceError && <p className="mb-3 rounded-md bg-card p-2 text-xs text-yellow">This token can't be priced yet: {priceError}</p>}
             <NewOrderForm ticks={state.ticks} initialMint={tabMint} holds={holds} onCreate={(order) => send({ type: 'order.create', order })} />
           </TabsContent>
@@ -100,12 +104,12 @@ export default function App() {
                 options={[{ value: 'buy', label: "fomo's Buy tab" }, { value: 'limit', label: 'Limit tab' }]}
               />
             </SettingsCard>
-            <SettingsCard className="space-y-2">
+            {hasFeature(release, 'themes') && <SettingsCard className="space-y-2">
               <h2 className="text-sm font-semibold">Theme</h2>
               <p className="text-xs text-muted-foreground">Recolors fomo.family and the Limit panel in every open fomo tab.</p>
               <ThemePicker />
-            </SettingsCard>
-            <OrderSounds />
+            </SettingsCard>}
+            {hasFeature(release, 'sounds') && <OrderSounds />}
             <AccountSection account={state.account} serverUrl={state.serverUrl} send={send} />
           </TabsContent>
         </Tabs>

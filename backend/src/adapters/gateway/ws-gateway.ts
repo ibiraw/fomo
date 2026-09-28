@@ -16,6 +16,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import type { AccountService } from '../../core/accounts/account-service.js';
 import type { WalletConfirmers } from '../../core/accounts/wallet-confirmers.js';
 import type { BillingService } from '../../core/billing/billing-service.js';
+import type { ReleaseService } from '../../core/releases/releases.js';
 import { AuthError, FomoError } from '../../core/errors.js';
 import type { Order, OrderStatus } from '../../core/orders/order.js';
 import type { EngineEvent, OrderEngine } from '../../core/orders/order-engine.js';
@@ -151,6 +152,8 @@ export class WsGateway extends TradeExecutorPort {
   private accounts: AccountService | null = null;
   private confirmers: WalletConfirmers | null = null;
   private billing: BillingService | null = null;
+  /** Which version and features each account sees (null: everything, e.g. in tests). */
+  private releases: ReleaseService | null = null;
   /** fomo page-layout overrides sent to extensions (null: they use their built-ins). */
   private fomoDom: unknown = null;
   private readonly clients = new Set<Client>();
@@ -217,6 +220,35 @@ export class WsGateway extends TradeExecutorPort {
     client.layoutTimer = null;
     if (this.executors.get(userId) === client) for (const cb of this.readyCbs) cb(userId);
     return true;
+  }
+
+  /** Sets the staged-release rules; each login gets its account's version and features. */
+  setReleases(releases: ReleaseService): void {
+    this.releases = releases;
+  }
+
+  /** Version and features for an account (null when no release rules are set: the extension shows everything). */
+  private releaseFor(userId: string) {
+    if (!this.releases) return null;
+    let shortId = '';
+    try {
+      shortId = this.requireAccounts().get(userId).shortId;
+    } catch (err) {
+      if (!(err instanceof AuthError)) throw err; // deleted meanwhile: it gets the public version
+    }
+    return this.releases.viewFor({ id: userId, shortId });
+  }
+
+  /**
+   * The access file changed: every logged-in connection gets its (possibly new) version and features, and its billing
+   * status (free-until dates may have changed).
+   */
+  pushAccess(): void {
+    for (const c of this.clients) {
+      if (c.userId === null) continue;
+      this.send(c, { type: 'release', release: this.releaseFor(c.userId) });
+      if (this.billing) this.send(c, { type: 'billing', status: this.billing.status(c.userId) });
+    }
   }
 
   /** Billing sink: sends the account's new unlock status to its open connections. */
@@ -397,7 +429,7 @@ export class WsGateway extends TradeExecutorPort {
     const orders = this.requireEngine().listOrders(account.id);
     const ticks = this.requireEngine().latestTicks().filter((t) => this.wants(client, t.mint));
     const billing = this.billing?.status(account.id) ?? null;
-    this.send(client, { type: 'welcome', account: accountView(account), orders, ticks, billing, fomoDom: this.fomoDom });
+    this.send(client, { type: 'welcome', account: accountView(account), orders, ticks, billing, fomoDom: this.fomoDom, release: this.releaseFor(account.id) });
   }
 
   /**

@@ -8,4 +8,6 @@ mkdir -p "$DIR"
 OUT="$DIR/orders-$(date -u +%Y%m%d-%H%M).db"
 sqlite3 "$HOME/limit/deploy/data/orders.db" ".backup '$OUT'"
 gzip -f "$OUT"
-find "$DIR" -name 'orders-*.db.gz' -mtime +14 -delete
+# Who sees which version, early access and free-until dates (small; kept next to the database copy).
+[ -f "$HOME/limit/deploy/data/access.json" ] && cp "$HOME/limit/deploy/data/access.json" "$DIR/access-$(date -u +%Y%m%d-%H%M).json"
+find "$DIR" \( -name 'orders-*.db.gz' -o -name 'access-*.json' \) -mtime +14 -delete

@@ -16,6 +16,7 @@ import { BillingService } from '../../src/core/billing/billing-service.js';
 import { STABLE_ASSETS } from '../../src/core/billing/payment-assets.js';
 import { SqliteBillingStoreAdapter } from '../../src/adapters/storage/sqlite-billing-store.adapter.js';
 import { OrderEngine } from '../../src/core/orders/order-engine.js';
+import { DEFAULT_ACCESS, LATEST_VERSION, ReleaseService, type AccessConfig } from '../../src/core/releases/releases.js';
 import { FakePriceFeed } from '../helpers/fakes.js';
 
 const TOKEN = 'k'.repeat(43);
@@ -397,6 +398,21 @@ describe('WsGateway accounts', () => {
     await c.next((m) => m.type === 'fomoDom' && m.overrides === null);
     await new Promise((r) => setTimeout(r, 20));
     expect(anon.msgs.some((m) => m.type === 'fomoDom')).toBe(false); // not logged in → nothing
+  });
+
+  it('sends each account its version in the welcome and pushes access changes', async () => {
+    let config: AccessConfig = { ...DEFAULT_ACCESS };
+    gateway.setReleases(new ReleaseService(() => config));
+    const c = await authed(false);
+    expect(c.msgs.find((m) => m.type === 'welcome')).toMatchObject({ release: { version: '1.0', features: [], early: false } });
+    config = { ...config, earlyAccess: [accounts.get(c.userId).shortId] };
+    gateway.pushAccess();
+    const pushed = await c.next((m) => m.type === 'release');
+    expect(pushed.release).toMatchObject({ version: LATEST_VERSION, early: true });
+    accounts.delete(c.userId); // deleted while still connected: no crash, it gets the public version
+    config = { ...config, publicVersion: '1.2' };
+    gateway.pushAccess();
+    await c.next((m) => m.type === 'release' && (m.release as { version: string }).version === '1.2');
   });
 
   it("saves the fomo username and fomo's user id and returns them with the account", async () => {
