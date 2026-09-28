@@ -353,9 +353,9 @@ describe('WsGateway accounts', () => {
   it('describes spot buys, full and partial sells with amount and PnL arrow', () => {
     expect(spotLine('buy', 'Buying $25.00 QCAT', null, 'LM-1')).toEqual(['✅', 'LM-1', '**SPOT BUY** on fomo: Buying $25.00 QCAT']);
     expect(spotLine('sell', 'Selling 211.3K QCAT', { all: true, soldPct: 100, usd: 48.2, pnlPct: 12.44 }, 'LM-1')[2])
-      .toBe('**SELL ALL** on fomo: Selling 211.3K QCAT for $48.20 ⬆️ 12.4%');
+      .toBe('**SELL ALL** on fomo: Selling 211.3K QCAT, got $48.20 · ⬆️ made $5.33 (12.4%)');
     expect(spotLine('sell', 'Selling 95K QCAT', { all: false, soldPct: 45, usd: 21.67, pnlPct: -8.1 }, 'LM-1')[2])
-      .toBe('**PARTIAL SELL** (45%) on fomo: Selling 95K QCAT for $21.67 ⬇️ 8.1%');
+      .toBe('**PARTIAL SELL** (45%) on fomo: Selling 95K QCAT, got $21.67 · ⬇️ lost $1.91 (8.1%)');
     expect(spotLine('sell', 'Selling 95K QCAT', null, 'LM-1')).toEqual(['❌', 'LM-1', '**SPOT SELL** on fomo: Selling 95K QCAT']); // position unreadable
   });
 

@@ -124,8 +124,12 @@ export function spotLine(side: 'buy' | 'sell', text: string, sell: SpotSell | nu
   if (side === 'buy') return ['✅', who, `**SPOT BUY** on fomo: ${text}`];
   if (!sell) return ['❌', who, `**SPOT SELL** on fomo: ${text}`];
   const kind = sell.all ? '**SELL ALL**' : `**PARTIAL SELL** (${sell.soldPct}%)`;
-  const pnl = `${sell.pnlPct >= 0 ? '⬆️' : '⬇️'} ${Math.abs(sell.pnlPct).toFixed(1)}%`;
-  return ['❌', who, `${kind} on fomo: ${text} for $${sell.usd.toFixed(2)} ${pnl}`];
+  // What came back is not the profit: the gain/loss is spelled out in $ (cost = proceeds ÷ (1 + PnL)).
+  const growth = 1 + sell.pnlPct / 100;
+  const pnlUsd = growth > 0 ? Math.abs(sell.usd - sell.usd / growth) : null;
+  const verb = sell.pnlPct >= 0 ? 'made' : 'lost';
+  const pnl = `${sell.pnlPct >= 0 ? '⬆️' : '⬇️'} ${verb}${pnlUsd !== null ? ` $${pnlUsd.toFixed(2)}` : ''} (${Math.abs(sell.pnlPct).toFixed(1)}%)`;
+  return ['❌', who, `${kind} on fomo: ${text}, got $${sell.usd.toFixed(2)} · ${pnl}`];
 }
 
 /** Spot-trade reports: at most one per connection per this window, and the same text only once a minute. */
