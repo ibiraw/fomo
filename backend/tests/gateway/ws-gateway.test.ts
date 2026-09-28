@@ -69,12 +69,12 @@ async function authed(executor: boolean, secret = TOKEN): Promise<TestClient & {
 }
 
 /** Fresh gateway + engine + accounts. */
-async function start(limits?: GatewayLimits, helloTimeoutMs?: number, layoutRetryMs?: number, now: () => number = Date.now): Promise<void> {
+async function start(limits?: GatewayLimits, helloTimeoutMs?: number, layoutRetryMs?: number, now: () => number = Date.now, onActivity?: (kind: 'account' | 'payment' | 'order', text: string) => void): Promise<void> {
   feed = new FakePriceFeed();
   store = new SqliteOrderStoreAdapter(':memory:');
   accounts = new AccountService(new SqliteAccountStoreAdapter(':memory:'));
   confirmers = new WalletConfirmers((id) => accounts.wallets(id), () => null);
-  gateway = new WsGateway({ host: '127.0.0.1', port: 0, execTimeoutMs: 300, tickThrottleMs: 250, pingIntervalMs: 50, ...(limits ? { limits } : {}), ...(helloTimeoutMs ? { helloTimeoutMs } : {}), ...(layoutRetryMs ? { layoutRetryMs } : {}) }, () => undefined, now);
+  gateway = new WsGateway({ host: '127.0.0.1', port: 0, execTimeoutMs: 300, tickThrottleMs: 250, pingIntervalMs: 50, ...(limits ? { limits } : {}), ...(helloTimeoutMs ? { helloTimeoutMs } : {}), ...(layoutRetryMs ? { layoutRetryMs } : {}), ...(onActivity ? { onActivity } : {}) }, () => undefined, now);
   const engine = new OrderEngine(store, feed, gateway, (e) => gateway.handleEngineEvent(e), () => undefined);
   gateway.attach(engine, accounts, confirmers);
   await gateway.listen();
@@ -345,6 +345,31 @@ describe('WsGateway accounts', () => {
     ext.send({ type: 'layout.status', reqId: 'v', newVersion: true }); // a "new version" report doesn't resume
     expect((await ext.next((m) => m.reqId === 'v')).data).toEqual({ paused: true });
     await vi.waitFor(() => expect(gateway.isReady(ext.userId)).toBe(true)); // automatic retry after layoutRetryMs
+  });
+
+  it('logs spot trades made on fomo, but not repeats or floods', async () => {
+    sockets.splice(0).forEach((s) => s.terminate());
+    await gateway.close();
+    let t = Date.now();
+    const activity: string[] = [];
+    await start(undefined, undefined, undefined, () => t, (kind, text) => activity.push(`${kind}: ${text}`));
+    const c = await authed(false);
+    c.send({ type: 'trade.spot', reqId: 's1', side: 'buy', detail: 'Buying  $3.00 KEK', mint: MINT });
+    expect((await c.next((m) => m.reqId === 's1')).data).toEqual({ logged: true });
+    expect(activity.at(-1)).toMatch(/^order: LM-\w+ 🛒 Spot buy on fomo · /);
+    expect(activity.at(-1)!.endsWith(`Buying $3.00 KEK · ${MINT}`)).toBe(true); // whitespace squeezed
+    c.send({ type: 'trade.spot', reqId: 's2', side: 'sell', detail: 'Selling 1.2M KEK' });
+    expect((await c.next((m) => m.reqId === 's2')).data).toEqual({ logged: false }); // < 3 s after the last
+    t += 5_000;
+    c.send({ type: 'trade.spot', reqId: 's3', side: 'buy', detail: 'Buying $3.00 KEK', mint: MINT });
+    expect((await c.next((m) => m.reqId === 's3')).data).toEqual({ logged: false }); // same text within a minute
+    c.send({ type: 'trade.spot', reqId: 's4', side: 'sell', detail: 'Selling 1.2M KEK' });
+    expect((await c.next((m) => m.reqId === 's4')).data).toEqual({ logged: true }); // new text, 5 s after the last logged one
+    expect(activity.at(-1)).toMatch(/💸 Spot sell on fomo · Selling 1\.2M KEK$/);
+    t += 5_000;
+    c.send({ type: 'trade.spot', reqId: 's5', side: 'sell', detail: 'Selling 1.2M KEK' });
+    expect((await c.next((m) => m.reqId === 's5')).data).toEqual({ logged: false }); // repeat within a minute
+    expect(activity.filter((a) => a.includes('Spot'))).toHaveLength(2);
   });
 
   it('sends the fomo layout overrides in the welcome and pushes changes to logged-in clients', async () => {

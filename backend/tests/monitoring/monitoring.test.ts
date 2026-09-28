@@ -10,6 +10,7 @@ import { SqliteActivityStoreAdapter } from '../../src/adapters/storage/sqlite-ac
 import { TelegramNotifierAdapter, type FetchFn } from '../../src/adapters/telegram/telegram-notifier.adapter.js';
 import { ActivityRelay, packMessages } from '../../src/core/monitoring/activity-relay.js';
 import { describeOrder, tokenLabel, usdCompact } from '../../src/core/monitoring/describe.js';
+import { stripHtml, telegramHtml } from '../../src/core/monitoring/telegram-format.js';
 import type { Order } from '../../src/core/orders/order.js';
 import { NotifierPort, NotifierRateLimitError } from '../../src/ports/activity.js';
 
@@ -38,7 +39,8 @@ describe('ActivityRelay', () => {
     relay.record('order', 'LM-222222 placed Limit buy $5\n· x'); // newlines flattened
     await relay.deliver();
     expect(notifier.sent).toHaveLength(1);
-    expect(notifier.sent[0]).toBe('👤 00:00:00 new account LM-222222\n📈 00:00:00 LM-222222 placed Limit buy $5 · x');
+    // Times are US Eastern: t=0 is 7:00:00 PM ET on Dec 31, 1969.
+    expect(notifier.sent[0]).toBe('👤 7:00:00 PM ET new account LM-222222\n📈 7:00:00 PM ET LM-222222 placed Limit buy $5 · x');
     expect(store.pending(10)).toEqual([]);
     await relay.deliver(); // nothing left
     expect(notifier.sent).toHaveLength(1);
@@ -102,13 +104,31 @@ describe('TelegramNotifierAdapter', () => {
     const tg = new TelegramNotifierAdapter('123:SECRET', '-100', fetchFn);
     await tg.send('hello');
     expect(calls[0]!.url).toBe('https://api.telegram.org/bot123:SECRET/sendMessage');
-    expect(JSON.parse(calls[0]!.body)).toMatchObject({ chat_id: '-100', text: 'hello' });
+    expect(JSON.parse(calls[0]!.body)).toMatchObject({ chat_id: '-100', text: 'hello', parse_mode: 'HTML' });
+    // Rejected markup → the same message again as plain text.
+    const replies = [reply(false, 400, { description: "Bad Request: can't parse entities" }), reply(true, 200, { ok: true })];
+    const tg2 = new TelegramNotifierAdapter('123:SECRET', '-100', async (url, init) => { calls.push({ url, body: init.body }); return replies.shift()!; });
+    await tg2.send('<code>x</code> &amp;');
+    expect(JSON.parse(calls.at(-1)!.body)).toEqual({ chat_id: '-100', disable_web_page_preview: true, text: 'x &' });
     next = reply(false, 429, { parameters: { retry_after: 7 } });
     await expect(tg.send('x')).rejects.toMatchObject({ retryAfterMs: 7000 });
     next = reply(false, 400, { description: 'chat not found' });
     const err = await tg.send('x').catch((e: Error) => e);
     expect((err as Error).message).toMatch(/chat not found/);
     expect((err as Error).message).not.toMatch(/SECRET/);
+  });
+});
+
+describe('telegramHtml', () => {
+  it('makes addresses tap-to-copy, links fomo usernames, and escapes everything else', () => {
+    expect(telegramHtml('LM-2 (@ibiraw) placed 🎯 Take profit 50% · base:0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07 · MC ≥ $120K'))
+      .toBe('LM-2 (<a href="https://fomo.family/profile/ibiraw">@ibiraw</a>) placed 🎯 Take profit 50% · base <code>0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07</code> · MC ≥ $120K');
+    expect(telegramHtml('buy EcwFm5TJ3zuBXnsT6DngXMAMfsfELhwGc9JFgeVWpump now')).toBe('buy <code>EcwFm5TJ3zuBXnsT6DngXMAMfsfELhwGc9JFgeVWpump</code> now');
+    expect(telegramHtml('<b>x</b> & @? 5 < 6')).toBe('&lt;b&gt;x&lt;/b&gt; &amp; @? 5 &lt; 6');
+    const sig = '5amakyYoQ1Hbe63wguvHR7DpoN2xHJmycSt6VFC1qoziZjqbZStRyihLW7Nf3uW39xAEUBWtQfADxZj5V5ZpMDnJ';
+    expect(telegramHtml(`tx ${sig}`)).toBe(`tx ${sig}`); // signatures are too long to be addresses
+    expect(telegramHtml('mail a@b.c')).toBe('mail a@b.c'); // not a username
+    expect(stripHtml(telegramHtml('@me &'))).toBe('@me &');
   });
 });
 
@@ -119,15 +139,18 @@ describe('describeOrder', () => {
     status: 'open', attempts: 0, maxAttempts: 3, lastError: null, triggeredAtValue: null, createdAt: 1, updatedAt: 1,
   } as unknown as Order;
   it('describes placements and outcomes, and skips intermediate states', () => {
-    expect(describeOrder(base, 'LM-2')).toBe('LM-2 placed Take profit 50% · base:0x9500…db07 · MC ≥ $120.0K');
+    expect(describeOrder(base, 'LM-2')).toBe('LM-2 placed 🎯 Take profit 50% · base:0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07 · MC ≥ $120.0K');
     expect(describeOrder({ ...base, attempts: 1, lastError: 'slippage: x' }, 'LM-2')).toMatch(/re-armed after slippage/);
-    expect(describeOrder({ ...base, status: 'filled', triggeredAtValue: 121_000 }, 'LM-2')).toBe('LM-2 FILLED Take profit 50% · base:0x9500…db07 at $121.0K');
+    expect(describeOrder({ ...base, status: 'filled', triggeredAtValue: 121_000 }, 'LM-2')).toBe('LM-2 FILLED 🎯 Take profit 50% · base:0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07 at $121.0K');
+    const kind = (side: string, direction: string) => describeOrder({ ...base, side, trigger: { ...base.trigger, direction } } as Order, 'x');
+    expect([kind('buy', 'below'), kind('buy', 'above'), kind('sell', 'above'), kind('sell', 'below')].map((t) => t!.split(' ').slice(2, 5).join(' ')))
+      .toEqual(['🟢 Limit buy', '🚀 Breakout buy', '🎯 Take profit', '🛑 Stop loss']);
     expect(describeOrder({ ...base, status: 'failed', lastError: 'ui_error: y' }, 'LM-2')).toMatch(/FAILED .*ui_error: y/);
     expect(describeOrder({ ...base, status: 'unknown' }, 'LM-2')).toMatch(/outcome unknown/);
     expect(describeOrder({ ...base, status: 'cancelled', lastError: 'auto_cancelled: gone' }, 'LM-2')).toMatch(/cancelled .*\(auto_cancelled: gone\)/);
     expect(describeOrder({ ...base, status: 'triggered' }, 'LM-2')).toBeNull();
     const buy = { ...base, side: 'buy', trigger: { ...base.trigger, metric: 'price', direction: 'below', value: 0.00042 }, amount: { kind: 'usd', value: 25 } } as unknown as Order;
-    expect(describeOrder(buy, 'LM-2')).toBe('LM-2 placed Limit buy $25 · base:0x9500…db07 · price ≤ $0.000420');
+    expect(describeOrder(buy, 'LM-2')).toBe('LM-2 placed 🟢 Limit buy $25 · base:0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07 · price ≤ $0.000420');
     expect(describeOrder({ ...buy, trigger: { ...buy.trigger, direction: 'above' } }, 'LM-2')).toMatch(/Breakout buy/);
     expect(describeOrder({ ...base, trigger: { ...base.trigger, direction: 'below' } }, 'LM-2')).toMatch(/Stop loss/);
   });

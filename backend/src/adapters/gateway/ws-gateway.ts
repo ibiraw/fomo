@@ -50,7 +50,7 @@ export interface GatewayOptions {
   /** Behind Cloudflare: take the client IP from CF-Connecting-IP. */
   readonly trustProxy?: boolean;
   /** Monitoring sink for account events (new, deleted, wallets, payment claims). */
-  readonly onActivity?: (kind: 'account' | 'payment', text: string) => void;
+  readonly onActivity?: (kind: 'account' | 'payment' | 'order', text: string) => void;
   /** fomo self-check reports: layout broken / working again, fomo shipped a new version (with a layout snapshot). */
   readonly onLayout?: (report: LayoutReport) => void;
   /** How long a paused (layout-broken) executor waits before trying again on its own. Default 10 min. */
@@ -85,7 +85,13 @@ interface Client {
   layoutPausedUntil: number | null;
   /** The pending automatic retry (one per connection, however many failures are reported). */
   layoutTimer: NodeJS.Timeout | null;
+  /** Last spot-trade report (text + time), so a repeat or a flood can't spam the monitoring chat. */
+  lastSpot: { readonly text: string; readonly at: number } | null;
 }
+
+/** Spot-trade reports: at most one per connection per this window, and the same text only once a minute. */
+const SPOT_MIN_GAP_MS = 3_000;
+const SPOT_REPEAT_MS = 60_000;
 
 /** An execution awaiting the extension's answer. */
 interface PendingExec {
@@ -282,7 +288,7 @@ export class WsGateway extends TradeExecutorPort {
   /** Registers a new socket; it must send a valid hello before anything else. */
   private onConnection(ws: WebSocket, req: IncomingMessage): void {
     const burst = this.limits.messagesPerSecond * 2;
-    const client: Client = { ws, ip: this.clientIp(req), userId: null, viewed: new Set(), tokens: burst, refilledAt: this.now(), helloTimer: null, executor: false, layoutPausedUntil: null, layoutTimer: null };
+    const client: Client = { ws, ip: this.clientIp(req), userId: null, viewed: new Set(), tokens: burst, refilledAt: this.now(), helloTimer: null, executor: false, layoutPausedUntil: null, layoutTimer: null, lastSpot: null };
     client.helloTimer = setTimeout(() => {
       client.helloTimer = null;
       if (client.userId === null) ws.close(4001, 'Log in first');
@@ -475,6 +481,18 @@ export class WsGateway extends TradeExecutorPort {
         this.settle(msg.execId, p, msg.result);
         return;
       }
+      case 'trade.spot':
+        return this.reply(client, msg.reqId, async () => {
+          const now = this.now();
+          const text = msg.detail.replace(/\s+/g, ' ').trim();
+          const last = client.lastSpot;
+          const skip = last !== null && (now - last.at < SPOT_MIN_GAP_MS || (last.text === text && now - last.at < SPOT_REPEAT_MS));
+          if (skip) return { logged: false };
+          client.lastSpot = { text, at: now };
+          const icon = msg.side === 'buy' ? '🛒 Spot buy' : '💸 Spot sell';
+          this.opts.onActivity?.('order', `${label(this.requireAccounts().get(userId))} ${icon} on fomo · ${text}${msg.mint ? ` · ${msg.mint}` : ''}`);
+          return { logged: true };
+        });
       case 'layout.status':
         return this.reply(client, msg.reqId, async () => {
           let paused: boolean | null = null;

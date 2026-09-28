@@ -1,0 +1,69 @@
+/**
+ * @file fomo-spot-watch.ts
+ * @description Notices trades the user makes with fomo's own Buy/Sell buttons: fomo shows a toast ("Buying $3.00 KEK",
+ *              "Selling 1.2M KEK") for every trade. Each new toast is reported once to the background worker, which
+ *              drops the ones caused by limit's own orders and forwards the rest to the server for monitoring.
+ *              Cheap: one querySelectorAll per second, no layout reads.
+ * @author Reborn1987
+ */
+
+import { fomoDom } from './fomo-dom-config';
+
+/** What the watcher reports to the background worker. */
+export interface SpotTradeMessage {
+  readonly type: 'fomo.spot';
+  readonly side: 'buy' | 'sell';
+  /** The toast text, e.g. "Buying $3.00 KEK". */
+  readonly detail: string;
+  /** Token key of the page, when on a token page. */
+  readonly mint: string | null;
+}
+
+/** Page access (injectable for tests). */
+export interface SpotEnv {
+  readonly doc: Document;
+  /** Token key of the current page, or null. */
+  mint(): string | null;
+  send(msg: SpotTradeMessage): void;
+}
+
+/** "buy" / "sell" when the toast text starts with one of fomo's trade prefixes, else null. */
+export function spotSide(text: string): 'buy' | 'sell' | null {
+  const { spotBuyPrefixes, spotSellPrefixes } = fomoDom();
+  const t = text.toLowerCase();
+  if (spotBuyPrefixes.some((p) => t.startsWith(p.toLowerCase()))) return 'buy';
+  if (spotSellPrefixes.some((p) => t.startsWith(p.toLowerCase()))) return 'sell';
+  return null;
+}
+
+export class SpotTradeWatcher {
+  private timer: ReturnType<typeof setInterval> | null = null;
+  /** Toasts already looked at (held weakly, so removed toasts are garbage-collected). */
+  private readonly seen = new WeakSet<Element>();
+
+  /** @param env page access @param everyMs scan interval */
+  constructor(private readonly env: SpotEnv, private readonly everyMs = 1_000) {}
+
+  /** Starts scanning. */
+  start(): void {
+    this.timer = setInterval(() => this.scan(), this.everyMs);
+  }
+
+  /** Stops scanning. */
+  stop(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+
+  /** Reports every trade toast not seen before. */
+  scan(): void {
+    for (const el of this.env.doc.querySelectorAll(fomoDom().notification)) {
+      if (this.seen.has(el)) continue;
+      const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+      if (!text) continue; // still rendering — look again next scan
+      this.seen.add(el);
+      const side = spotSide(text);
+      if (side) this.env.send({ type: 'fomo.spot', side, detail: text.slice(0, 200), mint: this.env.mint() });
+    }
+  }
+}

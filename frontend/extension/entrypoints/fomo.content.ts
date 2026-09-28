@@ -9,6 +9,7 @@ import { readFomoUserId, readFomoWallets } from '@/lib/account';
 import { readOwnFomoUsername } from '@/lib/fomo-dom';
 import { followFomoDom } from '@/lib/fomo-dom-config';
 import { FomoHealthWatcher, type FomoHealthMessage } from '@/lib/fomo-health-watch';
+import { SpotTradeWatcher, type SpotTradeMessage } from '@/lib/fomo-spot-watch';
 import type { WalletsDetectedMessage } from '@/lib/messages';
 import { keyFromPath, tokenPath } from '@/lib/token-key';
 import { executeTrade } from '@/lib/trade';
@@ -54,6 +55,12 @@ export default defineContentScript({
       now: () => Date.now(),
     });
     health.start();
+    // Trades made with fomo's own Buy/Sell (its "Buying …" / "Selling …" toasts) → background → monitoring.
+    new SpotTradeWatcher({
+      doc: document,
+      mint: () => keyFromPath(location.pathname),
+      send: (msg: SpotTradeMessage) => void browser.runtime.sendMessage(msg).catch(() => undefined),
+    }).start();
     // Page-layout knowledge: built-ins now, the server's overrides as soon as storage answers; re-check on changes.
     void followFomoDom(() => health.recheck());
     flagged.__fomoLimitOrdersAlive = () => {

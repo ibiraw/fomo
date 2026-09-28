@@ -44,6 +44,9 @@ export interface FomoDomConfig {
   readonly reloadLabels: readonly string[];
   /** Words on that toast that tell it apart from other Reload buttons. */
   readonly newVersionWords: readonly string[];
+  /** How fomo's trade toast starts for a buy / a sell ("Buying $3.00 KEK", "Selling 1.2M KEK"). */
+  readonly spotBuyPrefixes: readonly string[];
+  readonly spotSellPrefixes: readonly string[];
 }
 
 /** Built-in values (what fomo.family looked like when this version shipped). */
@@ -65,6 +68,8 @@ export const DEFAULT_FOMO_DOM: FomoDomConfig = {
   // Not observed yet (the owner describes "a small pop up at the bottom with a Reload button"); calibrate from the server.
   reloadLabels: ['Reload', 'Refresh', 'Update'],
   newVersionWords: ['new version', 'update available', 'updated', 'new update'],
+  spotBuyPrefixes: ['Buying'],
+  spotSellPrefixes: ['Selling'],
 };
 
 /** Checks that a string is a usable CSS selector (injectable; content scripts pass a DOM-backed check). */
@@ -123,6 +128,8 @@ export function parseFomoDomConfig(raw: unknown, isSelector: SelectorCheck = dom
     tabInactiveClasses: cls('tabInactiveClasses') ?? d.tabInactiveClasses,
     reloadLabels: words('reloadLabels') ?? d.reloadLabels,
     newVersionWords: words('newVersionWords') ?? d.newVersionWords,
+    spotBuyPrefixes: words('spotBuyPrefixes') ?? d.spotBuyPrefixes,
+    spotSellPrefixes: words('spotSellPrefixes') ?? d.spotSellPrefixes,
   };
 }
 

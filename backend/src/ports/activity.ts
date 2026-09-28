@@ -30,6 +30,11 @@ export abstract class ActivityStorePort {
 /** Sends a monitoring message. Rejects on failure; `retryAfterMs` on the error asks callers to wait. */
 export abstract class NotifierPort {
   abstract send(text: string): Promise<void>;
+
+  /** Formats one plain line for this channel (default: unchanged). Applied before lines are packed into messages. */
+  format(line: string): string {
+    return line;
+  }
 }
 
 /** A notifier failure that says how long to wait before trying again. */

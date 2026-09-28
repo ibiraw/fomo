@@ -25,8 +25,12 @@ const ICON: Record<ActivityKind, string> = {
   error: '⚠️',
 };
 
-/** "17:05:12" in UTC. */
-const clock = (ms: number): string => new Date(ms).toISOString().slice(11, 19);
+/** "9:44:15 PM ET" — US Eastern (EST/EDT follows the date), the owner's time zone. */
+const ET = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+export const clock = (ms: number): string => `${ET.format(ms)} ET`;
+
+/** Longest single entry (plain text) before formatting; longer ones are cut so markup is never split. */
+const MAX_LINE_CHARS = 1_000;
 
 /** Splits lines into messages under the size limit. */
 export function packMessages(lines: readonly string[], max = MAX_MESSAGE_CHARS): string[] {
@@ -96,7 +100,10 @@ export class ActivityRelay {
     try {
       const entries = this.store.pending(BATCH);
       if (entries.length === 0) return;
-      const lines = entries.map((e) => `${ICON[e.kind]} ${clock(e.at)} ${e.text}`);
+      const lines = entries.map((e) => {
+        const plain = `${ICON[e.kind]} ${clock(e.at)} ${e.text}`;
+        return this.notifier!.format(plain.length > MAX_LINE_CHARS ? `${plain.slice(0, MAX_LINE_CHARS - 1)}…` : plain);
+      });
       // Each message marks its own entries, so a failure part-way resends only what wasn't delivered.
       let offset = 0;
       for (const msg of packMessages(lines)) {

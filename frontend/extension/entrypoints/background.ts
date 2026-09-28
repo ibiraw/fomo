@@ -19,6 +19,7 @@ import {
 import { ServerConnection, type ConnectionStatus } from '@/lib/server-connection';
 import { FOMO_DOM_STORAGE_KEY } from '@/lib/fomo-dom-config';
 import type { FomoHealthMessage } from '@/lib/fomo-health-watch';
+import type { SpotTradeMessage } from '@/lib/fomo-spot-watch';
 import { XLatestService } from '@/lib/x-latest';
 import { scrapeLatestPost } from '@/lib/x-scraper';
 import { loadSoundSettings, soundForUpdate, type PlaySoundMessage, type SoundEvent } from '@/lib/sounds';
@@ -207,6 +208,14 @@ export default defineBackground({
     let lastLayoutFailAt = 0;
     let trading = false;
     browser.runtime.onMessage.addListener((msg: unknown, sender) => {
+      const spot = msg as Partial<SpotTradeMessage> | undefined;
+      if (spot?.type === 'fomo.spot') {
+        // limit's own trades show the same toast: only the user's manual trades are reported.
+        if (!trading && (spot.side === 'buy' || spot.side === 'sell') && typeof spot.detail === 'string') {
+          void conn.request('trade.spot', { side: spot.side, detail: spot.detail, ...(spot.mint ? { mint: spot.mint } : {}) }).catch(() => undefined);
+        }
+        return;
+      }
       const m = msg as Partial<FomoHealthMessage> | undefined;
       if (m?.type === 'fomo.newVersion') {
         void conn.request('layout.status', { newVersion: true }).catch(() => undefined);
