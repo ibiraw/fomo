@@ -26,6 +26,7 @@ import { ErrorLog, errorHeadline } from './core/monitoring/error-log.js';
 import { LayoutAlerts } from './core/monitoring/layout-alerts.js';
 import { OutageTracker } from './core/monitoring/outage-tracker.js';
 import { describeOrder } from './core/monitoring/describe.js';
+import { TickerEnricher } from './core/monitoring/token-line.js';
 import { AccountService } from './core/accounts/account-service.js';
 import { WalletConfirmers } from './core/accounts/wallet-confirmers.js';
 import { ChainRouterConfirmer } from './core/chains/chain-router-confirmer.js';
@@ -132,11 +133,14 @@ async function main(): Promise<void> {
     for (const old of readdirSync(layoutDir).sort().slice(0, -50)) rmSync(join(layoutDir, old), { force: true });
     return file;
   });
+  // Monitoring entries get the token's ticker ("💜 FaoGhq…WJpump - $COMPUTE"), in order, before they're recorded.
+  const tokenInfo = new TokenInfoService(accounts, http, Date.now, erc20ByChain);
+  const tickers = new TickerEnricher((key) => tokenInfo.getInfo(key).then((i) => i.symbol), (kind: Parameters<typeof relay.record>[0], text) => relay.record(kind, text));
   const gateway = new WsGateway(
     {
       host: cfg.gatewayHost, port: cfg.gatewayPort, execTimeoutMs: cfg.execTimeoutMs, tickThrottleMs: 250, pingIntervalMs: 20_000,
       trustProxy: cfg.trustProxy,
-      onActivity: (kind, text) => relay.record(kind, text),
+      onActivity: (kind, text) => tickers.push(kind, text),
       onLayout: (report) => layoutAlerts.handle(report),
     },
     log,
@@ -183,12 +187,12 @@ async function main(): Promise<void> {
       log(`order ${e.order.id.slice(0, 8)} ${e.order.userId.slice(0, 8)} ${e.order.side} ${e.order.status}${e.order.lastError ? ` — ${e.order.lastError}` : ''}`);
       const tick = engine.latestTick(e.order.mint);
       const text = describeOrder(e.order, who(e.order.userId), tick ? metricValue(e.order, tick) : null);
-      if (text) relay.record('order', text);
+      if (text) tickers.push('order', text);
     }
   }, logError('engine'), confirmerFor, 20_000, Date.now, cfg.maxActiveOrdersPerUser, (userId) => billing?.service.assertCanPlaceOrder(userId));
   // Open sells are cancelled once their account no longer holds the token.
   guard = new HoldingsGuard(engine, confirmerFor, 20_000, logError('holdings'));
-  gateway.attach(engine, accountService, walletConfirmers, new TokenInfoService(accounts, http, Date.now, erc20ByChain), billing?.service ?? null);
+  gateway.attach(engine, accountService, walletConfirmers, tokenInfo, billing?.service ?? null);
   gateway.setReleases(releases);
   // v1.8: where a token was launched (pump.fun, LaunchLab, Meteora DBC; four.meme and flap.sh on EVM chains).
   const solanaLaunchpads = [pumpDetector(accounts), launchLabDetector(accounts), meteoraDbcDetector(accounts, directory)];
@@ -235,6 +239,7 @@ async function main(): Promise<void> {
     fomoDom.stop();
     access.stop();
     outages.stop();
+    await tickers.flush();
     await relay.deliver(); // flush what's queued
     billing?.stop();
     engine.stop();
