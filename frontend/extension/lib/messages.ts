@@ -18,6 +18,14 @@ export interface TokenInfo {
   readonly website: string | null;
 }
 
+/** Where a token was launched (v1.8; mirror of backend Launchpad). */
+export interface LaunchpadInfo {
+  readonly id: 'pump' | 'launchlab' | 'meteora-dbc' | 'four-meme' | 'flap';
+  readonly name: string;
+  /** Still on the launchpad's bonding curve (false: graduated to a DEX). */
+  readonly onCurve: boolean;
+}
+
 export const POPUP_PORT = 'popup';
 /** Hosted server address baked in at build time (WXT_SERVER_URL); local server otherwise. */
 export const HOSTED_SERVER_URL: string | null = import.meta.env.WXT_SERVER_URL || null;
@@ -48,6 +56,7 @@ export type PopupRequest =
   | { readonly type: 'order.create'; readonly reqId: string; readonly order: NewOrder }
   | { readonly type: 'order.cancel'; readonly reqId: string; readonly id: string }
   | { readonly type: 'token.info'; readonly reqId: string; readonly mint: string }
+  | { readonly type: 'token.launchpad'; readonly reqId: string; readonly mint: string }
   | { readonly type: 'price.watch'; readonly reqId: string; readonly mint: string }
   | { readonly type: 'wallet.holds'; readonly reqId: string; readonly mint: string }
   | { readonly type: 'x.latest'; readonly reqId: string; readonly url: string; readonly force?: boolean };

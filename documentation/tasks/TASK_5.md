@@ -10,7 +10,7 @@ The public gets limit in versions, as if it is being built live; friends get eve
 | 1.0 | Limit, breakout, take profit, stop loss on every chain | Public 2026-09-28 |
 | 1.2 | Themes + order sounds | Built, hidden |
 | 1.7 | The token's latest X post | Built, hidden |
-| 1.8 | Which launchpad a token came from | To build |
+| 1.8 | Which launchpad a token came from | Built, early access only (2026-09-28) |
 | 1.9 | Dev holdings / dev sold, top 10 holders' share | To build |
 
 ## How it works
@@ -34,5 +34,5 @@ Their limit ID (popup → Settings → Account, `LM-XXXXXX`) → add to `earlyAc
 - [x] Server: releases, access file, billing free periods, gateway `release` — tests
 - [x] Extension: release storage + gating — tests
 - [x] Website: v1.0 only + What's new; zip never cached by Cloudflare
-- [ ] v1.8 launchpad (early access only)
+- [x] v1.8 launchpad (early access only) — verified live on pump.fun (graduated + on curve), Meteora DBC; graduated DBC tokens not recognised yet
 - [ ] v1.9 token metrics (early access only)

@@ -37,6 +37,11 @@ export function featuresOf(version: string): Feature[] {
   return RELEASES.slice(0, upTo + 1).flatMap((r) => r.adds);
 }
 
+/** The version that adds a feature. */
+export function versionOf(feature: Feature): string {
+  return RELEASES.find((r) => r.adds.includes(feature))!.version;
+}
+
 /** What one account sees. */
 export interface ReleaseView {
   /** Version shown to the user ("1.0"). */

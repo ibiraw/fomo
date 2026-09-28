@@ -17,6 +17,7 @@ import { STABLE_ASSETS } from '../../src/core/billing/payment-assets.js';
 import { SqliteBillingStoreAdapter } from '../../src/adapters/storage/sqlite-billing-store.adapter.js';
 import { OrderEngine } from '../../src/core/orders/order-engine.js';
 import { DEFAULT_ACCESS, LATEST_VERSION, ReleaseService, type AccessConfig } from '../../src/core/releases/releases.js';
+import { LaunchpadService } from '../../src/core/tokens/launchpad-service.js';
 import { FakePriceFeed } from '../helpers/fakes.js';
 
 const TOKEN = 'k'.repeat(43);
@@ -413,6 +414,18 @@ describe('WsGateway accounts', () => {
     config = { ...config, publicVersion: '1.2' };
     gateway.pushAccess();
     await c.next((m) => m.type === 'release' && (m.release as { version: string }).version === '1.2');
+  });
+
+  it('answers token.launchpad only for accounts whose version has it', async () => {
+    let config: AccessConfig = { ...DEFAULT_ACCESS };
+    gateway.setReleases(new ReleaseService(() => config));
+    gateway.setLaunchpads(new LaunchpadService(() => [{ detect: async () => ({ id: 'pump', name: 'pump.fun', onCurve: true }) }]));
+    const c = await authed(false);
+    c.send({ type: 'token.launchpad', reqId: 'l1', mint: MINT });
+    expect(await c.next((m) => m.reqId === 'l1')).toMatchObject({ ok: false, error: 'This arrives in limit v1.8' });
+    config = { ...config, earlyAccess: [accounts.get(c.userId).shortId] };
+    c.send({ type: 'token.launchpad', reqId: 'l2', mint: MINT });
+    expect(await c.next((m) => m.reqId === 'l2')).toMatchObject({ ok: true, data: { id: 'pump', name: 'pump.fun', onCurve: true } });
   });
 
   it("saves the fomo username and fomo's user id and returns them with the account", async () => {

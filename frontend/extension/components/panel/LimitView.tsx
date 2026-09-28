@@ -20,6 +20,7 @@ import type { ConnectionStatus } from '@/lib/server-connection';
 
 import { UnlockBanner } from '@/components/UnlockSection';
 
+import { TokenInsights } from './TokenInsights';
 import { TokenXCard } from './TokenXCard';
 import { useRelease } from '@/hooks/use-release';
 import { hasFeature } from '@/lib/release';
@@ -61,6 +62,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
   return (
     <div className="space-y-4 p-1 pt-2">
       {notice && <p className="rounded-md bg-sell/15 p-2 text-xs text-sell">{notice}</p>}
+      {state.status === 'connected' && <TokenInsights key={`i:${mint}`} mint={mint} send={send} release={release} />}
       {state.status === 'connected' && hasFeature(release, 'xPost') && <TokenXCard key={`x:${mint}`} mint={mint} send={send} />}
       <UnlockBanner status={state.billing} where="panel" />
       {priceError ? (

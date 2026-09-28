@@ -10,6 +10,7 @@ import { NewOrderForm } from '@/components/orders/NewOrderForm';
 import { OrderList } from '@/components/orders/OrderList';
 import { AccountSection, NoAccount } from '@/components/AccountSection';
 import { UnlockBanner, UnlockSection } from '@/components/UnlockSection';
+import { TokenInsights } from '@/components/panel/TokenInsights';
 import { TokenXCard } from '@/components/panel/TokenXCard';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -86,6 +87,7 @@ export default function App() {
             {state.status === 'disconnected' && (
               <p className="mb-3 text-sm text-sell">Can't reach the limit server. It reconnects on its own — check your internet connection.</p>
             )}
+            {tabMint && state.status === 'connected' && hasFeature(release, 'launchpad') && <div className="mb-3"><TokenInsights mint={tabMint} send={send} release={release} /></div>}
             {tabMint && state.status === 'connected' && hasFeature(release, 'xPost') && <div className="mb-3"><TokenXCard mint={tabMint} send={send} /></div>}
             {priceError && <p className="mb-3 rounded-md bg-card p-2 text-xs text-yellow">This token can't be priced yet: {priceError}</p>}
             <NewOrderForm ticks={state.ticks} initialMint={tabMint} holds={holds} onCreate={(order) => send({ type: 'order.create', order })} />

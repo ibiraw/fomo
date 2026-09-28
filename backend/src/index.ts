@@ -18,6 +18,7 @@ import { SqliteActivityStoreAdapter } from './adapters/storage/sqlite-activity-s
 import { FileAccessConfigAdapter } from './adapters/config/file-access-config.adapter.js';
 import { FileFomoDomAdapter } from './adapters/config/file-fomo-dom.adapter.js';
 import { ReleaseService } from './core/releases/releases.js';
+import { launchLabDetector, LaunchpadService, meteoraDbcDetector, pumpDetector } from './core/tokens/launchpad-service.js';
 import { TelegramNotifierAdapter } from './adapters/telegram/telegram-notifier.adapter.js';
 import { ActivityRelay } from './core/monitoring/activity-relay.js';
 import { ErrorLog, errorHeadline } from './core/monitoring/error-log.js';
@@ -186,6 +187,9 @@ async function main(): Promise<void> {
   guard = new HoldingsGuard(engine, confirmerFor, 20_000, logError('holdings'));
   gateway.attach(engine, accountService, walletConfirmers, new TokenInfoService(accounts, http, Date.now, erc20ByChain), billing?.service ?? null);
   gateway.setReleases(releases);
+  // v1.8: where a token was launched (pump.fun, LaunchLab, Meteora DBC; four.meme and flap.sh on EVM chains).
+  const solanaLaunchpads = [pumpDetector(accounts), launchLabDetector(accounts), meteoraDbcDetector(accounts, directory)];
+  gateway.setLaunchpads(new LaunchpadService((chain) => (chain === 'solana' ? solanaLaunchpads : evm.get(chain)?.launchpads ?? [])));
 
   await quotes.start();
   await feed.start();

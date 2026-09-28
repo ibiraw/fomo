@@ -16,7 +16,8 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import type { AccountService } from '../../core/accounts/account-service.js';
 import type { WalletConfirmers } from '../../core/accounts/wallet-confirmers.js';
 import type { BillingService } from '../../core/billing/billing-service.js';
-import type { ReleaseService } from '../../core/releases/releases.js';
+import { versionOf, type Feature, type ReleaseService } from '../../core/releases/releases.js';
+import type { LaunchpadService } from '../../core/tokens/launchpad-service.js';
 import { AuthError, FomoError } from '../../core/errors.js';
 import type { Order, OrderStatus } from '../../core/orders/order.js';
 import type { EngineEvent, OrderEngine } from '../../core/orders/order-engine.js';
@@ -154,6 +155,8 @@ export class WsGateway extends TradeExecutorPort {
   private billing: BillingService | null = null;
   /** Which version and features each account sees (null: everything, e.g. in tests). */
   private releases: ReleaseService | null = null;
+  /** v1.8: where tokens were launched (null: not available on this server). */
+  private launchpads: LaunchpadService | null = null;
   /** fomo page-layout overrides sent to extensions (null: they use their built-ins). */
   private fomoDom: unknown = null;
   private readonly clients = new Set<Client>();
@@ -225,6 +228,17 @@ export class WsGateway extends TradeExecutorPort {
   /** Sets the staged-release rules; each login gets its account's version and features. */
   setReleases(releases: ReleaseService): void {
     this.releases = releases;
+  }
+
+  /** Sets the launchpad lookup (v1.8). */
+  setLaunchpads(launchpads: LaunchpadService): void {
+    this.launchpads = launchpads;
+  }
+
+  /** Throws unless the account's version has the feature (always allowed when no release rules are set). */
+  private requireFeature(userId: string, feature: Feature): void {
+    const release = this.releaseFor(userId);
+    if (release && !release.features.includes(feature)) throw new FomoError(`This arrives in limit v${versionOf(feature)}`);
   }
 
   /** Version and features for an account (null when no release rules are set: the extension shows everything). */
@@ -486,6 +500,12 @@ export class WsGateway extends TradeExecutorPort {
         return this.reply(client, msg.reqId, () => {
           if (!this.tokenInfo) throw new FomoError('Token info is not available on this server');
           return this.tokenInfo.getInfo(msg.mint);
+        });
+      case 'token.launchpad':
+        return this.reply(client, msg.reqId, () => {
+          this.requireFeature(userId, 'launchpad');
+          if (!this.launchpads) throw new FomoError('Launchpad info is not available on this server');
+          return this.launchpads.get(msg.mint);
         });
       case 'wallets.set':
         return this.reply(client, msg.reqId, async () => {

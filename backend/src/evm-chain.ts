@@ -13,6 +13,7 @@ import { EVM_ADDRESSES } from './core/evm/evm-addresses.js';
 import { EvmPoolPriceFeed } from './core/evm/evm-pool-price-feed.js';
 import { EvmUsdQuotes } from './core/evm/evm-usd-quotes.js';
 import { flap, fourMeme, LaunchpadPriceFeed } from './core/evm/launchpad-price-feed.js';
+import { evmLaunchpadDetector, type LaunchpadDetector } from './core/tokens/launchpad-service.js';
 import { CompositePriceFeed } from './core/pricing/composite-price-feed.js';
 import type { PoolDirectory } from './core/pricing/pool-directory.js';
 import type { EvmRpcPort } from './ports/evm-rpc.js';
@@ -26,6 +27,8 @@ export interface EvmChainParts {
   readonly erc20: Erc20Reader;
   readonly quotes: EvmUsdQuotes;
   readonly feed: PriceFeedPort;
+  /** The chain's launchpads (four.meme, flap.sh) for "where was this token launched". */
+  readonly launchpads: readonly LaunchpadDetector[];
 }
 
 /** Error log + health sink for one RPC connection (health drives the "stayed down" alerts). */
@@ -54,10 +57,13 @@ export function buildEvmChain(
   const pools = new EvmPoolPriceFeed(chain, rpc, erc20, directory, quotes, addr.v4, logError(`pools:${chain}`));
   const dexscreener = new DexScreenerPriceFeed(chain, http, erc20, 3_000, logError(`dexscreener:${chain}`));
   const afterCurve = new CompositePriceFeed([pools, dexscreener]);
-  const curves: PriceFeedPort[] = [];
-  if (addr.fourMeme) curves.push(new LaunchpadPriceFeed(rpc, erc20, quotes, fourMeme(addr.fourMeme.manager, addr.fourMeme.helper), afterCurve, logError(`four-meme:${chain}`)));
-  if (addr.flapPortal) curves.push(new LaunchpadPriceFeed(rpc, erc20, quotes, flap(addr.flapPortal), afterCurve, logError(`flap:${chain}`)));
+  const protocols = [
+    ...(addr.fourMeme ? [{ protocol: fourMeme(addr.fourMeme.manager, addr.fourMeme.helper), ctx: 'four-meme' }] : []),
+    ...(addr.flapPortal ? [{ protocol: flap(addr.flapPortal), ctx: 'flap' }] : []),
+  ];
+  const curves: PriceFeedPort[] = protocols.map(({ protocol, ctx }) => new LaunchpadPriceFeed(rpc, erc20, quotes, protocol, afterCurve, logError(`${ctx}:${chain}`)));
   const onchain = new CompositePriceFeed([...curves, pools]);
   quotes.setFeed(onchain);
-  return { rpc, erc20, quotes, feed: new CompositePriceFeed([onchain, dexscreener]) };
+  const launchpads = protocols.map(({ protocol }) => evmLaunchpadDetector(rpc, protocol));
+  return { rpc, erc20, quotes, feed: new CompositePriceFeed([onchain, dexscreener]), launchpads };
 }

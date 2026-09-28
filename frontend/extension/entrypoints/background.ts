@@ -294,6 +294,8 @@ export default defineBackground({
           data = await conn.request('order.cancel', { id: req.id });
         } else if (req.type === 'token.info') {
           data = await conn.request('token.info', { mint: req.mint });
+        } else if (req.type === 'token.launchpad') {
+          data = await conn.request('token.launchpad', { mint: req.mint });
         } else if (req.type === 'wallet.holds') {
           data = await conn.request('wallet.holds', { mint: req.mint });
         } else if (req.type === 'price.watch') {
