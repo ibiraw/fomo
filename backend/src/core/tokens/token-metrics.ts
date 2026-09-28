@@ -101,10 +101,11 @@ export const DEFAULT_EVM_INDEX: EvmIndexOptions = { chunkBlocks: 10_000n, maxChu
 
 /**
  * History budget per chain, in 10k-block requests (the provider's cap), sized from measured block times (2026-09-28):
- * Ethereum 12 s → ~2 weeks, Base 2 s → 2 weeks, BNB 0.45 s → 3 days, Arc 0.5 s → 3 days, Robinhood 0.1 s → 3 days
- * (a day wasn't enough: a 26-hour-old token read as "too old", 2026-09-28).
+ * Ethereum 12 s → ~2 weeks, Base 2 s → 2 weeks, BNB 0.45 s → 7 days, Arc 0.5 s → 7 days, Robinhood 0.1 s → 7 days
+ * (3 days left a 4-day-old pons coin with 2K holders "too old"; counting it from scratch over 7 days took 13 s, answered
+ * as "counting" first, 2026-09-28).
  */
-export const EVM_SCAN_CHUNKS: Readonly<Record<EvmChain, number>> = { ethereum: 12, base: 61, bnb: 58, arc: 52, robinhood: 261 };
+export const EVM_SCAN_CHUNKS: Readonly<Record<EvmChain, number>> = { ethereum: 12, base: 61, bnb: 135, arc: 121, robinhood: 605 };
 
 /** The provider refused a range, or timed out on it, because it holds too many logs for one answer. */
 function isTooManyLogs(err: unknown): boolean {
