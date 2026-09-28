@@ -15,7 +15,7 @@ import type { LaunchpadInfo, TokenMetricsInfo } from '@/lib/messages';
 import { hasFeature, type ReleaseView } from '@/lib/release';
 
 /**
- * "pump.fun · on the bonding curve" / "· graduated". When limit doesn't recognise the launchpad, the name fomo shows
+ * "pump.fun · bonding curve" / "· graduated". When limit doesn't recognise the launchpad, the name fomo shows
  * next to the token (`pageLaunchpad`, Limit panel only) is used instead, without the curve status.
  */
 function LaunchpadLine({ mint, send, pageLaunchpad }: { mint: string; send: SendFn; pageLaunchpad: string | null }) {
@@ -34,7 +34,7 @@ function LaunchpadLine({ mint, send, pageLaunchpad }: { mint: string; send: Send
     value = (
       <>
         <span className="font-semibold text-foreground">{q.data.name}</span>
-        <span className={q.data.onCurve ? 'text-yellow' : 'text-buy'}> · {q.data.onCurve ? 'on the bonding curve' : 'graduated'}</span>
+        <span className={q.data.onCurve ? 'text-yellow' : 'text-buy'}> · {q.data.onCurve ? 'bonding curve' : 'graduated'}</span>
       </>
     );
   }
