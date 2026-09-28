@@ -177,7 +177,7 @@ export function Walkthrough() {
               )}
             >
               <div className="flex items-center gap-3">
-                <span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold', i === step ? 'bg-brand text-primary-foreground' : 'bg-accent text-muted-foreground')}>
+                <span className={cn('flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold', i === step ? 'bg-brand text-on-brand' : 'bg-accent text-muted-foreground')}>
                   {i + 1}
                 </span>
                 <span className={cn('font-semibold', i === step ? 'text-foreground' : 'text-muted-foreground')}>{s.title}</span>

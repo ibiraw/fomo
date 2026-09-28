@@ -40,7 +40,7 @@ export function GetLimit() {
       <div className="mx-auto max-w-6xl px-5 py-24">
         <SectionHead eyebrow="Get limit" title="Set up in two minutes" sub="Works in Chrome, Brave and Edge, on Windows and Mac. No keys, no sign-up." />
         <div className="mx-auto flex max-w-xl flex-col items-stretch gap-3 sm:flex-row sm:justify-center">
-          <Button asChild size="lg" className="rounded-xl bg-brand font-bold text-primary-foreground hover:bg-brand/90">
+          <Button asChild size="lg" className="rounded-xl bg-brand font-bold text-on-brand hover:bg-brand/90">
             <a href={EXTENSION_ZIP} download="limit.zip"><Download className="size-4" aria-hidden /> Download limit (.zip)</a>
           </Button>
           <Button disabled size="lg" variant="outline" className="rounded-xl">

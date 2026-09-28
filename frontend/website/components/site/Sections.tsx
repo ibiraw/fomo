@@ -69,7 +69,7 @@ export function Hero() {
           dip buys, take profits and stop losses, without watching the chart.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Button asChild size="lg" className="rounded-xl bg-brand font-bold text-primary-foreground hover:bg-brand/90">
+          <Button asChild size="lg" className="rounded-xl bg-brand font-bold text-on-brand hover:bg-brand/90">
             <a href="#demo">See it work</a>
           </Button>
           <Button asChild size="lg" variant="outline" className="rounded-xl">
