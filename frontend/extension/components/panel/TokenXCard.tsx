@@ -6,9 +6,10 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp, ExternalLink, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { RefreshButton } from '@/components/RefreshButton';
 import type { SendFn } from '@/hooks/use-background';
 import { ageColor, timeAgo } from '@/lib/format';
 import type { TokenInfo } from '@/lib/messages';
@@ -27,7 +28,6 @@ function useNow(intervalMs = 30_000): number {
 /** Who the X link points to, in words. */
 function sourceLabel(t: NonNullable<TokenInfo['twitter']>): string {
   if (t.kind === 'community') return 'X community';
-  if (t.kind === 'tweet') return `@${t.handle} (linked post's author)`;
   return `@${t.handle}`;
 }
 
@@ -66,15 +66,7 @@ export function TokenXCard({ mint, send }: { mint: string; send: SendFn }) {
           𝕏 {sourceLabel(twitter)}
           <ExternalLink className="size-3 text-muted-foreground" aria-hidden />
         </a>
-        <button
-          type="button"
-          onClick={refresh}
-          disabled={latest.isFetching}
-          className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
-        >
-          <RefreshCw className={latest.isFetching ? 'size-3 animate-spin' : 'size-3'} aria-hidden />
-          {latest.isFetching ? 'Checking…' : 'Refresh'}
-        </button>
+        <RefreshButton onClick={refresh} busy={latest.isFetching} label="Check the latest post again" />
       </div>
 
       {latest.isPending && latest.isFetching && <p className="text-xs text-muted-foreground">Checking latest post…</p>}

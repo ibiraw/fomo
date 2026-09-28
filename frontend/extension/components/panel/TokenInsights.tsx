@@ -6,9 +6,10 @@
  * @author Reborn1987
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useIsFetching, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Rocket, UserRound, Users } from 'lucide-react';
 
+import { RefreshButton } from '@/components/RefreshButton';
 import type { SendFn } from '@/hooks/use-background';
 import type { LaunchpadInfo, TokenMetricsInfo } from '@/lib/messages';
 import { hasFeature, type ReleaseView } from '@/lib/release';
@@ -97,11 +98,20 @@ function MetricsLines({ mint, send }: { mint: string; send: SendFn }) {
 export function TokenInsights({ mint, send, release, pageLaunchpad = null }: { mint: string; send: SendFn; release: ReleaseView; pageLaunchpad?: string | null }) {
   const launchpad = hasFeature(release, 'launchpad');
   const metrics = hasFeature(release, 'tokenMetrics');
+  const client = useQueryClient();
+  const busy = useIsFetching({ predicate: (q) => (q.queryKey[0] === 'token.launchpad' || q.queryKey[0] === 'token.metrics') && q.queryKey[1] === mint }) > 0;
   if (!launchpad && !metrics) return null;
+  const refresh = (): void => {
+    void client.refetchQueries({ queryKey: ['token.launchpad', mint] });
+    void client.refetchQueries({ queryKey: ['token.metrics', mint] });
+  };
   return (
-    <div className="space-y-1.5 rounded-lg border bg-card p-2.5">
-      {launchpad && <LaunchpadLine mint={mint} send={send} pageLaunchpad={pageLaunchpad} />}
-      {metrics && <MetricsLines mint={mint} send={send} />}
+    <div className="flex items-start gap-2 rounded-lg border bg-card p-2.5">
+      <div className="min-w-0 flex-1 space-y-1.5">
+        {launchpad && <LaunchpadLine mint={mint} send={send} pageLaunchpad={pageLaunchpad} />}
+        {metrics && <MetricsLines mint={mint} send={send} />}
+      </div>
+      <RefreshButton onClick={refresh} busy={busy} label="Refresh token info" />
     </div>
   );
 }
