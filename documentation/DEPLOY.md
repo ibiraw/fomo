@@ -41,7 +41,7 @@ chmod 600 server.env .env
 ## 5. Create the tunnel (Cloudflare)
 1. Zero Trust → Networks → Tunnels → **Create a tunnel** → *Cloudflared* → name it `limit`.
 2. Choose *Docker* and copy only the token (the long string after `--token`) into `deploy/.env`.
-3. **Public hostname**: subdomain `api`, your domain, service `HTTP` → `server:8787`.
+3. **Public hostnames**: `api` → `HTTP` `server:8787`; the bare domain and `www` → `HTTP` `web:80` (the website).
 4. WebSockets are on by default for tunnels.
 
 ## 6. Start
@@ -60,8 +60,9 @@ Upload `.output/limit-<version>-chrome.zip` (see `frontend/extension/store/LISTI
 
 ## Operating it
 - **Update:** re-copy the code (step 3), then `docker compose up -d --build`.
-- **Backups:** the whole state is `deploy/data/orders.db` (+ `-wal`/`-shm`). Daily copy, e.g. crontab
-  `0 4 * * * cd ~/limit/deploy && tar czf ~/backup-$(date +\%a).tgz data`.
+- **Backups:** the whole state is `deploy/data/orders.db`. `deploy/backup.sh` runs daily at 04:00 UTC (crontab of `deploy`)
+  and keeps 14 days of consistent copies in `~/backups`.
+- **Website:** `npm run build` in `frontend/website` with `NEXT_PUBLIC_SITE_URL=https://limit.family`, then copy `out/` to `deploy/site/`.
 - **Logs** rotate automatically (3 × 10 MB). Order lines show only short account ids, never keys.
 - **Limits** (defaults): 25 open orders per account, 20 messages/s per connection, 8 viewed tokens per connection,
   5 new accounts per IP per hour. Change `MAX_ACTIVE_ORDERS_PER_USER` in `server.env`.

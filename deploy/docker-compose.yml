@@ -1,6 +1,7 @@
-# limit — server + Cloudflare Tunnel (Reborn1987)
+# limit — server + website + Cloudflare Tunnel (Reborn1987)
 # Usage (on the VPS, in this folder): docker compose up -d --build
 # No ports are published: the tunnel connects out to Cloudflare, so the server's IP stays hidden.
+# Tunnel public hostnames: api.limit.family → http://server:8787, limit.family + www → http://web:80
 services:
   server:
     build: ../backend
@@ -12,10 +13,20 @@ services:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
 
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ./site:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
   tunnel:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
     command: tunnel --no-autoupdate run
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in deploy/.env}
-    depends_on: [server]
+    depends_on: [server, web]
