@@ -74,7 +74,8 @@ export function TokenXCard({ mint, send, pageLink = null }: { mint: string; send
       </div>
 
       {latest.isPending && latest.isFetching && <p className="text-xs text-muted-foreground">Checking latest post…</p>}
-      {latest.isError && <p className="text-xs text-sell">Could not read X: {latest.error.message}</p>}
+      {/* A failed read is usually momentary (e.g. the browser was busy with tabs): a hint, not an error. */}
+      {latest.isError && <p className="text-xs text-muted-foreground" title={latest.error.message}>Press refresh for the latest tweet.</p>}
       {result && !result.ok && <p className="text-xs text-muted-foreground">{result.message}</p>}
       {result?.ok && (
         <>
