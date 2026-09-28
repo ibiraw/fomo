@@ -144,6 +144,8 @@ describe('describeOrder', () => {
     const ADDR = '0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07'; // shown without the chain name: 💙 means Base
     expect(describeOrder(base, 'LM-2 (@ibiraw)')).toBe(`LM-2\n\n🧍LM-2 (@ibiraw)\n\n🎯 placed **TAKE PROFIT** 50%\n\n💙 ${ADDR}\n\n📊 MC ≥ $120.0K`);
     expect(describeOrder(base, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 placed **TAKE PROFIT** 50%\n\n💙 ${ADDR}\n\n📊 MC ≥ $120.0K`); // no handle yet
+    expect(describeOrder(base, 'LM-2', 16_400)).toMatch(/📊 MC ≥ \$120\.0K - current MC = \$16\.4K$/); // the token's MC when placed
+    expect(describeOrder({ ...base, trigger: { ...base.trigger, metric: 'price', value: 0.002 } } as Order, 'LM-2', 0.0015)).toMatch(/📊 price ≥ \$\S+ - current price = \$\S+$/);
     expect(describeOrder({ ...base, attempts: 1, lastError: 'slippage: x' }, 'LM-2')).toMatch(/🎯 re-armed \*\*TAKE PROFIT\*\* 50% after slippage\n\n[\s\S]*\n\nℹ️ slippage: x$/);
     expect(describeOrder({ ...base, status: 'filled', triggeredAtValue: 121_000 }, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 FILLED **TAKE PROFIT** 50%\n\n💙 ${ADDR}\n\n📊 at $121.0K`);
     expect(describeOrder({ ...base, status: 'cancelled' }, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 cancelled **TAKE PROFIT** 50%\n\n💙 ${ADDR}`); // type icon, no detail line

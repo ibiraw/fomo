@@ -33,6 +33,7 @@ import { ChainRouterPriceFeed } from './core/chains/chain-router-price-feed.js';
 import type { Chain, EvmChain } from './core/chains/token-key.js';
 import { buildEvmChain, type EvmChainParts } from './evm-chain.js';
 import { EvmWalletConfirmer } from './core/evm/evm-wallet-confirmer.js';
+import { metricValue } from './core/orders/order.js';
 import { OrderEngine } from './core/orders/order-engine.js';
 import { HoldingsGuard } from './core/orders/holdings-guard.js';
 import { WalletTradeConfirmer } from './core/orders/wallet-trade-confirmer.js';
@@ -180,7 +181,8 @@ async function main(): Promise<void> {
     if (e.type === 'order') {
       guard?.onOrderChanged(e.order);
       log(`order ${e.order.id.slice(0, 8)} ${e.order.userId.slice(0, 8)} ${e.order.side} ${e.order.status}${e.order.lastError ? ` — ${e.order.lastError}` : ''}`);
-      const text = describeOrder(e.order, who(e.order.userId));
+      const tick = engine.latestTick(e.order.mint);
+      const text = describeOrder(e.order, who(e.order.userId), tick ? metricValue(e.order, tick) : null);
       if (text) relay.record('order', text);
     }
   }, logError('engine'), confirmerFor, 20_000, Date.now, cfg.maxActiveOrdersPerUser, (userId) => billing?.service.assertCanPlaceOrder(userId));

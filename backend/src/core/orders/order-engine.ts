@@ -205,6 +205,11 @@ export class OrderEngine {
     return cancelled;
   }
 
+  /** Latest known tick of one token, or null when it isn't watched yet. */
+  latestTick(mint: string): PriceTick | null {
+    return this.lastTick.get(mint) ?? null;
+  }
+
   /** Latest known tick per watched mint. */
   latestTicks(): PriceTick[] {
     return [...this.lastTick.values()];

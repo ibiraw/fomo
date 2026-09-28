@@ -70,17 +70,22 @@ export function orderEntry(icon: string, who: string, action: string, mint: stri
   ].filter((part): part is string => !!part).join('\n\n');
 }
 
-/** Monitoring text for an order change (see orderEntry), or null when it isn't worth a message. */
-export function describeOrder(o: Order, who: string): string | null {
+/**
+ * Monitoring text for an order change (see orderEntry), or null when it isn't worth a message. `current` is the
+ * token's latest value in the trigger's terms (MC or price); a placed order shows it after its target.
+ */
+export function describeOrder(o: Order, who: string, current: number | null = null): string | null {
   const amount = o.amount.kind === 'usd' ? `$${o.amount.value}` : `${o.amount.value}%`;
-  const target = `${o.trigger.metric === 'marketCap' ? 'MC' : 'price'} ${o.trigger.direction === 'below' ? '≤' : '≥'} ${usdCompact(o.trigger.value)}`;
+  const metric = o.trigger.metric === 'marketCap' ? 'MC' : 'price';
+  const target = `${metric} ${o.trigger.direction === 'below' ? '≤' : '≥'} ${usdCompact(o.trigger.value)}`;
+  const placedDetail = current === null ? target : `${target} - current ${metric} = ${usdCompact(current)}`;
   const what = `**${orderKind(o).toUpperCase()}** ${amount}`; // bold in Telegram: the transaction type
   const entry = (action: string, detail: EntryDetail | null = null) => orderEntry(orderIcon(o), who, action, o.mint, detail);
   const market = (text: string): EntryDetail => ({ kind: 'market', text });
   const reason = (text: string | null): EntryDetail | null => (text ? { kind: 'reason', text } : null);
   switch (o.status) {
     case 'open':
-      return o.attempts === 0 ? entry(`placed ${what}`, market(target)) : entry(`re-armed ${what} after slippage`, reason(o.lastError));
+      return o.attempts === 0 ? entry(`placed ${what}`, market(placedDetail)) : entry(`re-armed ${what} after slippage`, reason(o.lastError));
     case 'filled':
       return entry(`FILLED ${what}`, o.triggeredAtValue ? market(`at ${usdCompact(o.triggeredAtValue)}`) : null);
     case 'failed':
