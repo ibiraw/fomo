@@ -41,19 +41,31 @@ export function iconAndText(kind: ActivityKind, text: string): { icon: string; t
 /** Longest single entry (plain text) before formatting; longer ones are cut so markup is never split. */
 const MAX_LINE_CHARS = 1_000;
 
-/** Splits lines into messages under the size limit. */
-export function packMessages(lines: readonly string[], max = MAX_MESSAGE_CHARS): string[] {
-  const out: string[] = [];
+/** Between two entries of one message. Order entries span several lines, so a divider keeps them apart. */
+export const ENTRY_SEPARATOR = '\n\n────────\n\n';
+
+/** One message: its text and how many entries it holds (for marking them sent). */
+export interface PackedMessage {
+  readonly text: string;
+  readonly count: number;
+}
+
+/** Groups entries (possibly multi-line) into messages under the size limit, never splitting an entry. */
+export function packMessages(entries: readonly string[], max = MAX_MESSAGE_CHARS, sep = ENTRY_SEPARATOR): PackedMessage[] {
+  const out: PackedMessage[] = [];
   let cur = '';
-  for (const raw of lines) {
-    const line = raw.length > max ? `${raw.slice(0, max - 1)}…` : raw;
-    if (cur && cur.length + 1 + line.length > max) {
-      out.push(cur);
+  let count = 0;
+  for (const raw of entries) {
+    const entry = raw.length > max ? `${raw.slice(0, max - 1)}…` : raw;
+    if (cur && cur.length + sep.length + entry.length > max) {
+      out.push({ text: cur, count });
       cur = '';
+      count = 0;
     }
-    cur = cur ? `${cur}\n${line}` : line;
+    cur = cur ? `${cur}${sep}${entry}` : entry;
+    count++;
   }
-  if (cur) out.push(cur);
+  if (cur) out.push({ text: cur, count });
   return out;
 }
 
@@ -78,7 +90,11 @@ export class ActivityRelay {
 
   /** Logs an event (delivered on the next round). */
   record(kind: ActivityKind, text: string): void {
-    this.store.add(this.now(), kind, text.replace(/\s*\n\s*/g, ' ')); // one line per entry (batching counts lines)
+    // Order entries are laid out in lines separated by blank lines; everything else is one line.
+    const clean = kind === 'order'
+      ? text.split(/\n\s*\n/).map((part) => part.replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean).join('\n\n')
+      : text.replace(/\s*\n\s*/g, ' ');
+    this.store.add(this.now(), kind, clean);
   }
 
   /** Logs an error from `source`, at most once per 5 minutes per source. */
@@ -109,18 +125,17 @@ export class ActivityRelay {
     try {
       const entries = this.store.pending(BATCH);
       if (entries.length === 0) return;
-      const lines = entries.map((e) => {
+      const blocks = entries.map((e) => {
         const { icon, text } = iconAndText(e.kind, e.text);
         const plain = `${icon} ${clock(e.at)} ${text}`;
         return this.notifier!.format(plain.length > MAX_LINE_CHARS ? `${plain.slice(0, MAX_LINE_CHARS - 1)}…` : plain);
       });
       // Each message marks its own entries, so a failure part-way resends only what wasn't delivered.
       let offset = 0;
-      for (const msg of packMessages(lines)) {
-        const count = msg.split('\n').length;
-        await this.notifier.send(msg);
-        this.store.markSent(entries.slice(offset, offset + count).map((e) => e.id), this.now());
-        offset += count;
+      for (const msg of packMessages(blocks)) {
+        await this.notifier.send(msg.text);
+        this.store.markSent(entries.slice(offset, offset + msg.count).map((e) => e.id), this.now());
+        offset += msg.count;
       }
       this.backoffMs = 0;
     } catch (err) {

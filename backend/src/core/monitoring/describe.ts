@@ -37,30 +37,34 @@ export function orderIcon(o: Pick<Order, 'side' | 'trigger'>): string {
 }
 
 /**
- * Monitoring text for an order change, or null when it isn't worth a message. It starts with the order type's icon,
- * which the relay shows as the line's icon in place of the generic 📈.
+ * An order-type entry laid out in lines separated by blank lines — icon + short id, the fomo handle, what happened,
+ * the token address (tap-to-copy in Telegram) and an optional detail:
+ *   "🛑 LM-JPHDZS\n\n(@ibiraw)\n\ncancelled Stop loss 100% ·\n\n6prL…pump"
+ * The relay puts the time after the icon and shows the icon in place of the generic 📈.
  */
-export function describeOrder(o: Order, who: string): string | null {
-  const text = describeOrderText(o, who);
-  return text === null ? null : `${orderIcon(o)} ${text}`;
+export function orderEntry(icon: string, who: string, action: string, mint: string | null, detail: string | null = null): string {
+  const split = who.indexOf(' (');
+  const [id, handle] = split < 0 ? [who, null] : [who.slice(0, split), who.slice(split + 1)];
+  return [`${icon} ${id}`, handle, mint ? `${action} ·` : action, mint, detail].filter((part): part is string => !!part).join('\n\n');
 }
 
-/** The text of describeOrder without the leading icon. */
-function describeOrderText(o: Order, who: string): string | null {
+/** Monitoring text for an order change (see orderEntry), or null when it isn't worth a message. */
+export function describeOrder(o: Order, who: string): string | null {
   const amount = o.amount.kind === 'usd' ? `$${o.amount.value}` : `${o.amount.value}%`;
   const target = `${o.trigger.metric === 'marketCap' ? 'MC' : 'price'} ${o.trigger.direction === 'below' ? '≤' : '≥'} ${usdCompact(o.trigger.value)}`;
-  const what = `${orderKind(o)} ${amount} · ${o.mint}`; // full address: copyable in Telegram
+  const what = `${orderKind(o)} ${amount}`;
+  const entry = (action: string, detail: string | null = null) => orderEntry(orderIcon(o), who, action, o.mint, detail);
   switch (o.status) {
     case 'open':
-      return o.attempts === 0 ? `${who} placed ${what} · ${target}` : `${who} ${what} re-armed after slippage (${o.lastError ?? ''})`;
+      return o.attempts === 0 ? entry(`placed ${what}`, target) : entry(`re-armed ${what} after slippage`, o.lastError);
     case 'filled':
-      return `${who} FILLED ${what}${o.triggeredAtValue ? ` at ${usdCompact(o.triggeredAtValue)}` : ''}`;
+      return entry(`FILLED ${what}`, o.triggeredAtValue ? `at ${usdCompact(o.triggeredAtValue)}` : null);
     case 'failed':
-      return `${who} FAILED ${what}: ${o.lastError ?? 'unknown error'}`;
+      return entry(`FAILED ${what}`, o.lastError ?? 'unknown error');
     case 'unknown':
-      return `${who} outcome unknown ${what}: ${o.lastError ?? ''}`;
+      return entry(`outcome unknown ${what}`, o.lastError);
     case 'cancelled':
-      return `${who} cancelled ${what}${o.lastError ? ` (${o.lastError})` : ''}`;
+      return entry(`cancelled ${what}`, o.lastError);
     default:
       return null;
   }

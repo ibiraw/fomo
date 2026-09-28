@@ -22,6 +22,7 @@ import type { EngineEvent, OrderEngine } from '../../core/orders/order-engine.js
 import type { TokenInfoService } from '../../core/tokens/token-info-service.js';
 import type { Account } from '../../ports/account-store.js';
 import type { LayoutReport } from '../../core/monitoring/layout-report.js';
+import { orderEntry } from '../../core/monitoring/describe.js';
 import { TradeExecutorPort, type ExecutionResult } from '../../ports/trade-executor.js';
 import { ClientMessageSchema, type ClientMessage } from './protocol.js';
 
@@ -491,7 +492,7 @@ export class WsGateway extends TradeExecutorPort {
           client.lastSpot = { text, at: now };
           // Leading icon = the line's icon in Telegram (🛒 spot buy / 💸 spot sell).
           const [icon, name] = msg.side === 'buy' ? ['🛒', 'Spot buy'] : ['💸', 'Spot sell'];
-          this.opts.onActivity?.('order', `${icon} ${label(this.requireAccounts().get(userId))} ${name} on fomo · ${text}${msg.mint ? ` · ${msg.mint}` : ''}`);
+          this.opts.onActivity?.('order', orderEntry(icon, label(this.requireAccounts().get(userId)), `${name} on fomo: ${text}`, msg.mint ?? null));
           return { logged: true };
         });
       case 'layout.status':
