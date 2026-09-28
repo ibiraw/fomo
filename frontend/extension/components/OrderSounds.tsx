@@ -14,6 +14,7 @@ import { useSoundSettings } from '@/hooks/use-sound-settings';
 import { SOUND_PACKS } from '@/lib/sound-packs';
 import { SOUND_EVENTS, SoundPlayer, type SoundEvent, type SoundPackId } from '@/lib/sounds';
 import { cn } from '@/lib/utils';
+import { SettingsCard } from '@/components/SettingsCard';
 
 /** Dot color per event, matching the order list's buy / take-profit / stop-loss colors. */
 const EVENT_COLOR: Record<SoundEvent, string> = {
@@ -52,7 +53,7 @@ export function OrderSounds() {
   const current = SOUND_PACKS.find((p) => p.id === settings.pack) ?? SOUND_PACKS[0]!;
 
   return (
-    <section className="space-y-2">
+    <SettingsCard className="space-y-2">
       <h2 className="text-sm font-semibold">Order sounds</h2>
       <p className="text-xs text-muted-foreground">Plays when an order fills or fails. Tap a theme to hear it.</p>
       <Segmented
@@ -126,6 +127,6 @@ export function OrderSounds() {
         </div>
         {problem && <p role="alert" className="text-xs text-sell">{problem}</p>}
       </div>
-    </section>
+    </SettingsCard>
   );
 }

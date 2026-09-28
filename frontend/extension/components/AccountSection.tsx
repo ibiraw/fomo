@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import type { SendFn } from '@/hooks/use-background';
 import { shortAddress, type AccountView } from '@/lib/account';
 import { HOSTED_SERVER_URL } from '@/lib/messages';
+import { SettingsCard } from '@/components/SettingsCard';
 
 interface Props {
   readonly account: AccountView | null;
@@ -113,7 +114,7 @@ export function AccountSection({ account, serverUrl, send }: Props) {
   };
 
   return (
-    <section className="space-y-3">
+    <SettingsCard className="space-y-3">
       <div className="space-y-1">
         <h2 className="text-sm font-semibold">Account</h2>
         <p className="text-xs text-muted-foreground">No sign-up: this browser has its own account. Your wallets are read from your fomo login.</p>
@@ -178,7 +179,7 @@ export function AccountSection({ account, serverUrl, send }: Props) {
           </div>
         </form>
       )}
-    </section>
+    </SettingsCard>
   );
 }
 

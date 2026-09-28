@@ -26,6 +26,7 @@ import { mintFromFomoUrl } from '@/lib/format';
 import { applyPanelVars } from '@/lib/themes';
 import type { ConnectionStatus } from '@/lib/server-connection';
 import { cn } from '@/lib/utils';
+import { SettingsCard } from '@/components/SettingsCard';
 
 const STATUS_TEXT: Record<ConnectionStatus, string> = {
   connected: 'Connected',
@@ -88,9 +89,9 @@ export default function App() {
           <TabsContent value="orders" className="pt-2">
             <OrderList orders={state.orders} ticks={state.ticks} showMint labels={labels} onCancel={(id) => send({ type: 'order.cancel', id })} />
           </TabsContent>
-          <TabsContent value="settings" className="space-y-5 pt-2">
+          <TabsContent value="settings" className="space-y-3 pt-2">
             <UnlockSection status={state.billing} send={send} />
-            <section className="space-y-2">
+            <SettingsCard className="space-y-2">
               <h2 className="text-sm font-semibold">When I open a token</h2>
               <p className="text-xs text-muted-foreground">Which tab fomo's trade panel starts on.</p>
               <Segmented
@@ -98,19 +99,19 @@ export default function App() {
                 onChange={(t) => void setDefaultTab(t)}
                 options={[{ value: 'buy', label: "fomo's Buy tab" }, { value: 'limit', label: 'Limit tab' }]}
               />
-            </section>
-            <section className="space-y-2">
+            </SettingsCard>
+            <SettingsCard className="space-y-2">
               <h2 className="text-sm font-semibold">Theme</h2>
               <p className="text-xs text-muted-foreground">Recolors fomo.family and the Limit panel in every open fomo tab.</p>
               <ThemePicker />
-            </section>
+            </SettingsCard>
             <OrderSounds />
             <AccountSection account={state.account} serverUrl={state.serverUrl} send={send} />
           </TabsContent>
         </Tabs>
       )}
       <p className="text-[11px] leading-snug text-muted-foreground">
-        Keep Chrome open with a logged-in fomo.family tab. Orders trade by clicking FOMO's own buttons.
+        Keep your browser open with a logged-in fomo.family tab. Orders trade by clicking FOMO's own buttons.
       </p>
     </div>
   );

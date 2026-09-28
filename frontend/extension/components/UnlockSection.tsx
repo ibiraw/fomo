@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import type { SendFn } from '@/hooks/use-background';
 import { chainName, daysLeft, mustUnlock, remainingUsd, renewSoon, type BillingQuote, type BillingStatus, type PaymentMethod } from '@/lib/billing';
 import { cn } from '@/lib/utils';
+import { SettingsCard } from '@/components/SettingsCard';
 
 /** Text with a copy button (falls back to selectable text when the clipboard is refused). */
 function CopyField({ label, value }: { label: string; value: string }) {
@@ -109,10 +110,10 @@ export function UnlockSection({ status, send }: { status: BillingStatus | null; 
 
   if (status.permanent) {
     return (
-      <section className="space-y-1">
+      <SettingsCard className="space-y-1">
         <h2 className="text-sm font-semibold">Subscription</h2>
         <p className="flex items-center gap-1.5 text-xs text-buy"><Check className="size-3.5" aria-hidden /> Unlocked for good.</p>
-      </section>
+      </SettingsCard>
     );
   }
 
@@ -131,7 +132,7 @@ export function UnlockSection({ status, send }: { status: BillingStatus | null; 
   const hasToken = methods.some((m) => m.kind === 'token');
 
   return (
-    <section className="space-y-2.5">
+    <SettingsCard className="space-y-2.5">
       <div className="space-y-1">
         <h2 className="text-sm font-semibold">Subscription</h2>
         <p className={cn('text-xs', status.unlocked ? 'text-buy' : 'text-foreground')}>{headline}</p>
@@ -175,7 +176,7 @@ export function UnlockSection({ status, send }: { status: BillingStatus | null; 
         </div>
       )}
       {quote.error && <p className="text-xs text-sell">{quote.error.message}</p>}
-    </section>
+    </SettingsCard>
   );
 }
 
