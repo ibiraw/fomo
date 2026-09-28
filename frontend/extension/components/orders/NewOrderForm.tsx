@@ -2,7 +2,8 @@
  * @file NewOrderForm.tsx
  * @description FOMO-styled limit order form: amount with editable presets ($/%), market cap (or price)
  *              target with a −100%…+100% slider. The order type (limit buy, breakout, take profit, stop loss)
- *              is inferred from whether the target is below or above the current value.
+ *              is inferred from whether the target is below or above the current value. Shows what the order would
+ *              give at its target (≈ $ for sells, ≈ tokens for buys; before fees and slippage).
  * @author Reborn1987
  */
 
@@ -13,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { usePresets, type AmountUnit } from '@/hooks/use-presets';
+import { estimateFill, formatTokenCount } from '@/lib/estimate';
 import { formatPrice, formatUsdCompact, orderKind } from '@/lib/format';
 import { amountError as amountLimitError } from '@/lib/number-input';
 import { inferDirection, percentFromTarget, syncWithLive, targetFromPercent, formatTargetInput, type TargetAnchor } from '@/lib/target';
@@ -35,10 +37,12 @@ interface Props {
   readonly mcSupply?: number | null;
   /** Whether the wallet holds the token (null = unknown). Selling is disabled when false. */
   readonly holds?: boolean | null;
+  /** Tokens held, from fomo's positions list (null = unknown, e.g. in the popup): needed to estimate % sells. */
+  readonly heldTokens?: number | null;
 }
 
 /** Order entry form. */
-export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, mcSupply = null, holds = null }: Props) {
+export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, mcSupply = null, holds = null, heldTokens = null }: Props) {
   const [mint, setMint] = useState(initialMint ?? '');
   const [side, setSide] = useState<OrderSide>('buy');
   const [unit, setUnit] = useState<AmountUnit>('usd');
@@ -101,6 +105,10 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, m
   });
 
   const kind = orderKind({ side, trigger: { metric, direction, value: 0 } });
+  const estimate = estimateFill({
+    side, unit, amount: amountValue, metric, target: targetValue, heldTokens,
+    supply: mcSupply ?? (tick && tick.priceUsd > 0 ? tick.marketCapUsd / tick.priceUsd : null),
+  });
   const targetLabel = metric === 'marketCap' ? formatUsdCompact(targetValue) : formatPrice(targetValue);
 
   return (
@@ -173,6 +181,15 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, m
         </p>
       </div>
 
+      {estimate && (
+        <p className="rounded-lg bg-secondary px-2.5 py-2 text-xs text-muted-foreground">
+          If it hits, you&apos;d get{' '}
+          <span className={cn('font-semibold tabular-nums', side === 'buy' ? 'text-buy' : 'text-sell')}>
+            ≈ {estimate.kind === 'usd' ? formatUsdCompact(estimate.value) : `${formatTokenCount(estimate.value)} tokens`}
+          </span>{' '}
+          <span className="text-[11px]">before fees and slippage</span>
+        </p>
+      )}
       {create.error && <p className="text-sm text-destructive">{create.error.message}</p>}
       {create.isSuccess && <p className="text-sm text-buy">Order placed.</p>}
       <Button type="submit" className="h-10 w-full rounded-xl font-bold" disabled={!valid || create.isPending}>

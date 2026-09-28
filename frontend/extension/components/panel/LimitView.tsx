@@ -10,6 +10,7 @@ import { useState, useSyncExternalStore } from 'react';
 import { NewOrderForm } from '@/components/orders/NewOrderForm';
 import { OrderList } from '@/components/orders/OrderList';
 import { useBackground } from '@/hooks/use-background';
+import { useFomoPosition } from '@/hooks/use-fomo-position';
 import { useFomoSupply } from '@/hooks/use-fomo-supply';
 import { useHolds } from '@/hooks/use-holds';
 import { useTokenSymbols } from '@/hooks/use-token-symbols';
@@ -44,6 +45,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
   const mint = useSyncExternalStore(mintStore.subscribe, mintStore.get);
   const { state, send } = useBackground();
   const supply = useFomoSupply(mint);
+  const heldTokens = useFomoPosition(mint);
   const holds = useHolds(mint, state?.status === 'connected', send, state?.orders ?? []);
   const [scope, setScope] = useState<'token' | 'all'>('token');
   const release = useRelease();
@@ -75,7 +77,7 @@ export function LimitView({ mintStore }: { mintStore: MintStore }) {
           </details>
         </div>
       ) : (
-        <NewOrderForm key={`form:${mint}`} ticks={state.ticks} initialMint={mint} lockMint mcSupply={supply} holds={holds} onCreate={(order) => send({ type: 'order.create', order })} />
+        <NewOrderForm key={`form:${mint}`} ticks={state.ticks} initialMint={mint} lockMint mcSupply={supply} holds={holds} heldTokens={heldTokens} onCreate={(order) => send({ type: 'order.create', order })} />
       )}
       <div className="space-y-2">
         <div className="flex rounded-md bg-secondary p-0.5" role="tablist" aria-label="Which orders to show">
