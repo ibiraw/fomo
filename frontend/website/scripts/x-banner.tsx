@@ -13,7 +13,8 @@ import { writeFileSync } from 'node:fs';
 import { ImageResponse } from 'next/og';
 import React from 'react';
 
-const BG = '#09090b';
+/** fomo's default page background (lib/themes.ts "fomo Default"). */
+const BG = '#060510';
 const WHITE = '#fafafa';
 const BLUE = '#516af6';
 const MUTED = '#9a9aa3';
