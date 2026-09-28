@@ -212,7 +212,9 @@ export default defineBackground({
       if (spot?.type === 'fomo.spot') {
         // limit's own trades show the same toast: only the user's manual trades are reported.
         if (!trading && (spot.side === 'buy' || spot.side === 'sell') && typeof spot.detail === 'string') {
-          void conn.request('trade.spot', { side: spot.side, detail: spot.detail, ...(spot.mint ? { mint: spot.mint } : {}) }).catch(() => undefined);
+          void conn.request('trade.spot', {
+            side: spot.side, detail: spot.detail, ...(spot.mint ? { mint: spot.mint } : {}), ...(spot.sell ? { sell: spot.sell } : {}),
+          }).catch(() => undefined);
         }
         return;
       }

@@ -9,7 +9,7 @@ import { readFomoUserId, readFomoWallets } from '@/lib/account';
 import { readOwnFomoUsername } from '@/lib/fomo-dom';
 import { followFomoDom } from '@/lib/fomo-dom-config';
 import { FomoHealthWatcher, type FomoHealthMessage } from '@/lib/fomo-health-watch';
-import { SpotTradeWatcher, type SpotTradeMessage } from '@/lib/fomo-spot-watch';
+import { SpotTradeWatcher, titleSymbol, type SpotTradeMessage } from '@/lib/fomo-spot-watch';
 import type { WalletsDetectedMessage } from '@/lib/messages';
 import { keyFromPath, tokenPath } from '@/lib/token-key';
 import { executeTrade } from '@/lib/trade';
@@ -59,7 +59,9 @@ export default defineContentScript({
     new SpotTradeWatcher({
       doc: document,
       mint: () => keyFromPath(location.pathname),
+      symbol: () => (keyFromPath(location.pathname) ? titleSymbol(document.title) : null),
       send: (msg: SpotTradeMessage) => void browser.runtime.sendMessage(msg).catch(() => undefined),
+      now: () => Date.now(),
     }).start();
     // Page-layout knowledge: built-ins now, the server's overrides as soon as storage answers; re-check on changes.
     void followFomoDom(() => health.recheck());

@@ -47,6 +47,8 @@ export interface FomoDomConfig {
   /** How fomo's trade toast starts for a buy / a sell ("Buying $3.00 KEK", "Selling 1.2M KEK"). */
   readonly spotBuyPrefixes: readonly string[];
   readonly spotSellPrefixes: readonly string[];
+  /** Title of the "Your positions" list (amount, value and ▲/▼ PnL per token). */
+  readonly positionsHeader: string;
 }
 
 /** Built-in values (what fomo.family looked like when this version shipped). */
@@ -70,6 +72,7 @@ export const DEFAULT_FOMO_DOM: FomoDomConfig = {
   newVersionWords: ['new version', 'update available', 'updated', 'new update'],
   spotBuyPrefixes: ['Buying'],
   spotSellPrefixes: ['Selling'],
+  positionsHeader: 'Your positions',
 };
 
 /** Checks that a string is a usable CSS selector (injectable; content scripts pass a DOM-backed check). */
@@ -130,6 +133,7 @@ export function parseFomoDomConfig(raw: unknown, isSelector: SelectorCheck = dom
     newVersionWords: words('newVersionWords') ?? d.newVersionWords,
     spotBuyPrefixes: words('spotBuyPrefixes') ?? d.spotBuyPrefixes,
     spotSellPrefixes: words('spotSellPrefixes') ?? d.spotSellPrefixes,
+    positionsHeader: txt('positionsHeader') ?? d.positionsHeader,
   };
 }
 

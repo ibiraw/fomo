@@ -38,6 +38,7 @@ export const FomoDomOverridesSchema = z
     newVersionWords: Words,
     spotBuyPrefixes: Words,
     spotSellPrefixes: Words,
+    positionsHeader: Text,
   })
   .partial()
   .strict();

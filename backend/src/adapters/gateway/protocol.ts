@@ -38,7 +38,11 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('billing.claim'), reqId: z.string(), tx: z.string().max(300) }),
   z.object({ type: z.literal('exec.result'), execId: z.string(), result: ExecutionResultSchema }),
   /** A trade the user made with fomo's own Buy/Sell (seen from fomo's "Buying …" / "Selling …" toast), for monitoring. */
-  z.object({ type: z.literal('trade.spot'), reqId: z.string(), side: z.enum(['buy', 'sell']), detail: z.string().max(200), mint: TokenKeySchema.optional() }),
+  z.object({
+    type: z.literal('trade.spot'), reqId: z.string(), side: z.enum(['buy', 'sell']), detail: z.string().max(200), mint: TokenKeySchema.optional(),
+    /** Sells: measured against the position shown just before (all/partial, share, ~USD, PnL %). */
+    sell: z.object({ all: z.boolean(), soldPct: z.number().min(0).max(100), usd: z.number().min(0).max(1e9), pnlPct: z.number().min(-100).max(1e7) }).strict().optional(),
+  }),
   /** The extension's fomo self-check (token page, logged in) and fomo's "new version" prompt. */
   z.object({
     type: z.literal('layout.status'),

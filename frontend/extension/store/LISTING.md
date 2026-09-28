@@ -69,7 +69,7 @@ Everything to paste into the Chrome Web Store developer dashboard. Visibility: *
 
 **Data usage — collected:**
 - ☑ Financial and payment information — public wallet addresses, the user's orders (token, target, amount) and on-chain unlock payments (amount, sender address, transaction id).
-- ☑ Website content — market cap and balance read from fomo.family to place and confirm orders; fomo's own trade notices ("Buying $3.00 KEK") for trades the user makes on fomo, logged for service monitoring.
+- ☑ Website content — market cap and balance read from fomo.family to place and confirm orders; fomo's own trade notices ("Buying $3.00 KEK") for trades the user makes on fomo, and on a sell the value and PnL fomo shows for that position, logged for service monitoring.
 - ☑ Personally identifiable information — the user's fomo.family username (own profile link) and fomo's user ID for their login (fomo's page storage), to match their account ID for support. Deleted with the account.
 - ☐ Everything else (health, authentication info, personal communications, location, web history, user activity) — not collected.
 

@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
-import { spotText, WsGateway, type GatewayLimits } from '../../src/adapters/gateway/ws-gateway.js';
+import { spotLine, spotText, WsGateway, type GatewayLimits } from '../../src/adapters/gateway/ws-gateway.js';
 import { SqliteAccountStoreAdapter } from '../../src/adapters/storage/sqlite-account-store.adapter.js';
 import { SqliteOrderStoreAdapter } from '../../src/adapters/storage/sqlite-order-store.adapter.js';
 import { AccountService } from '../../src/core/accounts/account-service.js';
@@ -347,6 +347,15 @@ describe('WsGateway accounts', () => {
     await vi.waitFor(() => expect(gateway.isReady(ext.userId)).toBe(true)); // automatic retry after layoutRetryMs
   });
 
+  it('describes spot buys, full and partial sells with amount and PnL arrow', () => {
+    expect(spotLine('buy', 'Buying $25.00 QCAT', null, 'LM-1')).toEqual(['✅', 'LM-1', '**SPOT BUY** on fomo: Buying $25.00 QCAT']);
+    expect(spotLine('sell', 'Selling 211.3K QCAT', { all: true, soldPct: 100, usd: 48.2, pnlPct: 12.44 }, 'LM-1')[2])
+      .toBe('**SELL ALL** on fomo: Selling 211.3K QCAT for $48.20 ⬆️ 12.4%');
+    expect(spotLine('sell', 'Selling 95K QCAT', { all: false, soldPct: 45, usd: 21.67, pnlPct: -8.1 }, 'LM-1')[2])
+      .toBe('**PARTIAL SELL** (45%) on fomo: Selling 95K QCAT for $21.67 ⬇️ 8.1%');
+    expect(spotLine('sell', 'Selling 95K QCAT', null, 'LM-1')).toEqual(['💸', 'LM-1', '**SPOT SELL** on fomo: Selling 95K QCAT']); // position unreadable
+  });
+
   it("strips the toast's own relative time from spot-trade texts", () => {
     expect(spotText('Buying $25.00 QCATJust now')).toBe('Buying $25.00 QCAT');
     expect(spotText('Selling  1.2M KEK 2m ago')).toBe('Selling 1.2M KEK');
@@ -363,7 +372,7 @@ describe('WsGateway accounts', () => {
     const c = await authed(false);
     c.send({ type: 'trade.spot', reqId: 's1', side: 'buy', detail: 'Buying  $3.00 KEK', mint: MINT });
     expect((await c.next((m) => m.reqId === 's1')).data).toEqual({ logged: true });
-    expect(activity.at(-1)).toMatch(/^order: LM-\w+\n\n🧍LM-\w+\n\n🛒 \*\*SPOT BUY\*\* on fomo: Buying \$3\.00 KEK\n\n/); // whitespace squeezed
+    expect(activity.at(-1)).toMatch(/^order: LM-\w+\n\n🧍LM-\w+\n\n✅ \*\*SPOT BUY\*\* on fomo: Buying \$3\.00 KEK\n\n/); // whitespace squeezed
     expect(activity.at(-1)!.endsWith(`\n\n💜 ${MINT}`)).toBe(true);
     c.send({ type: 'trade.spot', reqId: 's2', side: 'sell', detail: 'Selling 1.2M KEK' });
     expect((await c.next((m) => m.reqId === 's2')).data).toEqual({ logged: false }); // < 3 s after the last
