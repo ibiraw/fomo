@@ -84,6 +84,35 @@ describe('poolKind', () => {
 });
 
 describe('EvmPoolPriceFeed', () => {
+  it('moves to a much more liquid pool once it is listed (graduation: only dust pools listed at first)', async () => {
+    const DUST = '0x8888888888888888888888888888888888888888';
+    const { rpc, quotes } = setup();
+    rpc.on(DUST, POOL_ABI, 'token0', TOKEN).on(DUST, POOL_ABI, 'getReserves', [10n ** 24n, 2n * 10n ** 17n, 0]); // a fifth of the real price
+    const http = new FakeHttp({
+      [pairsUrl(WETH)]: [pair({ labels: ['v3'], address: WETH_POOL, base: WETH, quote: USDC, priceNative: 2000 })],
+      [pairsUrl(TOKEN)]: [pair({ labels: ['v2'], address: DUST, base: TOKEN, quote: WETH, priceNative: 2e-7, liquidity: 1 })],
+    });
+    const feed = new EvmPoolPriceFeed('base', rpc, new Erc20Reader(rpc), new PoolDirectory(http), quotes, V4, () => undefined, 20);
+    quotes.setFeed(feed);
+    const ticks: PriceTick[] = [];
+    const w = await feed.watch(`base:${TOKEN}`, (t) => ticks.push(t));
+    expect(ticks.at(-1)!.priceUsd).toBeCloseTo(0.0004, 7);
+    http.docs[pairsUrl(TOKEN)] = [
+      pair({ labels: ['v2'], address: PAIR, base: TOKEN, quote: WETH, priceNative: 1e-6, liquidity: 25_000 }),
+      pair({ labels: ['v2'], address: DUST, base: TOKEN, quote: WETH, priceNative: 2e-7, liquidity: 1 }),
+    ];
+    await new Promise((r) => setTimeout(r, 80));
+    expect(ticks.at(-1)!.priceUsd).toBeCloseTo(0.002, 6); // the real pool
+    const n = ticks.length;
+    rpc.emit({ address: DUST, topics: [SYNC_TOPIC], data: words(10n ** 24n, 10n ** 17n) }); // the dust pool no longer counts
+    expect(ticks).toHaveLength(n);
+    rpc.emit({ address: PAIR, topics: [SYNC_TOPIC], data: words(10n ** 24n, 2n * 10n ** 18n) });
+    expect(ticks.at(-1)!.priceUsd).toBeCloseTo(0.004, 6);
+    w.stop();
+    expect(rpc.subs.filter((x) => !x.stopped && (x.filter.address === PAIR || x.filter.address === DUST))).toHaveLength(0);
+    await feed.close();
+  });
+
   it('prices a v2 pair through its quote token, skipping pools that revert', async () => {
     const { rpc, feed } = setup();
     const ticks: PriceTick[] = [];

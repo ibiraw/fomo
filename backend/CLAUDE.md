@@ -103,7 +103,7 @@ Close codes: 4001 bad/unknown key or account limit, 4003 account deleted, 4008 t
 - LaunchLab and CPMM share the "PoolState" discriminator — LaunchLab pools are found by PDA, CPMM pools via DexScreener + layout check.
 - Optional env: `FOMO_WALLET` / `FOMO_EVM_WALLET` (legacy owner's wallets, first start only), `JUPITER_API_KEY`, `JUPITER_POLL_MS`, `GATEWAY_TRUST_PROXY`, `MAX_ACTIVE_ORDERS_PER_USER`.
 - EVM env (each chain needs both): `ETH_RPC_HTTP/WSS`, `BASE_…`, `BNB_…`, `ROBINHOOD_…`, `ARC_…`; `FOMO_EVM_WALLET` (same address on every EVM chain) enables EVM confirmation, sell checks and auto-cancel.
-- EVM pools are found via DexScreener `token-pairs/v1` (its `tokens/v1` returns only a token's main pair). Listings whose contract reverts are skipped.
+- EVM pools are found via DexScreener `token-pairs/v1` (its `tokens/v1` returns only a token's main pair). Listings whose contract reverts are skipped. Every 2 min a stream re-checks the listing and moves (listeners kept) to a pool with ≥ 2× its liquidity: right after a graduation DexScreener can list only dust pools (STARE, 2026-09-28: $1 pools at a fifth of the price) until the real pool shows up.
 - v4 orientation: the other currency may be native (0x0, 18 decimals) even when DexScreener lists the wrapped token; both readings are priced and the one matching DexScreener's `priceNative` wins.
 - Arc's native gas token is USDC (0x3600… ERC-20, 6 decimals). Chainstack caps eth_getLogs at 10k blocks.
 - Holdings guard: open sells are cancelled when the account's wallet reads a zero balance twice in a row (second read ~5 s later); no "seen held" state, so it works right after restarts.

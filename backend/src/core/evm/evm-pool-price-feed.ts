@@ -5,6 +5,9 @@
  *              - v3 pools (Uniswap v3, PancakeSwap v3): slot0, then every Swap event (sqrtPriceX96).
  *              - Uniswap v4 pools (singleton PoolManager): StateView.getSlot0(poolId), then Swap events for the id.
  *              Pools are discovered via DexScreener (most liquid supported pool) and read on-chain from then on.
+ *              Every few minutes the listing is checked again and the stream moves to a pool with at least twice the
+ *              liquidity: right after a launchpad graduation DexScreener may list only dust pools (e.g. $1 of
+ *              liquidity at a fifth of the real price) until the real pool appears.
  *              USD = price in the pool's other token × that token's USD price (EvmUsdQuotes).
  * @author Reborn1987
  */
@@ -56,7 +59,15 @@ interface Stream {
   sub: LogSubscription | null;
   unsubQuote: (() => void) | null;
   lastTick: PriceTick | null;
+  /** The pool streamed, its listed liquidity, and the periodic check for a much more liquid one. */
+  pool: string;
+  liquidityUsd: number;
+  recheck: NodeJS.Timeout | null;
+  rechecking: boolean;
 }
+
+/** A pool must hold this many times the current one's liquidity for the stream to move to it. */
+const SWITCH_FACTOR = 2;
 
 /** 32-byte word `i` of ABI data as bigint. */
 function word(data: Hex, i: number): bigint {
@@ -95,6 +106,7 @@ export class EvmPoolPriceFeed extends PriceFeedPort {
     private readonly quotes: EvmUsdQuotes,
     private readonly v4: V4Deployment | null,
     private readonly onError: (err: unknown) => void,
+    private readonly recheckMs = 120_000,
   ) {
     super();
   }
@@ -127,12 +139,13 @@ export class EvmPoolPriceFeed extends PriceFeedPort {
     }
     stream.listeners.add(listener);
     if (stream.lastTick) listener(stream.lastTick);
-    const s = stream;
     return {
       mint: key,
       stop: () => {
+        const s = this.streams.get(key); // the stream may have moved to another pool since
+        if (!s) return;
         s.listeners.delete(listener);
-        if (s.listeners.size === 0 && this.streams.get(key) === s) {
+        if (s.listeners.size === 0) {
           this.teardown(s);
           this.streams.delete(key);
         }
@@ -149,6 +162,44 @@ export class EvmPoolPriceFeed extends PriceFeedPort {
       const anchored = (p: ListedPool) => this.quotes.isAnchor(p.baseAddress.toLowerCase() === token ? p.quoteAddress : p.baseAddress);
       listed = [...listed.filter(anchored), ...listed.filter((p) => !anchored(p))];
     }
+    const stream = await this.openFrom(key, token, listed);
+    stream.recheck = setInterval(() => void this.recheck(key, token), this.recheckMs);
+    stream.recheck.unref?.();
+    return stream;
+  }
+
+  /**
+   * Moves the stream to a listed pool with at least `SWITCH_FACTOR` times its liquidity, keeping its listeners.
+   * Any failure keeps the current pool.
+   */
+  private async recheck(key: string, token: string): Promise<void> {
+    const cur = this.streams.get(key);
+    if (!cur || cur.rechecking) return;
+    cur.rechecking = true;
+    try {
+      const listed = await this.directory.find(token, dexScreenerChain(this.chain), this.recheckMs);
+      const better = listed.filter((p) => p.address.toLowerCase() !== cur.pool && p.liquidityUsd >= Math.max(cur.liquidityUsd, 1) * SWITCH_FACTOR);
+      if (better.length === 0 || this.streams.get(key) !== cur) return;
+      const next = await this.openFrom(key, token, better).catch((err: unknown) => {
+        if (err instanceof UnsupportedPoolError) return null;
+        throw err;
+      });
+      if (!next) { this.streams.set(key, cur); return; }
+      if (cur.listeners.size === 0) { this.teardown(next); this.streams.delete(key); return; } // stopped meanwhile
+      for (const l of cur.listeners) next.listeners.add(l);
+      next.recheck = cur.recheck;
+      cur.recheck = null;
+      this.teardown(cur);
+      if (next.lastTick) for (const l of next.listeners) l(next.lastTick);
+    } catch (err) {
+      this.onError(err);
+    } finally {
+      cur.rechecking = false;
+    }
+  }
+
+  /** Streams from the first usable pool of `listed` (in order). */
+  private async openFrom(key: string, token: string, listed: readonly ListedPool[]): Promise<Stream> {
     const reasons: string[] = [];
     for (const pool of listed) {
       const kind = poolKind(pool);
@@ -167,7 +218,10 @@ export class EvmPoolPriceFeed extends PriceFeedPort {
         throw err;
       }
       try {
-        return await this.startStream(key, token as Hex, pool.address as Hex, kind, other, expected);
+        const stream = await this.startStream(key, token as Hex, pool.address as Hex, kind, other, expected);
+        stream.pool = pool.address.toLowerCase();
+        stream.liquidityUsd = pool.liquidityUsd;
+        return stream;
       } catch (err) {
         // A listing whose contract doesn't answer like its type (e.g. an unlabeled non-v2 DEX) is skipped.
         if (!isRevert(err)) throw err;
@@ -184,7 +238,10 @@ export class EvmPoolPriceFeed extends PriceFeedPort {
       this.erc20.decimals(other as Hex),
       this.erc20.totalSupply(token),
     ]);
-    const stream: Stream = { listeners: new Set(), kind, other, priceInOther: 0, supply: toUnits(rawSupply, tokenDecimals), sub: null, unsubQuote: null, lastTick: null };
+    const stream: Stream = {
+      listeners: new Set(), kind, other, priceInOther: 0, supply: toUnits(rawSupply, tokenDecimals), sub: null, unsubQuote: null, lastTick: null,
+      pool: pool.toLowerCase(), liquidityUsd: 0, recheck: null, rechecking: false,
+    };
 
     let fromLog: (log: EvmLog) => number;
     if (kind === 'v2') {
@@ -257,5 +314,7 @@ export class EvmPoolPriceFeed extends PriceFeedPort {
   private teardown(s: Stream): void {
     s.sub?.stop();
     s.unsubQuote?.();
+    if (s.recheck) clearInterval(s.recheck);
+    s.recheck = null;
   }
 }
