@@ -110,6 +110,19 @@ export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
     return res.value.reduce((sum, a) => sum + decodeTokenAccountAmount(fromBase64(a.account.data)), 0n);
   }
 
+  /** Program accounts matching a size and one address field (addresses only, no data transferred). */
+  async findProgramAccounts(program: string, dataSize: number, match: { readonly offset: number; readonly bytes: string }): Promise<string[]> {
+    const res = await this.rpc
+      .getProgramAccounts(address(program), {
+        encoding: 'base64',
+        commitment: 'confirmed',
+        dataSlice: { offset: 0, length: 0 },
+        filters: [{ dataSize: BigInt(dataSize) }, { memcmp: { offset: BigInt(match.offset), bytes: match.bytes as never, encoding: 'base58' } }],
+      })
+      .send();
+    return (res as readonly { pubkey: string }[]).map((a) => String(a.pubkey));
+  }
+
   /**
    * All token accounts of the mint, read from the token program that owns the mint (classic or Token-2022), fetching
    * only owner + amount (bytes 32..72) of each. getTokenLargestAccounts would be lighter but the provider refuses it.

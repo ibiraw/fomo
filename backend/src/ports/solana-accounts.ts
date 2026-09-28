@@ -29,6 +29,9 @@ export abstract class SolanaAccountsPort {
   /** Total raw amount of `mint` held by `owner` across all its token accounts (0 if none). */
   abstract getTokenBalance(owner: string, mint: string): Promise<bigint>;
 
+  /** Addresses of a program's accounts of `dataSize` bytes whose bytes at `offset` equal the address `bytes`. */
+  abstract findProgramAccounts(program: string, dataSize: number, match: { readonly offset: number; readonly bytes: string }): Promise<string[]>;
+
   /** Every token account of the mint as owner + raw amount (one entry per account; an owner may have several). */
   abstract getTokenHolders(mint: string): Promise<readonly { readonly owner: string; readonly amount: bigint }[]>;
 

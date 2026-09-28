@@ -31,6 +31,8 @@ export interface LaunchLabPool {
   readonly realBase: bigint;
   readonly realQuote: bigint;
   readonly globalConfig: Address;
+  /** The launch platform built on LaunchLab (bonk.fun, stonkfun, …). */
+  readonly platformConfig: Address;
   readonly baseMint: Address;
   readonly quoteMint: Address;
 }
@@ -52,6 +54,7 @@ export function decodeLaunchLabPool(data: Uint8Array): LaunchLabPool {
     realBase: u64(53),
     realQuote: u64(61),
     globalConfig: dec.decode(data.subarray(141, 173)),
+    platformConfig: dec.decode(data.subarray(173, 205)),
     baseMint: dec.decode(data.subarray(205, 237)),
     quoteMint: dec.decode(data.subarray(237, 269)),
   };

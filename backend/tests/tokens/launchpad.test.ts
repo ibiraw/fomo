@@ -23,11 +23,12 @@ import { FakeEvmRpc } from '../helpers/fake-evm.js';
 const MINT = 'BQYSLwLtTGArYi89xqgsTxFcYLfLJerfwM1TsgZKzray' as Address;
 const enc = getAddressEncoder();
 
-/** Minimal LaunchLab pool bytes: discriminator, status, base mint. */
-function launchLabBytes(status: number, baseMint: Address = MINT): Uint8Array {
+/** Minimal LaunchLab pool bytes: discriminator, status, platform, base mint. */
+function launchLabBytes(status: number, baseMint: Address = MINT, platform?: Address): Uint8Array {
   const b = new Uint8Array(429);
   b.set(LAUNCHLAB_POOL_DISCRIMINATOR, 0);
   b[17] = status;
+  if (platform) b.set(enc.encode(platform), 173);
   b.set(enc.encode(baseMint), 205);
   return b;
 }
@@ -57,6 +58,14 @@ describe('launchpad detectors', () => {
     expect(await d.detect(MINT)).toEqual({ id: 'launchlab', name: 'Raydium LaunchLab', onCurve: true });
     accounts.data.set(usd1Pool, launchLabBytes(2));
     expect(await d.detect(MINT)).toEqual({ id: 'launchlab', name: 'Raydium LaunchLab', onCurve: false });
+  });
+
+  it('LaunchLab platforms with other quotes (stonkfun pairs with tokenized stocks): found by searching, named by platform', async () => {
+    const accounts = new FakeAccounts();
+    const d = launchLabDetector(accounts);
+    accounts.data.set('3Vc5zM8nzPuvjxXXrTXbY6K1XCxGRB6WFojxQDLddCjN', launchLabBytes(0, MINT, '6BwHHDg3u1854jC8PDLXvR4spTcLNaoBxLJNGC4nTESt' as Address));
+    expect(await d.detect(MINT)).toEqual({ id: 'launchlab', name: 'stonkfun', onCurve: true });
+    expect(await d.detect('So11111111111111111111111111111111111111112')).toBeNull();
   });
 
   it('Meteora DBC: only a listed pool that decodes and belongs to the token counts', async () => {

@@ -47,6 +47,12 @@ export class FakeAccounts extends SolanaAccountsPort {
     return this.balances.get(`${owner}|${mint}`) ?? 0n;
   }
 
+  /** Stored accounts of `dataSize` bytes holding the address `bytes` at `offset` (the program isn't modelled). */
+  async findProgramAccounts(_program: string, dataSize: number, match: { readonly offset: number; readonly bytes: string }): Promise<string[]> {
+    const want = enc.encode(match.bytes as Address);
+    return [...this.data].filter(([, d]) => d.length === dataSize && want.every((b, i) => d[match.offset + i] === b)).map(([a]) => a);
+  }
+
   /** mint → its token accounts (owner + amount). */
   readonly holders = new Map<string, { owner: string; amount: bigint }[]>();
 
