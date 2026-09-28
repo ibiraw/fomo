@@ -97,8 +97,13 @@ export interface QuickTradeRequest {
   readonly amount: { readonly kind: 'usd' | 'percent'; readonly value: number };
 }
 
-/** The background's answer to a tap: placed (with the order id to follow) or refused. */
-export type QuickTradeReply = { readonly ok: true; readonly orderId: string } | { readonly ok: false; readonly error: string };
+/**
+ * The background's answer to a tap: placed (with the order id to follow), refused, or `unknown` — sent but the answer
+ * never came (connection dropped), so the trade may still go through.
+ */
+export type QuickTradeReply =
+  | { readonly ok: true; readonly orderId: string }
+  | { readonly ok: false; readonly error: string; readonly unknown?: boolean };
 
 /** Sent by the background when a quick order finishes. */
 export interface QuickTradeResult {
@@ -190,6 +195,7 @@ export class QuickTradeButtons {
       void this.env.send({ type: 'fomo.quick', mint, side, amount }).then(
         (reply) => {
           if (reply.ok) this.waiting.set(reply.orderId, { button: b, label, side });
+          else if (reply.unknown) this.settle(b, '? Check fomo', label, `${reply.error}. It may still go through: check fomo before tapping again.`);
           else this.settle(b, '✗ Failed', label, reply.error);
         },
         (err: unknown) => this.settle(b, '✗ Failed', label, err instanceof Error ? err.message : String(err)),

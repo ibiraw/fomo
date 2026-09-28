@@ -73,6 +73,22 @@ describe('OrderEngine market orders', () => {
     expect(exec.executed.map((o) => o.kind)).toEqual(['market', 'market']); // the limit order is still waiting
   });
 
+  it("cancels a quick trade that couldn't start within 30 s of the tap instead of trading late", async () => {
+    let t = 1_000;
+    const s = new SqliteOrderStoreAdapter(':memory:', () => t);
+    const f = new FakePriceFeed();
+    const x = new FakeExecutor();
+    x.ready = false; // e.g. the extension is reconnecting after a server restart
+    const e = new OrderEngine(s, f, x, () => undefined, () => undefined, () => null, 20_000, () => t);
+    await e.start();
+    const o = await e.createOrder('u1', quickBuy());
+    t += 31_000;
+    x.connect('u1');
+    await settle();
+    expect(s.get(o.id)).toMatchObject({ status: 'cancelled', lastError: 'expired: not traded within 30 s of the tap' });
+    expect(x.executed).toHaveLength(0);
+  });
+
   it('retries a slippage failure once, then fails', async () => {
     exec.results.push({ ok: false, kind: 'slippage', message: 'slippage' }, { ok: false, kind: 'slippage', message: 'slippage' });
     const o = await engine.createOrder('u1', quickBuy());

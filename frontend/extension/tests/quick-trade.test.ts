@@ -103,6 +103,12 @@ describe('QuickTradeButtons', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(sell!.textContent).toBe('✗ Failed');
     expect(sell!.title).toBe("You don't hold this token");
+    await vi.advanceTimersByTimeAsync(6_000);
+    answer = { ok: false, error: 'Connection closed', unknown: true }; // sent, but the answer was lost
+    sell!.click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sell!.textContent).toBe('? Check fomo');
+    expect(sell!.title).toMatch(/may still go through/);
     vi.useRealTimers();
   });
 });

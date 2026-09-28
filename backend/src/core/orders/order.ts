@@ -17,6 +17,8 @@ export const MIN_TRADE_USD = 2;
 export const DEFAULT_MAX_ATTEMPTS = 3;
 /** Quick (market) trades retry a slippage failure once, so they never land long after the tap. */
 export const MARKET_MAX_ATTEMPTS = 2;
+/** A quick trade that hasn't started this long after the tap (server restart, extension offline) is cancelled. */
+export const MARKET_MAX_WAIT_MS = 30_000;
 
 /** `limit`: waits for its trigger. `market`: trades right away (quick Buy/Sell buttons). */
 export type OrderKind = 'limit' | 'market';

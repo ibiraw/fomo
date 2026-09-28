@@ -11,7 +11,7 @@ import type { OrderStorePort } from '../../ports/order-store.js';
 import type { PriceFeedPort, PriceTick, PriceWatch } from '../../ports/price-feed.js';
 import type { TradeConfirmerPort } from '../../ports/trade-confirmer.js';
 import type { ExecutionResult, TradeExecutorPort } from '../../ports/trade-executor.js';
-import { CreateOrderSchema, isTriggered, metricValue, type Order, type OrderStatus } from './order.js';
+import { CreateOrderSchema, isTriggered, MARKET_MAX_WAIT_MS, metricValue, type Order, type OrderStatus } from './order.js';
 
 /** Resolves after `ms`, or immediately when `signal` aborts. */
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
@@ -317,6 +317,13 @@ export class OrderEngine {
   private async executeOne(id: string): Promise<boolean> {
     const order = this.store.get(id);
     if (!order || order.status !== 'triggered') return true;
+    // A quick trade is "now": one that couldn't start in time is cancelled rather than bought or sold late (the user
+    // may have traded by hand meanwhile).
+    if (order.kind === 'market' && this.now() - order.createdAt > MARKET_MAX_WAIT_MS) {
+      this.publish(this.store.transition(id, ['triggered'], 'cancelled', { lastError: `expired: not traded within ${MARKET_MAX_WAIT_MS / 1000} s of the tap` }));
+      this.releaseWatchIfIdle(order.mint);
+      return true;
+    }
     const tick = this.lastTick.get(order.mint);
     if (tick && !isTriggered(order, tick)) {
       // Price moved back while waiting for the executor; wait for the condition again.

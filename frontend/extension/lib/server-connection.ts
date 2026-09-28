@@ -56,6 +56,12 @@ const REQUEST_TIMEOUT_MS = 15_000;
 /** Error returned by the server for a command (validation, unsupported token, ...). */
 export class ServerCommandError extends Error {}
 
+/**
+ * A command was sent but no answer came back (the connection dropped or the server was slow): the server may still
+ * have acted on it, so its outcome is unknown — unlike a refusal or "not connected" (never sent).
+ */
+export class UnansweredError extends ServerCommandError {}
+
 export class ServerConnection {
   private socket: SocketLike | null = null;
   private status: ConnectionStatus = 'disconnected';
@@ -109,7 +115,7 @@ export class ServerConnection {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(reqId);
-        reject(new ServerCommandError('Server did not answer in time'));
+        reject(new UnansweredError('Server did not answer in time'));
       }, REQUEST_TIMEOUT_MS);
       this.pending.set(reqId, { resolve, reject, timer });
       s.send(JSON.stringify({ type, reqId, ...body }));
@@ -187,11 +193,11 @@ export class ServerConnection {
     }
   }
 
-  /** Rejects all in-flight requests. */
+  /** Rejects all in-flight requests (sent, but their answers won't come). */
   private failPending(reason: string): void {
     for (const [id, p] of this.pending) {
       clearTimeout(p.timer);
-      p.reject(new ServerCommandError(reason));
+      p.reject(new UnansweredError(reason));
       this.pending.delete(id);
     }
   }

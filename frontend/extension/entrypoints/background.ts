@@ -16,7 +16,7 @@ import {
   type PopupState,
   type WalletsDetectedMessage,
 } from '@/lib/messages';
-import { ServerConnection, type ConnectionStatus } from '@/lib/server-connection';
+import { ServerConnection, UnansweredError, type ConnectionStatus } from '@/lib/server-connection';
 import { FOMO_DOM_STORAGE_KEY } from '@/lib/fomo-dom-config';
 import { hasFeature, loadRelease, RELEASE_STORAGE_KEY, toRelease } from '@/lib/release';
 import type { QuickTradeReply, QuickTradeRequest, QuickTradeResult } from '@/lib/quick-trade';
@@ -235,7 +235,11 @@ export default defineBackground({
           if (tabId !== undefined) quickTabs.set(order.id, tabId);
           if (quickTabs.size > 200) quickTabs.delete(quickTabs.keys().next().value!);
           return { ok: true, orderId: order.id };
-        })().then(sendResponse, (err: unknown) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) } satisfies QuickTradeReply));
+        })().then(sendResponse, (err: unknown) => sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+          unknown: err instanceof UnansweredError, // sent, but the answer was lost: the order may exist
+        } satisfies QuickTradeReply));
         return true; // answered asynchronously
       }
       const spot = msg as Partial<SpotTradeMessage> | undefined;
