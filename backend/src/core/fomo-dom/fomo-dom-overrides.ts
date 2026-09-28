@@ -39,6 +39,7 @@ export const FomoDomOverridesSchema = z
     spotBuyPrefixes: Words,
     spotSellPrefixes: Words,
     positionsHeader: Text,
+    launchpadIcon: Text,
   })
   .partial()
   .strict();

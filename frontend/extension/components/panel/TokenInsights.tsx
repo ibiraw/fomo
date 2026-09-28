@@ -13,8 +13,11 @@ import type { SendFn } from '@/hooks/use-background';
 import type { LaunchpadInfo, TokenMetricsInfo } from '@/lib/messages';
 import { hasFeature, type ReleaseView } from '@/lib/release';
 
-/** "pump.fun · on the bonding curve" / "· graduated", or why it can't be told. */
-function LaunchpadLine({ mint, send }: { mint: string; send: SendFn }) {
+/**
+ * "pump.fun · on the bonding curve" / "· graduated". When limit doesn't recognise the launchpad, the name fomo shows
+ * next to the token (`pageLaunchpad`, Limit panel only) is used instead, without the curve status.
+ */
+function LaunchpadLine({ mint, send, pageLaunchpad }: { mint: string; send: SendFn; pageLaunchpad: string | null }) {
   const q = useQuery({
     queryKey: ['token.launchpad', mint],
     queryFn: () => send({ type: 'token.launchpad', mint }) as Promise<LaunchpadInfo | null>,
@@ -24,6 +27,7 @@ function LaunchpadLine({ mint, send }: { mint: string; send: SendFn }) {
   let value: React.ReactNode;
   if (q.isPending) value = <span className="text-muted-foreground">Checking…</span>;
   else if (q.isError) value = <span className="text-muted-foreground">Unavailable ({q.error.message})</span>;
+  else if (!q.data && pageLaunchpad) value = <span className="font-semibold text-foreground">{pageLaunchpad}</span>;
   else if (!q.data) value = <span className="text-muted-foreground">Not a launchpad limit recognises</span>;
   else {
     value = (
@@ -90,13 +94,13 @@ function MetricsLines({ mint, send }: { mint: string; send: SendFn }) {
 }
 
 /** Insights card for one token (only the parts the account's version has). */
-export function TokenInsights({ mint, send, release }: { mint: string; send: SendFn; release: ReleaseView }) {
+export function TokenInsights({ mint, send, release, pageLaunchpad = null }: { mint: string; send: SendFn; release: ReleaseView; pageLaunchpad?: string | null }) {
   const launchpad = hasFeature(release, 'launchpad');
   const metrics = hasFeature(release, 'tokenMetrics');
   if (!launchpad && !metrics) return null;
   return (
     <div className="space-y-1.5 rounded-lg border bg-card p-2.5">
-      {launchpad && <LaunchpadLine mint={mint} send={send} />}
+      {launchpad && <LaunchpadLine mint={mint} send={send} pageLaunchpad={pageLaunchpad} />}
       {metrics && <MetricsLines mint={mint} send={send} />}
     </div>
   );

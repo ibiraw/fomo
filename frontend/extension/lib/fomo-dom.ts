@@ -122,6 +122,50 @@ export function readSupply(doc: Document): number | null {
   return n !== null && n > 0 ? n : null;
 }
 
+/** Launchpads fomo draws by their program address instead of a named file. */
+const LAUNCHPAD_PROGRAMS: Readonly<Record<string, string>> = {
+  '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P': 'pump.fun',
+  LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj: 'Raydium LaunchLab',
+  dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN: 'Meteora DBC',
+};
+
+/**
+ * The launchpad name in one of fomo's icon addresses: ".../launchpad/stonkfun.png" → "stonkfun", ".../<program
+ * address>.webp" → the program's launchpad (observed 2026-09-28). Null for anything else.
+ */
+export function launchpadFromIcon(src: string): string | null {
+  const path = src.split(/[?#]/)[0]!;
+  let file: string;
+  try {
+    file = decodeURIComponent(path.slice(path.lastIndexOf('/') + 1)).replace(/\.[a-z0-9]+$/i, '');
+  } catch {
+    return null; // malformed escape in the address
+  }
+  if (/\/launchpad\/[^/]+$/.test(path)) return /^[\w.-]{1,40}$/.test(file) ? file : null;
+  return LAUNCHPAD_PROGRAMS[file] ?? null;
+}
+
+/**
+ * Where the page's token launched, as fomo shows it: the launchpad icon on the token name's line, right after it
+ * (other lists on the page have their own icons). Null when fomo shows none or it isn't recognised.
+ */
+export function readLaunchpadName(doc: Document, symbol: string): string | null {
+  const name = [...doc.querySelectorAll('div, span, h1, h2, p')]
+    .filter((e) => e.childElementCount === 0 && e.textContent?.trim() === symbol)
+    .map((e) => ({ e, r: e.getBoundingClientRect() }))
+    .filter(({ r }) => r.width > 0)
+    .sort((a, b) => a.r.top - b.r.top)[0];
+  if (!name) return null;
+  const mid = name.r.top + name.r.height / 2;
+  for (const img of doc.querySelectorAll<HTMLImageElement>(fomoDom().launchpadIcon)) {
+    const r = img.getBoundingClientRect();
+    if (r.width === 0 || Math.abs(r.top + r.height / 2 - mid) > 16 || r.left < name.r.right || r.left > name.r.right + 120) continue;
+    const lp = launchpadFromIcon(img.getAttribute('src') ?? '');
+    if (lp) return lp;
+  }
+  return null;
+}
+
 /** fomo usernames as they appear in profile links. Mirror of the server's check. */
 export const FOMO_USERNAME_RE = /^[A-Za-z0-9_.-]{1,40}$/;
 

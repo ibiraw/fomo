@@ -49,6 +49,8 @@ export interface FomoDomConfig {
   readonly spotSellPrefixes: readonly string[];
   /** Title of the "Your positions" list (amount, value and ▲/▼ PnL per token). */
   readonly positionsHeader: string;
+  /** fomo's launchpad icons (the one right after the token's name says where it launched). */
+  readonly launchpadIcon: string;
 }
 
 /** Built-in values (what fomo.family looked like when this version shipped). */
@@ -73,6 +75,7 @@ export const DEFAULT_FOMO_DOM: FomoDomConfig = {
   spotBuyPrefixes: ['Buying'],
   spotSellPrefixes: ['Selling'],
   positionsHeader: 'Your positions',
+  launchpadIcon: 'img[src*="crypto-exchange-logos-production"]',
 };
 
 /** Checks that a string is a usable CSS selector (injectable; content scripts pass a DOM-backed check). */
@@ -134,6 +137,7 @@ export function parseFomoDomConfig(raw: unknown, isSelector: SelectorCheck = dom
     spotBuyPrefixes: words('spotBuyPrefixes') ?? d.spotBuyPrefixes,
     spotSellPrefixes: words('spotSellPrefixes') ?? d.spotSellPrefixes,
     positionsHeader: txt('positionsHeader') ?? d.positionsHeader,
+    launchpadIcon: sel('launchpadIcon') ?? d.launchpadIcon,
   };
 }
 
