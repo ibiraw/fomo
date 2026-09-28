@@ -22,7 +22,7 @@ Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), 
 | `tests/` | vitest; fakes in `tests/helpers/` |
 | `scripts/watch-price.ts` | Live price stream dev tool |
 | `scripts/fuzz-inputs.ts` | Input fuzzer: every message type with junk, hostile, SQL-injection and edge values; checks no crash / hang / "Internal error", cross-account isolation and DB integrity — test server only |
-| `scripts/notify.ts` | Posts a message (+ optional file) to the monitoring chat through the limit bot: `npx tsx --env-file=.env scripts/notify.ts "text" [file]` (owner updates / hourly reports go here, same group as the alerts) |
+| `scripts/notify.ts` | Posts a message (+ optional file) to the monitoring chat through the limit bot: `npx tsx --env-file=.env scripts/notify.ts "text" [file]` (the "limit updates" group is for user activity only — builds, zips and optimization reports go to the owner's private chat instead) |
 | `scripts/load-test.ts` | Limit + load test for the gateway — run only against a separate test server (see Load testing) |
 
 ## Commands
