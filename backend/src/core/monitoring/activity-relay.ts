@@ -75,7 +75,7 @@ export class ActivityRelay {
     private readonly store: ActivityStorePort,
     private readonly notifier: NotifierPort | null,
     private readonly onError: (err: unknown) => void,
-    private readonly pollMs = 3_000,
+    private readonly pollMs = 1_000, // alerts leave within ~1 s; batching still groups bursts
     private readonly now: () => number = Date.now,
   ) {}
 
