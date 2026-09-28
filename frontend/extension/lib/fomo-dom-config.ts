@@ -51,6 +51,12 @@ export interface FomoDomConfig {
   readonly positionsHeader: string;
   /** fomo's launchpad icons (the one right after the token's name says where it launched). */
   readonly launchpadIcon: string;
+  /** Side-panel tabs whose items get quick Buy/Sell buttons (v2.0.0). */
+  readonly quickTradeTabs: readonly string[];
+  /** Class on the side-panel tabs that aren't selected. */
+  readonly sideTabInactiveClass: string;
+  /** One item (trade or post) in the side panel's lists. */
+  readonly feedItem: string;
 }
 
 /** Built-in values (what fomo.family looked like when this version shipped). */
@@ -76,6 +82,9 @@ export const DEFAULT_FOMO_DOM: FomoDomConfig = {
   spotSellPrefixes: ['Selling'],
   positionsHeader: 'Your positions',
   launchpadIcon: 'img[src*="crypto-exchange-logos-production"]',
+  quickTradeTabs: ['Alerts', 'Feed'],
+  sideTabInactiveClass: 'text-text-secondary',
+  feedItem: '.border-b.border-bg-secondary',
 };
 
 /** Checks that a string is a usable CSS selector (injectable; content scripts pass a DOM-backed check). */
@@ -138,6 +147,9 @@ export function parseFomoDomConfig(raw: unknown, isSelector: SelectorCheck = dom
     spotSellPrefixes: words('spotSellPrefixes') ?? d.spotSellPrefixes,
     positionsHeader: txt('positionsHeader') ?? d.positionsHeader,
     launchpadIcon: sel('launchpadIcon') ?? d.launchpadIcon,
+    quickTradeTabs: words('quickTradeTabs') ?? d.quickTradeTabs,
+    sideTabInactiveClass: cls('sideTabInactiveClass') ?? d.sideTabInactiveClass,
+    feedItem: sel('feedItem') ?? d.feedItem,
   };
 }
 

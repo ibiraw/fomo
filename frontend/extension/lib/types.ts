@@ -15,6 +15,8 @@ export interface Order {
   readonly id: string;
   readonly mint: string;
   readonly side: OrderSide;
+  /** `market`: a quick trade (v2.0.0), traded right away; absent on servers from before quick trades. */
+  readonly kind?: 'limit' | 'market';
   readonly trigger: {
     readonly metric: TriggerMetric;
     readonly direction: TriggerDirection;

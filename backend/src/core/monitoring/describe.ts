@@ -24,14 +24,16 @@ export function tokenLabel(key: string): string {
   return chain ? `${chain}:${short}` : short;
 }
 
-/** "Limit buy", "Breakout buy", "Take profit", "Stop loss". */
-export function orderKind(o: Pick<Order, 'side' | 'trigger'>): string {
+/** "Limit buy", "Breakout buy", "Take profit", "Stop loss", or "Quick buy" / "Quick sell" for market orders. */
+export function orderKind(o: Pick<Order, 'side' | 'trigger'> & { readonly kind?: Order['kind'] }): string {
+  if (o.kind === 'market') return o.side === 'buy' ? 'Quick buy' : 'Quick sell';
   if (o.side === 'buy') return o.trigger.direction === 'below' ? 'Limit buy' : 'Breakout buy';
   return o.trigger.direction === 'above' ? 'Take profit' : 'Stop loss';
 }
 
-/** The order type's icon: 🟢 limit buy, 🚀 breakout buy, 🎯 take profit, 🛑 stop loss. */
-export function orderIcon(o: Pick<Order, 'side' | 'trigger'>): string {
+/** The order type's icon: 🟢 limit buy, 🚀 breakout buy, 🎯 take profit, 🛑 stop loss, ⚡ quick trade. */
+export function orderIcon(o: Pick<Order, 'side' | 'trigger'> & { readonly kind?: Order['kind'] }): string {
+  if (o.kind === 'market') return '⚡';
   if (o.side === 'buy') return o.trigger.direction === 'below' ? '🟢' : '🚀';
   return o.trigger.direction === 'above' ? '🎯' : '🛑';
 }
@@ -78,14 +80,17 @@ export function describeOrder(o: Order, who: string, current: number | null = nu
   const amount = o.amount.kind === 'usd' ? `$${o.amount.value}` : `${o.amount.value}%`;
   const metric = o.trigger.metric === 'marketCap' ? 'MC' : 'price';
   const target = `${metric} ${o.trigger.direction === 'below' ? '≤' : '≥'} ${usdCompact(o.trigger.value)}`;
-  const placedDetail = current === null ? target : `${target} - current ${metric} = ${usdCompact(current)}`;
+  // A quick trade has no target: its detail is just the value it was placed at.
+  const placedDetail = o.kind === 'market'
+    ? (current === null ? null : `current ${metric} = ${usdCompact(current)}`)
+    : current === null ? target : `${target} - current ${metric} = ${usdCompact(current)}`;
   const what = `**${orderKind(o).toUpperCase()}** ${amount}`; // bold in Telegram: the transaction type
   const entry = (action: string, detail: EntryDetail | null = null) => orderEntry(orderIcon(o), who, action, o.mint, detail);
   const market = (text: string): EntryDetail => ({ kind: 'market', text });
   const reason = (text: string | null): EntryDetail | null => (text ? { kind: 'reason', text } : null);
   switch (o.status) {
     case 'open':
-      return o.attempts === 0 ? entry(`placed ${what}`, market(placedDetail)) : entry(`re-armed ${what} after slippage`, reason(o.lastError));
+      return o.attempts === 0 ? entry(`placed ${what}`, placedDetail === null ? null : market(placedDetail)) : entry(`re-armed ${what} after slippage`, reason(o.lastError));
     case 'filled':
       return entry(`FILLED ${what}`, o.triggeredAtValue ? market(`at ${usdCompact(o.triggeredAtValue)}`) : null);
     case 'failed':

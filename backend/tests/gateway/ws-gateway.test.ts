@@ -429,6 +429,19 @@ describe('WsGateway accounts', () => {
     expect(await c.next((m) => m.reqId === 'l2')).toMatchObject({ ok: true, data: { id: 'pump', name: 'pump.fun', onCurve: true } });
   });
 
+  it('accepts quick (market) orders only from accounts on v2.0.0, limit orders from everyone', async () => {
+    let config: AccessConfig = { ...DEFAULT_ACCESS, publicVersion: '1.4.0' };
+    gateway.setReleases(new ReleaseService(() => config));
+    const c = await authed(true);
+    c.send({ type: 'order.create', reqId: 'q1', order: { kind: 'market', mint: MINT, side: 'buy', amount: { kind: 'usd', value: 50 } } });
+    expect(await c.next((m) => m.reqId === 'q1')).toMatchObject({ ok: false, error: 'This arrives in limit v2.0.0' });
+    c.send({ type: 'order.create', reqId: 'q2', order: ORDER });
+    expect(await c.next((m) => m.reqId === 'q2')).toMatchObject({ ok: true });
+    config = { ...config, publicVersion: '2.0.0' };
+    c.send({ type: 'order.create', reqId: 'q3', order: { kind: 'market', mint: MINT, side: 'buy', amount: { kind: 'usd', value: 50 } } });
+    expect(await c.next((m) => m.reqId === 'q3')).toMatchObject({ ok: true, data: { kind: 'market', status: 'triggered' } });
+  });
+
   it('answers token.metrics only for accounts whose version has it', async () => {
     let config: AccessConfig = { ...DEFAULT_ACCESS, publicVersion: '1.3.0' };
     gateway.setReleases(new ReleaseService(() => config));

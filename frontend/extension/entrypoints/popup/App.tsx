@@ -28,6 +28,7 @@ import { applyPanelVars } from '@/lib/themes';
 import type { ConnectionStatus } from '@/lib/server-connection';
 import { cn } from '@/lib/utils';
 import { SettingsCard } from '@/components/SettingsCard';
+import { QuickTradeSettings } from '@/components/QuickTradeSettings';
 import { useRelease } from '@/hooks/use-release';
 import { hasFeature } from '@/lib/release';
 
@@ -111,6 +112,7 @@ export default function App() {
               <p className="text-xs text-muted-foreground">Recolors fomo.family and the Limit panel in every open fomo tab.</p>
               <ThemePicker />
             </SettingsCard>}
+            {hasFeature(release, 'quickTrade') && <QuickTradeSettings />}
             {hasFeature(release, 'sounds') && <OrderSounds />}
             <AccountSection account={state.account} serverUrl={state.serverUrl} send={send} />
           </TabsContent>

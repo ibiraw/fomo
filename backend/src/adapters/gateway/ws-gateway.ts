@@ -488,7 +488,12 @@ export class WsGateway extends TradeExecutorPort {
     const engine = this.requireEngine();
     switch (msg.type) {
       case 'order.create':
-        return this.reply(client, msg.reqId, () => engine.createOrder(userId, msg.order));
+        return this.reply(client, msg.reqId, () => {
+          // Quick (market) trades from fomo's Feed and Alerts arrive with v2.0.0.
+          const kind = (msg.order as { kind?: unknown } | null)?.kind;
+          if (kind === 'market') this.requireFeature(userId, 'quickTrade');
+          return engine.createOrder(userId, msg.order);
+        });
       case 'order.cancel':
         return this.reply(client, msg.reqId, async () => engine.cancelOrder(msg.id, undefined, userId));
       case 'order.list':

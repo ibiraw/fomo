@@ -28,14 +28,16 @@ export function shortMint(mint: string): string {
   return a.length > 10 ? `${a.slice(0, 4)}…${a.slice(-5)}` : a;
 }
 
-/** Human description of the order's kind, e.g. "Limit buy", "Take profit", "Stop loss", "Breakout buy". */
-export function orderKind(o: Pick<Order, 'side' | 'trigger'>): string {
+/** Human description of the order's kind, e.g. "Limit buy", "Take profit", "Stop loss", "Breakout buy", "Quick buy". */
+export function orderKind(o: Pick<Order, 'side' | 'trigger' | 'kind'>): string {
+  if (o.kind === 'market') return o.side === 'buy' ? 'Quick buy' : 'Quick sell';
   if (o.side === 'buy') return o.trigger.direction === 'below' ? 'Limit buy' : 'Breakout buy';
   return o.trigger.direction === 'above' ? 'Take profit' : 'Stop loss';
 }
 
-/** "MC ≤ $3.0K" / "Price ≥ $0.00001000". */
-export function triggerLabel(o: Pick<Order, 'trigger'>): string {
+/** "MC ≤ $3.0K" / "Price ≥ $0.00001000"; "Right away" for a quick trade. */
+export function triggerLabel(o: Pick<Order, 'trigger' | 'kind'>): string {
+  if (o.kind === 'market') return 'Right away';
   const op = o.trigger.direction === 'below' ? '≤' : '≥';
   return o.trigger.metric === 'marketCap'
     ? `MC ${op} ${formatUsdCompact(o.trigger.value)}`

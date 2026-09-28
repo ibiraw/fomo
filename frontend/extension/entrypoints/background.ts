@@ -19,6 +19,7 @@ import {
 import { ServerConnection, type ConnectionStatus } from '@/lib/server-connection';
 import { FOMO_DOM_STORAGE_KEY } from '@/lib/fomo-dom-config';
 import { hasFeature, loadRelease, RELEASE_STORAGE_KEY, toRelease } from '@/lib/release';
+import type { QuickTradeReply, QuickTradeRequest, QuickTradeResult } from '@/lib/quick-trade';
 import type { FomoHealthMessage } from '@/lib/fomo-health-watch';
 import type { SpotTradeMessage } from '@/lib/fomo-spot-watch';
 import { XLatestService } from '@/lib/x-latest';
@@ -76,6 +77,8 @@ export default defineBackground({
     let detectedUsername: string | null = null;
     let detectedUserId: string | null = null;
     const orders = new Map<string, Order>();
+    /** Quick trades waiting for their outcome: order id → the fomo tab whose button was tapped. */
+    const quickTabs = new Map<string, number>();
     const ticks: Record<string, PriceTick> = {};
     const ports = new Set<Browser.runtime.Port>();
 
@@ -124,6 +127,12 @@ export default defineBackground({
         const sound = soundForUpdate(orders.get(o.id), o);
         orders.set(o.id, o);
         push();
+        const tabId = quickTabs.get(o.id);
+        if (tabId !== undefined && (o.status === 'filled' || o.status === 'failed' || o.status === 'unknown' || o.status === 'cancelled')) {
+          quickTabs.delete(o.id);
+          const result: QuickTradeResult = { type: 'quick.result', orderId: o.id, status: o.status, error: o.lastError };
+          void browser.tabs.sendMessage(tabId, result).catch(() => undefined); // the tab may be gone
+        }
         if (sound) void playSound(sound).catch((err: unknown) => console.error('[limit] sound failed', err));
       },
       onTick: (t) => { ticks[t.mint] = t; push(); },
@@ -214,7 +223,21 @@ export default defineBackground({
     let lastLayoutOk: boolean | null = null;
     let lastLayoutFailAt = 0;
     let trading = false;
-    browser.runtime.onMessage.addListener((msg: unknown, sender) => {
+    browser.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
+      const quick = msg as Partial<QuickTradeRequest> | undefined;
+      if (quick?.type === 'fomo.quick') {
+        // A quick Buy/Sell button: place a market order; the tab is told the outcome when it finishes.
+        const tabId = sender.tab?.id;
+        void (async (): Promise<QuickTradeReply> => {
+          if (!hasFeature(await loadRelease(), 'quickTrade')) return { ok: false, error: 'Quick trades arrive in limit v2.0.0' };
+          if (typeof quick.mint !== 'string' || (quick.side !== 'buy' && quick.side !== 'sell') || !quick.amount) return { ok: false, error: 'Bad request' };
+          const order = (await conn.request('order.create', { order: { kind: 'market', mint: quick.mint, side: quick.side, amount: quick.amount } })) as Order;
+          if (tabId !== undefined) quickTabs.set(order.id, tabId);
+          if (quickTabs.size > 200) quickTabs.delete(quickTabs.keys().next().value!);
+          return { ok: true, orderId: order.id };
+        })().then(sendResponse, (err: unknown) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) } satisfies QuickTradeReply));
+        return true; // answered asynchronously
+      }
       const spot = msg as Partial<SpotTradeMessage> | undefined;
       if (spot?.type === 'fomo.spot') {
         // limit's own trades show the same toast: only the user's manual trades are reported.

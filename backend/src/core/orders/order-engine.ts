@@ -131,6 +131,16 @@ export class OrderEngine {
     this.publish(order);
     // Only the new order needs checking against the latest price; the others were checked when that tick arrived.
     const tick = this.lastTick.get(order.mint);
+    if (order.kind === 'market') {
+      // A quick trade goes straight to the account's queue, with or without a price yet.
+      const t = this.store.transition(order.id, ['open'], 'triggered', { triggeredAtValue: tick ? metricValue(order, tick) : null });
+      if (t) {
+        this.publish(t);
+        this.enqueue(t);
+        void this.pump(userId);
+      }
+      return t ?? order;
+    }
     if (tick && this.triggerIfMet(order, tick)) void this.pump(userId);
     return order;
   }

@@ -12,7 +12,7 @@ The public gets limit in versions, as if it is being built live; friends get eve
 | 1.2.0 | The token's latest X post | Built, hidden |
 | 1.3.0 | Which launchpad a token came from | Built, early access only (2026-09-28) |
 | 1.4.0 | Dev holdings, top 10 holders' share | Built, early access only (2026-09-28) |
-| 2.0.0 | Quick Buy/Sell buttons under fomo Feed posts and in Alerts (trade right away; presets editable in the extension) | To build |
+| 2.0.0 | Quick Buy/Sell buttons under fomo Feed posts and in Alerts (trade right away; presets editable in the extension) | Built, early access only (2026-09-28) |
 
 Versions renamed to major.minor.patch on 2026-09-28 (were 1.0 / 1.2 / 1.7 / 1.8 / 1.9).
 

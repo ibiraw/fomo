@@ -1,7 +1,8 @@
 /**
  * @file fomo.content.ts
  * @description Content script on fomo.family. Answers readiness pings, executes trades sent by the background
- *              worker on the current token page, and reports the user's wallet addresses read from fomo's storage.
+ *              worker on the current token page, reports the user's wallet addresses read from fomo's storage, and
+ *              (v2.0.0) keeps the quick Buy/Sell buttons on fomo's Feed and Alerts items.
  * @author Reborn1987
  */
 
@@ -12,6 +13,8 @@ import { FomoHealthWatcher, type FomoHealthMessage } from '@/lib/fomo-health-wat
 import { SpotTradeWatcher, titleSymbol, type SpotTradeMessage } from '@/lib/fomo-spot-watch';
 import type { WalletsDetectedMessage } from '@/lib/messages';
 import { keyFromPath, tokenPath } from '@/lib/token-key';
+import { DEFAULT_QUICK_PRESETS, QUICK_PRESETS_KEY, QuickTradeButtons, toQuickPresets, type QuickPresets, type QuickTradeReply, type QuickTradeResult } from '@/lib/quick-trade';
+import { hasFeature, loadRelease, onReleaseChange } from '@/lib/release';
 import { executeTrade } from '@/lib/trade';
 import type { ExecutionResult, TradeRequest } from '@/lib/types';
 
@@ -72,7 +75,12 @@ export default defineContentScript({
         return false;
       }
     };
-    browser.runtime.onMessage.addListener((msg: ContentMessage, _sender, sendResponse) => {
+    startQuickTrade();
+    browser.runtime.onMessage.addListener((msg: ContentMessage | QuickTradeResult, _sender, sendResponse) => {
+      if (msg.type === 'quick.result') {
+        quickButtons?.finish(msg);
+        return false;
+      }
       if (msg.type === 'fomo.ping') {
         sendResponse({ onMint: onMintPage(msg.mint) } satisfies PingReply);
         return false;
@@ -92,6 +100,49 @@ export default defineContentScript({
     for (const delayMs of [0, 5_000, 30_000]) setTimeout(reportWallets, delayMs);
   },
 });
+
+/** The quick Buy/Sell buttons (null until started). */
+let quickButtons: QuickTradeButtons | null = null;
+
+/**
+ * Quick Buy/Sell buttons (v2.0.0) on fomo's Feed and Alerts items: kept up to date on page changes while the account's
+ * version has them; removed when it doesn't. Amounts follow the presets set in the popup.
+ */
+function startQuickTrade(): void {
+  let presets: QuickPresets = DEFAULT_QUICK_PRESETS;
+  let enabled = false;
+  const buttons = new QuickTradeButtons({
+    doc: document,
+    presets: () => presets,
+    send: (req) => browser.runtime.sendMessage(req) as Promise<QuickTradeReply>,
+  });
+  quickButtons = buttons;
+  buttons.clear(); // buttons left by an older copy of limit (before an update) no longer work
+  let pending: ReturnType<typeof setTimeout> | null = null;
+  const schedule = (): void => {
+    if (!enabled || pending) return;
+    pending = setTimeout(() => { pending = null; buttons.scan(); }, 250);
+  };
+  const observer = new MutationObserver(schedule);
+  const apply = (on: boolean): void => {
+    enabled = on;
+    if (on) {
+      observer.observe(document.body, { childList: true, subtree: true });
+      schedule();
+    } else {
+      observer.disconnect();
+      buttons.clear();
+    }
+  };
+  void loadRelease().then((r) => apply(hasFeature(r, 'quickTrade')));
+  onReleaseChange((r) => apply(hasFeature(r, 'quickTrade')));
+  void browser.storage.local.get(QUICK_PRESETS_KEY).then((s) => { presets = toQuickPresets(s[QUICK_PRESETS_KEY]); });
+  browser.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !(QUICK_PRESETS_KEY in changes)) return;
+    presets = toQuickPresets(changes[QUICK_PRESETS_KEY]!.newValue);
+    if (enabled) { buttons.clear(); schedule(); } // redraw with the new amounts
+  });
+}
 
 /** Sends the user's fomo wallet addresses, username and user id to the background when any are found. */
 function reportWallets(): void {
