@@ -1,14 +1,15 @@
 /**
  * @file token-line.test.ts
- * @description The entry's token line: reading its token, adding the ticker (cleaned, once, only there), the enricher
- *              keeping entries in order and giving up on slow lookups, and Telegram's short linked address.
+ * @description The entry's token line: reading its token, finishing it with the ticker and name (cleaned, once, only
+ *              there) and the full address on its own line, the labeler keeping entries in order and giving up on slow
+ *              lookups, and how the finished line reads in Telegram.
  * @author Reborn1987
  */
 
 import { describe, expect, it } from 'vitest';
 
 import { telegramHtml } from '../../src/core/monitoring/telegram-format.js';
-import { cleanTicker, TickerEnricher, tokenKeyOfEntry, withTicker } from '../../src/core/monitoring/token-line.js';
+import { cleanName, cleanTicker, TokenLabeler, tokenKeyOfEntry, withTokenLabel } from '../../src/core/monitoring/token-line.js';
 
 const SOL = 'FaoGhqyKofREyNWyu2E1wYqHziLVyq8X2EqcBiWJpump';
 const EVM = '0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07';
@@ -21,28 +22,35 @@ describe('token line', () => {
     expect(tokenKeyOfEntry('🖥 server started')).toBeNull();
   });
 
-  it('adds a cleaned ticker once, only to the token line', () => {
-    expect(withTicker(entry(`💜 ${SOL}`), 'COMPUTE')).toBe(entry(`💜 ${SOL} - $COMPUTE`));
-    expect(withTicker(entry(`💜 ${SOL} - $COMPUTE`), 'OTHER')).toBe(entry(`💜 ${SOL} - $COMPUTE`));
-    expect(withTicker(entry(`💜 ${SOL}`), null)).toBe(entry(`💜 ${SOL}`));
-    expect(cleanTicker('<b>PEPE</b> 🐸')).toBe('bPEPEb');
-    expect(cleanTicker('🐸')).toBeNull();
-    expect(cleanTicker('태리')).toBe('태리');
+  it('finishes it with the ticker and name, and the full address on the next line', () => {
+    expect(withTokenLabel(entry(`💜 ${SOL}`), { symbol: 'COMPUTE', name: 'Compute Network' })).toBe(entry(`💜 $COMPUTE Compute Network\n${SOL}`));
+    expect(withTokenLabel(entry(`💙 ${EVM}`), { symbol: 'PEPE', name: 'pepe' })).toBe(entry(`💙 $PEPE\n${EVM}`)); // name = ticker
+    const done = withTokenLabel(entry(`💜 ${SOL}`), { symbol: 'A', name: 'B' });
+    expect(withTokenLabel(done, { symbol: 'X', name: 'Y' })).toBe(done); // only once
+    expect(withTokenLabel(entry(`💜 ${SOL}`), null)).toBe(entry(`💜 ${SOL}`));
+    expect(withTokenLabel(entry(`💜 ${SOL}`), { symbol: '🐸', name: 'Frog' })).toBe(entry(`💜 ${SOL}`)); // unusable ticker
   });
 
-  it('keeps entries in order and records without a ticker when the lookup is slow or fails', async () => {
+  it('cleans tickers and names of markup', () => {
+    expect(cleanTicker('<b>PEPE</b> 🐸')).toBe('bPEPEb');
+    expect(cleanTicker('태리')).toBe('태리');
+    expect(cleanName('  **Pepe**   @the   Frog <3 ')).toBe('Pepe the Frog 3');
+    expect(cleanName('🐸')).toBeNull();
+  });
+
+  it('keeps entries in order and records them as they are when the lookup is slow or fails', async () => {
     const recorded: string[] = [];
-    const lookups: Record<string, () => Promise<string | null>> = {
-      [SOL]: () => new Promise((r) => setTimeout(() => r('SLOW'), 200)),
-      [`base:${EVM}`]: async () => 'FAST',
+    const lookups: Record<string, () => Promise<{ symbol: string; name: string } | null>> = {
+      [SOL]: () => new Promise((r) => setTimeout(() => r({ symbol: 'SLOW', name: 'Slow' }), 200)),
+      [`base:${EVM}`]: async () => ({ symbol: 'FAST', name: 'Fast One' }),
     };
-    const t = new TickerEnricher<'order'>((k) => lookups[k]!(), (_k, text) => recorded.push(text), 30);
+    const t = new TokenLabeler<'order'>((k) => lookups[k]!(), (_k, text) => recorded.push(text), 30);
     t.push('order', entry(`💜 ${SOL}`));
     t.push('order', entry(`💙 ${EVM}`));
     t.push('order', 'no token here');
     await t.flush();
-    expect(recorded).toEqual([entry(`💜 ${SOL}`), entry(`💙 ${EVM} - $FAST`), 'no token here']);
-    const failing = new TickerEnricher<'order'>(async () => { throw new Error('rpc'); }, (_k, text) => recorded.push(text));
+    expect(recorded).toEqual([entry(`💜 ${SOL}`), entry(`💙 $FAST Fast One\n${EVM}`), 'no token here']);
+    const failing = new TokenLabeler<'order'>(async () => { throw new Error('rpc'); }, (_k, text) => recorded.push(text));
     failing.push('order', entry(`💜 ${SOL}`));
     await failing.flush();
     expect(recorded.at(-1)).toBe(entry(`💜 ${SOL}`));
@@ -50,9 +58,8 @@ describe('token line', () => {
 });
 
 describe('telegramHtml token line', () => {
-  it('shows a short address linking to the token on fomo, then the ticker', () => {
-    expect(telegramHtml(`💜 ${SOL} - $COMPUTE`)).toBe(`💜 <a href="https://fomo.family/tokens/solana/${SOL}">FaoGhq…WJpump</a> - $COMPUTE`);
-    expect(telegramHtml(`💚 ${EVM}`)).toBe(`💚 <a href="https://fomo.family/tokens/robinhood/${EVM}">0x9500…e8db07</a>`);
-    expect(telegramHtml(`from ${SOL}`)).toBe(`from <code>${SOL}</code>`); // other addresses stay tap-to-copy
+  it('shows the ticker and name, and the full address tap-to-copy', () => {
+    expect(telegramHtml(`💜 $COMPUTE Compute Network\n${SOL}`)).toBe(`💜 $COMPUTE Compute Network\n<code>${SOL}</code>`);
+    expect(telegramHtml(`💚 ${EVM}`)).toBe(`💚 <code>${EVM}</code>`); // no ticker found: the address alone
   });
 });

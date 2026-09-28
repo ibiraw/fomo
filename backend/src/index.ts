@@ -26,7 +26,7 @@ import { ErrorLog, errorHeadline } from './core/monitoring/error-log.js';
 import { LayoutAlerts } from './core/monitoring/layout-alerts.js';
 import { OutageTracker } from './core/monitoring/outage-tracker.js';
 import { describeOrder } from './core/monitoring/describe.js';
-import { TickerEnricher } from './core/monitoring/token-line.js';
+import { TokenLabeler } from './core/monitoring/token-line.js';
 import { AccountService } from './core/accounts/account-service.js';
 import { WalletConfirmers } from './core/accounts/wallet-confirmers.js';
 import { ChainRouterConfirmer } from './core/chains/chain-router-confirmer.js';
@@ -133,9 +133,12 @@ async function main(): Promise<void> {
     for (const old of readdirSync(layoutDir).sort().slice(0, -50)) rmSync(join(layoutDir, old), { force: true });
     return file;
   });
-  // Monitoring entries get the token's ticker ("💜 FaoGhq…WJpump - $COMPUTE"), in order, before they're recorded.
+  // Monitoring entries get the token's ticker and name ("💜 $COMPUTE Compute" + the full address), in order.
   const tokenInfo = new TokenInfoService(accounts, http, Date.now, erc20ByChain);
-  const tickers = new TickerEnricher((key) => tokenInfo.getInfo(key).then((i) => i.symbol), (kind: Parameters<typeof relay.record>[0], text) => relay.record(kind, text));
+  const tickers = new TokenLabeler(
+    (key) => tokenInfo.getInfo(key).then((i) => ({ symbol: i.symbol, name: i.name })),
+    (kind: Parameters<typeof relay.record>[0], text) => relay.record(kind, text),
+  );
   const gateway = new WsGateway(
     {
       host: cfg.gatewayHost, port: cfg.gatewayPort, execTimeoutMs: cfg.execTimeoutMs, tickThrottleMs: 250, pingIntervalMs: 20_000,
