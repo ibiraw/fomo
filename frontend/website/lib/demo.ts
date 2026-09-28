@@ -17,7 +17,7 @@ export const TARGET_MC = START_MC * (1 + TARGET_PCT / 100);
 export const STEPS = [
   { at: 0, title: 'Open the Limit tab', body: "It sits right next to fomo's own Buy and Sell." },
   { at: 2_000, title: 'Drag to your target', body: '−30% from the live market cap. The order type is worked out for you.' },
-  { at: 4_600, title: 'Place it and walk away', body: 'The order waits on your own PC, watching the price on-chain.' },
+  { at: 4_600, title: 'Place it and walk away', body: 'The order waits on the limit server, watching the price on-chain. Just keep fomo open.' },
   { at: 6_000, title: 'Price hits the target', body: 'Market cap drops to $29.4K — the order triggers the same second.' },
   { at: 10_800, title: 'limit clicks Buy', body: "It uses fomo's own Buy button, in your own logged-in tab." },
   { at: 12_800, title: 'Confirmed on-chain', body: 'Your wallet balance changed — filled in about 2.6 seconds.' },

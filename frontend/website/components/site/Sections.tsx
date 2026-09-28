@@ -107,7 +107,7 @@ export function SectionHead({ eyebrow, title, sub }: { eyebrow: string; title: s
 
 const FEATURES = [
   { icon: MousePointerClick, title: 'A native Limit tab', body: "Sits next to fomo's Buy and Sell. Presets, a −100% to +100% market-cap slider, and the order type worked out for you." },
-  { icon: Radio, title: 'Live on-chain prices', body: 'Reads pump.fun, PumpSwap, Raydium CPMM and bonk.fun curves straight from Solana — sub-second. Anything else falls back to Jupiter.' },
+  { icon: Radio, title: 'Live on-chain prices', body: 'Reads launchpad curves and DEX pools straight from the chain on Solana, Base, Ethereum, BNB, Robinhood and Arc — sub-second. Anything else falls back to a slower price, clearly marked.' },
   { icon: CircleCheck, title: 'Confirmed on-chain', body: 'A fill only counts when your wallet balance actually changes — no guessing from the page.' },
   { icon: Timer, title: "The token's last post", body: "See how long ago the token's X account last posted — green when fresh, red when it's gone quiet — with a preview." },
   { icon: BellOff, title: 'Auto-cancel', body: 'Sold out of a token? Its leftover take-profits and stop-losses cancel themselves.' },
@@ -133,9 +133,9 @@ export function Features() {
 }
 
 const PARTS = [
-  { icon: Layers, name: 'Chrome extension', where: 'in your browser', points: ['Adds the Limit tab to fomo', "Clicks fomo's own Buy / Sell", 'Reads the token’s latest X post'] },
-  { icon: Activity, name: 'Order engine', where: 'on your own PC', points: ['Stores your orders', 'Watches prices, triggers orders', 'Confirms fills from your wallet'] },
-  { icon: Radio, name: 'Solana', where: 'public blockchain', points: ['Live pool reserves', 'Your token balances', 'No keys, read-only'] },
+  { icon: Layers, name: 'Browser extension', where: 'in Chrome or Brave', points: ['Adds the Limit tab to fomo', "Clicks fomo's own Buy / Sell", 'Reads the token’s latest X post'] },
+  { icon: Activity, name: 'limit server', where: 'always on', points: ['Keeps your orders', 'Watches live prices, triggers orders', 'Confirms fills from your wallet'] },
+  { icon: Radio, name: 'Blockchains', where: 'public, read-only', points: ['Solana, Base, Ethereum, BNB, Robinhood, Arc', 'Live pool prices and your balances', 'No keys, read-only'] },
 ] as const;
 
 /** Architecture overview. */
@@ -143,7 +143,7 @@ export function HowItWorks() {
   return (
     <section id="how" className="border-y bg-card/30">
       <div className="mx-auto max-w-6xl px-5 py-24">
-        <SectionHead eyebrow="How it works" title="Three parts, all on your side" sub="Nothing runs on someone else's server. Your orders, your browser, your machine." />
+        <SectionHead eyebrow="How it works" title="Three parts, no keys" sub="The server watches prices around the clock. Your own fomo tab does the clicking, so your keys never leave fomo." />
         <div className="grid items-stretch gap-4 md:grid-cols-[1fr_auto_1fr_auto_1fr]">
           {PARTS.map((p, i) => (
             <div key={p.name} className="contents">
@@ -170,7 +170,7 @@ export function HowItWorks() {
           </div>
           <div className="flex gap-3 rounded-xl border bg-background p-4">
             <ShieldCheck className="mt-0.5 size-5 shrink-0 text-buy" aria-hidden />
-            <p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">Locked to your machine.</span> Only the paired extension can talk to your order engine.</p>
+            <p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">Anonymous account.</span> No email or sign-up: the extension makes a private account key on install. Its backup code moves you to another browser.</p>
           </div>
         </div>
       </div>
@@ -206,8 +206,8 @@ export function Holders() {
 const FAQ = [
   ['Is this made by fomo?', 'No. limit is an independent, unofficial tool. It is not affiliated with, endorsed by or connected to fomo.family or Fomo Labs.'],
   ['Do you need my private keys or seed phrase?', 'Never. limit clicks the Buy and Sell buttons in your own logged-in fomo tab, exactly like you would. It only reads public blockchain data.'],
-  ['Which tokens work?', 'Solana tokens on pump.fun (curve and PumpSwap), bonk.fun / Raydium LaunchLab curves and Raydium CPMM pools are priced live on-chain. Other tokens use Jupiter prices, a few seconds behind — the app tells you when that happens.'],
-  ['What do I need to run it?', 'Chrome with the extension, the order engine running on your computer, and a Solana RPC endpoint. Chrome must stay open with a logged-in fomo tab for orders to fire.'],
+  ['Which tokens work?', "On Solana: pump.fun (curve and PumpSwap), bonk.fun / Raydium LaunchLab, Raydium CPMM and fomo's own launchpad pools are priced live on-chain. On Base, Ethereum, BNB, Robinhood and Arc: four.meme and flap.sh curves and Uniswap / PancakeSwap pools are read live too. Anything else uses a slower backup price — the app tells you when that happens."],
+  ['What do I need to run it?', 'Chrome or Brave with the extension and a logged-in fomo tab. The browser must stay open for orders to fire: the server watches prices, but only your fomo tab can click Buy or Sell.'],
   ['Is automating fomo allowed?', "fomo's terms don't allow automated access, so using a tool like this could get your fomo account flagged. Use it knowing that risk."],
   ['Can orders fail?', 'Yes — for example on high slippage. Slippage failures are retried; anything limit cannot confirm is marked "Check fomo" instead of guessing.'],
 ] as const;
