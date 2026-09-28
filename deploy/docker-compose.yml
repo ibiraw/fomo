@@ -30,3 +30,6 @@ services:
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in deploy/.env}
     depends_on: [server, web]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

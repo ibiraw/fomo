@@ -1,6 +1,7 @@
 # limit order server — multi-stage build (Reborn1987)
 # Build: TypeScript → dist/. Run: production dependencies only, as the unprivileged "node" user.
-FROM node:22-slim AS build
+# Alpine: every runtime dependency is plain JavaScript (no native modules), so the smaller base works.
+FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -8,7 +9,7 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
-FROM node:22-slim
+FROM node:22-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 COPY package.json package-lock.json ./

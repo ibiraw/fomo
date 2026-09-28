@@ -9,4 +9,4 @@ Live on a DigitalOcean droplet (user `deploy`, folder `~/limit/deploy`), reached
 | `nginx.conf` | Website routing (`/policies` → `policies.html`), asset caching, security headers |
 | `server.env.example` | RPC URLs etc. → copy to `server.env` (git-ignored) |
 | `.env.example` | `TUNNEL_TOKEN` → copy to `.env` (git-ignored) |
-| `backup.sh` | Daily consistent SQLite backup of `data/orders.db` (keeps 14 days) |
+| `backup.sh` | Daily consistent SQLite backup of `data/orders.db` (keeps 14 days) plus `access.json`; also prunes Docker build cache older than 3 days |

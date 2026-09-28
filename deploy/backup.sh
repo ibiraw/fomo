@@ -11,3 +11,5 @@ gzip -f "$OUT"
 # Who sees which version, early access and free-until dates (small; kept next to the database copy).
 [ -f "$HOME/limit/deploy/data/access.json" ] && cp "$HOME/limit/deploy/data/access.json" "$DIR/access-$(date -u +%Y%m%d-%H%M).json"
 find "$DIR" \( -name 'orders-*.db.gz' -o -name 'access-*.json' \) -mtime +14 -delete
+# Housekeeping: each server rebuild leaves Docker build cache behind (hundreds of MB); drop what's over 3 days old.
+docker builder prune -f --filter until=72h >/dev/null 2>&1 || true
