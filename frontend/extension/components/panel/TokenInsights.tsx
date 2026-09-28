@@ -83,8 +83,8 @@ function MetricsLines({ mint, send }: { mint: string; send: SendFn }) {
         </>,
       )}
       {m.devHoldsPct === null
-        ? row(devIcon, 'Dev', <span className="text-muted-foreground">Not recorded by this launchpad</span>)
-        : row(devIcon, 'Dev holds', <Share pct={m.devHoldsPct} warnAt={5} badAt={15} />)}
+        ? row(devIcon, 'Dev', <span className="text-muted-foreground">Unknown (launchpad not recognised)</span>)
+        : row(devIcon, m.devName ? `Dev (${m.devName}) holds` : 'Dev holds', <Share pct={m.devHoldsPct} warnAt={5} badAt={15} />)}
     </>
   );
 }

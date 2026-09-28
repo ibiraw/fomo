@@ -9,7 +9,7 @@ import { KitSolanaAccountsAdapter } from '../src/adapters/solana/kit-solana-acco
 import { loadConfig } from '../src/config.js';
 import type { EvmChain } from '../src/core/chains/token-key.js';
 import { PoolDirectory } from '../src/core/pricing/pool-directory.js';
-import { pumpCreator } from '../src/core/tokens/launchpad-service.js';
+import { solanaDev } from '../src/core/tokens/launchpad-service.js';
 import { DEFAULT_EVM_INDEX, EVM_SCAN_CHUNKS, EvmHolderIndex, SolanaTokenMetrics, TokenMetricsService, type TokenMetricsSource } from '../src/core/tokens/token-metrics.js';
 import { buildEvmChain, type EvmChainParts } from '../src/evm-chain.js';
 
@@ -21,7 +21,7 @@ const log = (ctx: string) => (e: unknown): void => console.error(ctx, e instance
 const accounts = new KitSolanaAccountsAdapter(cfg.rpcHttp, cfg.rpcWss, log('rpc'));
 const evm = new Map<EvmChain, EvmChainParts>([...cfg.evm].map(([chain, urls]) => [chain, buildEvmChain(chain, urls, new PoolDirectory(http), http, log)]));
 const sources = new Map<string, TokenMetricsSource>([
-  ['solana', new SolanaTokenMetrics(accounts, pumpCreator(accounts))],
+  ['solana', new SolanaTokenMetrics(accounts, solanaDev(accounts, new PoolDirectory(http)))],
   ...[...evm].map(([chain, p]) => [chain, new EvmHolderIndex(p.rpc, p.erc20, { ...DEFAULT_EVM_INDEX, maxChunks: EVM_SCAN_CHUNKS[chain] })] as const),
 ]);
 const svc = new TokenMetricsService((chain) => sources.get(chain) ?? null);
@@ -31,7 +31,7 @@ for (const key of keys) {
   try {
     const m = await svc.get(key);
     const top = m.topTenPct === null ? '—' : `${m.topTenPct.toFixed(2)}%`;
-    const dev = m.devWallet ? `${m.devWallet.slice(0, 8)}… holds ${m.devHoldsPct?.toFixed(2)}%` : 'dev unknown';
+    const dev = m.devWallet ? `${m.devName ?? `${m.devWallet.slice(0, 8)}…`} holds ${m.devHoldsPct?.toFixed(2)}%` : 'dev unknown';
     console.log(key.padEnd(52), `top10 ${top}`.padEnd(14), dev.padEnd(34), m.note ?? '', `(${Date.now() - t0} ms)`);
   } catch (err) {
     console.log(key.padEnd(52), 'ERROR', err instanceof Error ? err.message.split('\n')[0] : err);

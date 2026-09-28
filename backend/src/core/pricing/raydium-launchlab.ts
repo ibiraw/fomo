@@ -21,7 +21,7 @@ export const LAUNCHLAB_TRADING = 0;
 /** GlobalConfig.curve_type: 0 = constant product (the only kind priced here). */
 export const CURVE_CONSTANT_PRODUCT = 0;
 
-const MIN_LEN = 333;
+const MIN_LEN = 365; // through the creator field
 const dec = getAddressDecoder();
 
 /** Fields needed for pricing. */
@@ -36,6 +36,8 @@ export interface LaunchLabPool {
   readonly globalConfig: Address;
   /** The launch platform built on LaunchLab (bonk.fun, stonkfun, …). */
   readonly platformConfig: Address;
+  /** Who launched it (matches the launch transaction's signer, checked on live launches 2026-09-28). */
+  readonly creator: Address;
   readonly baseMint: Address;
   readonly quoteMint: Address;
 }
@@ -58,6 +60,7 @@ export function decodeLaunchLabPool(data: Uint8Array): LaunchLabPool {
     realQuote: u64(61),
     globalConfig: dec.decode(data.subarray(141, 173)),
     platformConfig: dec.decode(data.subarray(173, 205)),
+    creator: dec.decode(data.subarray(333, 365)),
     baseMint: dec.decode(data.subarray(205, 237)),
     quoteMint: dec.decode(data.subarray(237, 269)),
   };

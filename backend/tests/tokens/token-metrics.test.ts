@@ -7,12 +7,14 @@
  * @author Reborn1987
  */
 
-import { generateKeyPairSigner, type Address } from '@solana/kit';
+import { generateKeyPairSigner, getAddressEncoder, type Address } from '@solana/kit';
 import { describe, expect, it } from 'vitest';
 
 import { ERC20_ABI, Erc20Reader, TRANSFER_TOPIC } from '../../src/core/evm/erc20.js';
 import { deriveBondingCurve } from '../../src/core/pricing/addresses.js';
-import { pumpCreator } from '../../src/core/tokens/launchpad-service.js';
+import { FOMO_LAUNCH_WALLET, pumpCreator, solanaDev } from '../../src/core/tokens/launchpad-service.js';
+import type { PoolDirectory } from '../../src/core/pricing/pool-directory.js';
+import { LAUNCHLAB_POOL_DISCRIMINATOR } from '../../src/core/pricing/raydium-launchlab.js';
 import { EvmHolderIndex, pctOf, SolanaTokenMetrics, TokenMetricsService, type TokenMetrics } from '../../src/core/tokens/token-metrics.js';
 import type { EvmLog, Hex } from '../../src/ports/evm-rpc.js';
 import { curveBytes, FakeAccounts } from '../helpers/fake-accounts.js';
@@ -23,6 +25,16 @@ const MINT = 'BQYSLwLtTGArYi89xqgsTxFcYLfLJerfwM1TsgZKzray';
 /** n fresh wallet addresses (on the ed25519 curve, like real wallets). */
 async function wallets(n: number): Promise<string[]> {
   return Promise.all(Array.from({ length: n }, async () => (await generateKeyPairSigner()).address as string));
+}
+
+/** Minimal Meteora DBC VirtualPool bytes: discriminator, creator, base mint. */
+async function meteoraPoolBytes(baseMint: string, creator: string): Promise<Uint8Array> {
+  const enc = getAddressEncoder();
+  const b = new Uint8Array(424);
+  b.set([213, 224, 5, 209, 98, 69, 119, 92], 0);
+  b.set(enc.encode(creator as Address), 104);
+  b.set(enc.encode(baseMint as Address), 136);
+  return b;
 }
 
 describe('pctOf', () => {
@@ -48,7 +60,7 @@ describe('SolanaTokenMetrics', () => {
     ]);
     const m = await new SolanaTokenMetrics(accounts, async () => null).metrics(MINT);
     // top 10 of 35, 29..21 → 35 + 225 = 260 of 1000
-    expect(m).toEqual({ topTenPct: 26, topHoldersPct: [3.5, 2.9, 2.8, 2.7, 2.6], devWallet: null, devHoldsPct: null, note: 'dev-unknown' });
+    expect(m).toEqual({ topTenPct: 26, topHoldersPct: [3.5, 2.9, 2.8, 2.7, 2.6], devWallet: null, devName: null, devHoldsPct: null, note: 'dev-unknown' });
   });
 
   it("takes pump.fun's recorded creator as the dev and reports what it holds", async () => {
@@ -61,8 +73,29 @@ describe('SolanaTokenMetrics', () => {
     accounts.holders.set(MINT, [{ owner: dev!, amount: 40n }]);
     expect(await pumpCreator(accounts)(MINT)).toBe(dev);
     expect(await pumpCreator(accounts)('Hx4U8tVw9vT3kJ3ZqA4W5uJ9i1YV2HhT8f1rXz7Cq1Pd')).toBeNull();
-    const m = await new SolanaTokenMetrics(accounts, pumpCreator(accounts)).metrics(MINT);
-    expect(m).toEqual({ topTenPct: 4, topHoldersPct: [4], devWallet: dev, devHoldsPct: 4, note: null });
+    const noPools = { find: async () => [] } as unknown as PoolDirectory;
+    const m = await new SolanaTokenMetrics(accounts, solanaDev(accounts, noPools)).metrics(MINT);
+    expect(m).toEqual({ topTenPct: 4, topHoldersPct: [4], devWallet: dev, devName: null, devHoldsPct: 4, note: null });
+  });
+
+  it("takes a LaunchLab pool's creator (stonkfun) and a Meteora DBC pool's creator, naming fomo's own wallet", async () => {
+    const accounts = new FakeAccounts();
+    const enc = getAddressEncoder();
+    const [labDev] = await wallets(1);
+    const lab = new Uint8Array(429);
+    lab.set(LAUNCHLAB_POOL_DISCRIMINATOR, 0);
+    lab.set(enc.encode(MINT as Address), 205);
+    lab.set(enc.encode(labDev as Address), 333);
+    accounts.data.set('3Vc5zM8nzPuvjxXXrTXbY6K1XCxGRB6WFojxQDLddCjN', lab);
+    const noPools = { find: async () => [] } as unknown as PoolDirectory;
+    expect(await solanaDev(accounts, noPools)(MINT)).toEqual({ wallet: labDev, name: null });
+
+    const OTHER = 'ZrueWB1YvjruJpTGiJSYYfyuL71FZeeSUwJY1ZPeyes';
+    const dbc = await meteoraPoolBytes(OTHER, FOMO_LAUNCH_WALLET);
+    accounts.data.set('DbcPool111111111111111111111111111111111111', dbc);
+    const listed = { find: async () => [{ dexId: 'meteoradbc', address: 'DbcPool111111111111111111111111111111111111' }] } as unknown as PoolDirectory;
+    expect(await solanaDev(accounts, listed)(OTHER)).toEqual({ wallet: FOMO_LAUNCH_WALLET, name: 'fomo' });
+    expect(await solanaDev(accounts, noPools)('Hx4U8tVw9vT3kJ3ZqA4W5uJ9i1YV2HhT8f1rXz7Cq1Pd')).toBeNull();
   });
 });
 
@@ -104,7 +137,7 @@ describe('EvmHolderIndex', () => {
     ];
     const m = await index.metrics(TOKEN);
     // wallets: 1 → 200, 2 → 150, dev → 60 ; pool (contract) and 0x…dead left out
-    expect(m).toEqual({ topTenPct: 41, topHoldersPct: [20, 15, 6], devWallet: DEV, devHoldsPct: 6, note: null });
+    expect(m).toEqual({ topTenPct: 41, topHoldersPct: [20, 15, 6], devWallet: DEV, devName: null, devHoldsPct: 6, note: null });
     expect(rpc.getLogsCalls.length).toBeLessThanOrEqual(5);
   });
 
@@ -112,7 +145,7 @@ describe('EvmHolderIndex', () => {
     const { rpc, index } = evmSetup({ maxChunks: 2 });
     rpc.head = 1_000n;
     rpc.history = [transfer(ZERO, addr(1), 1_000n, 10n), transfer(addr(1), addr(2), 5n, 950n)];
-    expect(await index.metrics(TOKEN)).toEqual({ topTenPct: null, topHoldersPct: [], devWallet: null, devHoldsPct: null, note: 'too-old' });
+    expect(await index.metrics(TOKEN)).toEqual({ topTenPct: null, topHoldersPct: [], devWallet: null, devName: null, devHoldsPct: null, note: 'too-old' });
     expect(rpc.getLogsCalls).toHaveLength(2);
   });
 
@@ -154,7 +187,7 @@ describe('TokenMetricsService', () => {
   it('routes by chain, caches for 20 s, shares lookups in flight, and says when a chain has no metrics', async () => {
     let t = 0;
     let calls = 0;
-    const value: TokenMetrics = { topTenPct: 12, topHoldersPct: [5], devWallet: null, devHoldsPct: null, note: 'dev-unknown' };
+    const value: TokenMetrics = { topTenPct: 12, topHoldersPct: [5], devWallet: null, devName: null, devHoldsPct: null, note: 'dev-unknown' };
     const svc = new TokenMetricsService((chain) => (chain === 'solana' ? { metrics: async () => { calls++; return value; } } : null), () => t);
     await Promise.all([svc.get(MINT), svc.get(MINT)]);
     expect(calls).toBe(1);

@@ -21,6 +21,8 @@ const dec = getAddressDecoder();
 /** Fields needed for pricing. */
 export interface DbcPool {
   readonly config: Address;
+  /** Who launched it (the launch transaction's signer; fomo's own launches record fomo's wallet). */
+  readonly creator: Address;
   readonly baseMint: Address;
   /** Q64.64 square root of the price (quote per base, in raw units). */
   readonly sqrtPrice: bigint;
@@ -38,6 +40,7 @@ export function decodeDbcPool(data: Uint8Array): DbcPool {
   const hi = dv.getBigUint64(288, true);
   return {
     config: dec.decode(data.subarray(72, 104)),
+    creator: dec.decode(data.subarray(104, 136)),
     baseMint: dec.decode(data.subarray(136, 168)),
     sqrtPrice: (hi << 64n) + lo,
     isMigrated: data[305] === 1,

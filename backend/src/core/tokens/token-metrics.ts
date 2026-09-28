@@ -3,9 +3,9 @@
  * @description v1.9 token metrics: the share of supply held by the 10 largest real holders, and how much the dev
  *              (creator) wallet holds right now. Pools, bonding curves, lockers and burn addresses are not holders:
  *                Solana — every token account of the mint (owner + amount); owners that are program addresses (off
- *                         the ed25519 curve) or the incinerator are left out, accounts of one owner are added up. The dev is
- *                         pump.fun's recorded creator; other launchpads don't record the dev reliably (fomo's own
- *                         launchpad records itself), so their dev is unknown.
+ *                         the ed25519 curve) or the incinerator are left out, accounts of one owner are added up. The dev
+ *                         is the creator the launchpad records (pump.fun, LaunchLab, Meteora DBC); fomo launches its own
+ *                         coins, so for those the dev is fomo's wallet.
  *                EVM    — a token has no holder list, so its Transfer logs are replayed from its creation (found by
  *                         scanning back from the newest block, in 10k-block chunks, up to a budget — fresh tokens fit,
  *                         old ones are "too old"), then kept up to date incrementally. Contracts are left out; the dev
@@ -19,6 +19,7 @@ import { parseTokenKey, type Chain, type EvmChain } from '../chains/token-key.js
 import { TRANSFER_TOPIC, type Erc20Reader } from '../evm/erc20.js';
 import type { EvmLog, EvmRpcPort, Hex } from '../../ports/evm-rpc.js';
 import type { SolanaAccountsPort } from '../../ports/solana-accounts.js';
+import type { Dev } from './launchpad-service.js';
 
 /** What the metrics say about one token. */
 export interface TokenMetrics {
@@ -28,6 +29,8 @@ export interface TokenMetrics {
   readonly topHoldersPct: readonly number[];
   /** The dev (creator) wallet, when known. */
   readonly devWallet: string | null;
+  /** The dev's name when it is a platform's own wallet ("fomo"), else null. */
+  readonly devName: string | null;
   /** % of supply the dev holds right now; null when the dev is unknown. */
   readonly devHoldsPct: number | null;
   /** Why something is missing: the EVM token is older than the scan window, or the launchpad doesn't record its dev. */
@@ -50,8 +53,8 @@ const INCINERATOR = '1nc1nerator11111111111111111111111111111111';
 
 /** Solana: largest token accounts → real holders; dev from the launchpad record. */
 export class SolanaTokenMetrics implements TokenMetricsSource {
-  /** @param accounts RPC @param devOf the token's dev wallet, or null when the launchpad doesn't record it */
-  constructor(private readonly accounts: SolanaAccountsPort, private readonly devOf: (mint: string) => Promise<string | null>) {}
+  /** @param accounts RPC @param devOf the token's dev, or null when its launchpad isn't known */
+  constructor(private readonly accounts: SolanaAccountsPort, private readonly devOf: (mint: string) => Promise<Dev | null>) {}
 
   /** Top-10 share and dev holdings. */
   async metrics(mint: string): Promise<TokenMetrics> {
@@ -63,11 +66,12 @@ export class SolanaTokenMetrics implements TokenMetricsSource {
     }
     const top = [...byOwner.values()].sort((x, y) => (y > x ? 1 : y < x ? -1 : 0)).slice(0, 10);
     const topTen = top.reduce((s, v) => s + v, 0n);
-    const devHolds = dev ? (byOwner.get(dev) ?? 0n) : null;
+    const devHolds = dev ? (byOwner.get(dev.wallet) ?? 0n) : null;
     return {
       topTenPct: pctOf(topTen, supply.amount),
       topHoldersPct: top.slice(0, 5).map((v) => pctOf(v, supply.amount)),
-      devWallet: dev,
+      devWallet: dev?.wallet ?? null,
+      devName: dev?.name ?? null,
       devHoldsPct: devHolds === null ? null : pctOf(devHolds, supply.amount),
       note: dev ? null : 'dev-unknown',
     };
@@ -140,7 +144,7 @@ export class EvmHolderIndex implements TokenMetricsSource {
   async metrics(address: string): Promise<TokenMetrics> {
     const token = address.toLowerCase() as Hex;
     const idx = await this.index(token);
-    if (idx === 'too-old') return { topTenPct: null, topHoldersPct: [], devWallet: null, devHoldsPct: null, note: 'too-old' };
+    if (idx === 'too-old') return { topTenPct: null, topHoldersPct: [], devWallet: null, devName: null, devHoldsPct: null, note: 'too-old' };
     const supply = await this.erc20.totalSupply(token);
     const ranked = [...idx.balances.entries()].filter(([a, v]) => v > 0n && !BURN.has(a)).sort((x, y) => (y[1] > x[1] ? 1 : y[1] < x[1] ? -1 : 0));
     const top: bigint[] = [];
@@ -158,6 +162,7 @@ export class EvmHolderIndex implements TokenMetricsSource {
       topTenPct: pctOf(topTen, supply),
       topHoldersPct: top.slice(0, 5).map((v) => pctOf(v, supply)),
       devWallet: dev,
+      devName: null,
       devHoldsPct: pctOf(idx.balances.get(dev) ?? 0n, supply),
       note: null,
     };

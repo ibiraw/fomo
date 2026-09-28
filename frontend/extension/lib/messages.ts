@@ -33,6 +33,8 @@ export interface TokenMetricsInfo {
   /** The 5 largest holders' shares (%), biggest first. */
   readonly topHoldersPct: readonly number[];
   readonly devWallet: string | null;
+  /** A platform's own wallet as the dev ("fomo" for fomo's own launches). */
+  readonly devName: string | null;
   readonly devHoldsPct: number | null;
   readonly note: 'too-old' | 'dev-unknown' | null;
 }

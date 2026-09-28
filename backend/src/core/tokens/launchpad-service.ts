@@ -70,6 +70,34 @@ export function pumpCreator(accounts: SolanaAccountsPort): (mint: string) => Pro
   return async (mint) => decodeOrNull(await accounts.getAccount(await deriveBondingCurve(mint as Address)), decodeBondingCurve)?.creator ?? null;
 }
 
+/** fomo's own launch wallet: fomo launches its coins itself, so it is their recorded creator. */
+export const FOMO_LAUNCH_WALLET = 'fomoCgze2Y3NDLT7n2iMeXnustRRzbRzKyovpT9geEe';
+
+/** A token's dev wallet, and a name when it's a platform's own wallet. */
+export interface Dev {
+  readonly wallet: string;
+  readonly name: string | null;
+}
+
+/**
+ * The dev of a Solana token from its launchpad's own record: pump.fun's curve creator, a LaunchLab pool's creator or a
+ * Meteora DBC pool's creator (both checked against the signer of real launch transactions, 2026-09-28). fomo's own
+ * launches record fomo's wallet. Null when the launchpad isn't known (or a graduated DBC pool is no longer listed).
+ */
+export function solanaDev(accounts: SolanaAccountsPort, directory: PoolDirectory): (mint: string) => Promise<Dev | null> {
+  const pump = pumpCreator(accounts);
+  const named = (wallet: string): Dev => ({ wallet, name: wallet === FOMO_LAUNCH_WALLET ? 'fomo' : null });
+  return async (mint) => {
+    const fromPump = await pump(mint);
+    if (fromPump) return named(fromPump);
+    const lab = await findLaunchLabPool(accounts, mint);
+    if (lab) return named(lab.pool.creator);
+    const listed = (await directory.find(mint)).find((p) => p.dexId === 'meteoradbc');
+    const dbc = listed ? decodeOrNull(await accounts.getAccount(listed.address), decodeDbcPool) : null;
+    return dbc && dbc.baseMint === mint ? named(dbc.creator) : null;
+  };
+}
+
 /**
  * Platforms built on LaunchLab, by their platform config (read from a pool of a token the owner knew the platform of).
  * Unknown platforms show as "Raydium LaunchLab".

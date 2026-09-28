@@ -18,7 +18,7 @@ import { SqliteActivityStoreAdapter } from './adapters/storage/sqlite-activity-s
 import { FileAccessConfigAdapter } from './adapters/config/file-access-config.adapter.js';
 import { FileFomoDomAdapter } from './adapters/config/file-fomo-dom.adapter.js';
 import { ReleaseService } from './core/releases/releases.js';
-import { launchLabDetector, LaunchpadService, meteoraDbcDetector, pumpCreator, pumpDetector } from './core/tokens/launchpad-service.js';
+import { launchLabDetector, LaunchpadService, meteoraDbcDetector, pumpDetector, solanaDev } from './core/tokens/launchpad-service.js';
 import { DEFAULT_EVM_INDEX, EVM_SCAN_CHUNKS, EvmHolderIndex, SolanaTokenMetrics, TokenMetricsService, type TokenMetricsSource } from './core/tokens/token-metrics.js';
 import { TelegramNotifierAdapter } from './adapters/telegram/telegram-notifier.adapter.js';
 import { ActivityRelay } from './core/monitoring/activity-relay.js';
@@ -193,7 +193,7 @@ async function main(): Promise<void> {
   gateway.setLaunchpads(new LaunchpadService((chain) => (chain === 'solana' ? solanaLaunchpads : evm.get(chain)?.launchpads ?? [])));
   // v1.9: top-10 holders' share and dev holdings (Solana: largest accounts; EVM: fresh tokens' transfers replayed).
   const metricsSources = new Map<string, TokenMetricsSource>([
-    ['solana', new SolanaTokenMetrics(accounts, pumpCreator(accounts))],
+    ['solana', new SolanaTokenMetrics(accounts, solanaDev(accounts, directory))],
     ...[...evm].map(([chain, p]) => [chain, new EvmHolderIndex(p.rpc, p.erc20, { ...DEFAULT_EVM_INDEX, maxChunks: EVM_SCAN_CHUNKS[chain] })] as const),
   ]);
   gateway.setTokenMetrics(new TokenMetricsService((chain) => metricsSources.get(chain) ?? null));
