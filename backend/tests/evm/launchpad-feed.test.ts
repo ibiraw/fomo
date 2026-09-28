@@ -201,6 +201,21 @@ describe('pons curve feed (a curve contract per token)', () => {
     expect(rpc.subs.find((s) => s.filter.address === CURVE)?.stopped).toBe(true);
   });
 
+  it('coalesces a burst of curve logs into one read in flight plus one more afterwards', async () => {
+    const state = { quote: USDG, quoteReserve: 6_720_567_724n, tokenReserve: 481_506_943_775n * 10n ** 15n };
+    const { rpc, feed } = ponsSetup(state);
+    const ticks: PriceTick[] = [];
+    await feed.watch(`robinhood:${TOKEN}`, (t) => ticks.push(t));
+    let reads = 0;
+    rpc.raw(CURVE, '0x0902f1ac', () => { reads++; return words(state.quoteReserve, state.tokenReserve); });
+    state.quoteReserve = 3_360_283_862n;
+    for (let i = 0; i < 10; i++) rpc.emit({ address: CURVE, topics: ['0x8113d738abdcb6b38357e9d53a54a7157861a09031b453651f0fe7fe151f59df'], data: '0x' });
+    await settle();
+    await settle();
+    expect(reads).toBe(2); // not 10: the first read, then one catching up with the rest of the burst
+    expect(ticks.at(-1)!.marketCapUsd).toBeCloseTo(6_978.7, 0);
+  });
+
   it("rejects tokens without a pons curve, someone else's curve, and graduated curves", async () => {
     const graduated = ponsSetup({ quote: USDG, quoteReserve: 1n, tokenReserve: 0n });
     await expect(graduated.feed.watch(`robinhood:${TOKEN}`, () => undefined)).rejects.toThrow(/left the pons curve/);
