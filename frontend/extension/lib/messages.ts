@@ -36,7 +36,7 @@ export interface TokenMetricsInfo {
   /** A platform's own wallet as the dev ("fomo" for fomo's own launches). */
   readonly devName: string | null;
   readonly devHoldsPct: number | null;
-  readonly note: 'too-old' | 'dev-unknown' | null;
+  readonly note: 'too-old' | 'dev-unknown' | 'counting' | null;
 }
 
 export const POPUP_PORT = 'popup';

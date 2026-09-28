@@ -63,7 +63,8 @@ function MetricsLines({ mint, send }: { mint: string; send: SendFn }) {
     queryKey: ['token.metrics', mint],
     queryFn: () => send({ type: 'token.metrics', mint }) as Promise<TokenMetricsInfo>,
     staleTime: 20_000,
-    refetchInterval: 30_000,
+    // A first count of a busy EVM token runs in the background: check back soon until the numbers are in.
+    refetchInterval: (query) => (query.state.data?.note === 'counting' ? 5_000 : 30_000),
     retry: 1,
   });
   const row = (icon: React.ReactNode, label: string, value: React.ReactNode) => (
@@ -77,6 +78,7 @@ function MetricsLines({ mint, send }: { mint: string; send: SendFn }) {
   if (q.isPending) return row(usersIcon, 'Top 10 holders', <span className="text-muted-foreground">Counting holders… (fresh EVM tokens can take a moment)</span>);
   if (q.isError) return row(usersIcon, 'Holder data', <span className="text-muted-foreground">Unavailable ({q.error.message})</span>);
   const m = q.data;
+  if (m.note === 'counting') return row(usersIcon, 'Top 10 holders', <span className="text-muted-foreground">Counting holders… (busy coins take up to a minute)</span>);
   if (m.note === 'too-old') return row(usersIcon, 'Holder data', <span className="text-muted-foreground">Only for fresh tokens on this chain</span>);
   return (
     <>

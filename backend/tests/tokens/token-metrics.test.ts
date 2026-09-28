@@ -111,11 +111,11 @@ function transfer(from: string, to: string, value: bigint, block: bigint, tx: He
 }
 
 /** A chain with the token's supply answer, and an index over it with a small chunk and budget. */
-function evmSetup(opts: { maxChunks?: number; freshMs?: number; maxTokens?: number } = {}) {
+function evmSetup(opts: { maxChunks?: number; freshMs?: number; maxTokens?: number; answerWithinMs?: number } = {}) {
   let t = 0;
   const rpc = new FakeEvmRpc('base');
   rpc.on(TOKEN, ERC20_ABI, 'totalSupply', 1_000n);
-  const index = new EvmHolderIndex(rpc, new Erc20Reader(rpc), { chunkBlocks: 100n, maxChunks: opts.maxChunks ?? 5, concurrency: 2, maxTokens: opts.maxTokens ?? 40, freshMs: opts.freshMs ?? 1_000 }, () => t);
+  const index = new EvmHolderIndex(rpc, new Erc20Reader(rpc), { chunkBlocks: 100n, maxChunks: opts.maxChunks ?? 5, concurrency: 2, maxTokens: opts.maxTokens ?? 40, freshMs: opts.freshMs ?? 1_000, answerWithinMs: opts.answerWithinMs ?? 5_000 }, () => t);
   return { rpc, index, advance: (ms: number) => { t += ms; } };
 }
 
@@ -166,6 +166,20 @@ describe('EvmHolderIndex', () => {
     expect(m).toMatchObject({ topTenPct: 100, devHoldsPct: 60 });
   });
 
+  it('answers "counting" when the first count is slow, then the numbers once it has finished', async () => {
+    const { rpc, index } = evmSetup({ answerWithinMs: 20 });
+    rpc.head = 150n;
+    rpc.senders.set('0xc0', addr(1) as Hex);
+    rpc.history = [transfer(ZERO, addr(1), 1_000n, 100n, '0xc0')];
+    const real = rpc.getLogs.bind(rpc);
+    rpc.getLogs = async (f, from, to) => { await new Promise((r) => setTimeout(r, 60)); return real(f, from, to); };
+    expect(await index.metrics(TOKEN)).toMatchObject({ topTenPct: null, note: 'counting' });
+    await new Promise((r) => setTimeout(r, 150)); // the count carried on in the background
+    const calls = rpc.getLogsCalls.length;
+    expect(await index.metrics(TOKEN)).toMatchObject({ topTenPct: 100, note: null });
+    expect(rpc.getLogsCalls.length).toBe(calls); // no second count
+  });
+
   it('splits a range the provider finds too big, and rethrows other errors', async () => {
     const { rpc, index } = evmSetup();
     rpc.head = 99n;
@@ -198,5 +212,10 @@ describe('TokenMetricsService', () => {
     await svc.get(MINT);
     expect(calls).toBe(2);
     await expect(svc.get(`base:${TOKEN}`)).rejects.toThrow(/aren't available on base/);
+    let answer: TokenMetrics = { ...value, note: 'counting' };
+    const counting = new TokenMetricsService(() => ({ metrics: async () => answer }), () => t);
+    await counting.get(MINT);
+    answer = value;
+    expect((await counting.get(MINT)).note).toBe('dev-unknown'); // "counting" was not cached
   });
 });

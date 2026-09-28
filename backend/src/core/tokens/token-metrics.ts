@@ -33,8 +33,11 @@ export interface TokenMetrics {
   readonly devName: string | null;
   /** % of supply the dev holds right now; null when the dev is unknown. */
   readonly devHoldsPct: number | null;
-  /** Why something is missing: the EVM token is older than the scan window, or the launchpad doesn't record its dev. */
-  readonly note: 'too-old' | 'dev-unknown' | null;
+  /**
+   * Why something is missing: the EVM token is older than the scan window, the launchpad doesn't record its dev, or
+   * its first count is still running (a busy token's history takes a while; ask again shortly).
+   */
+  readonly note: 'too-old' | 'dev-unknown' | 'counting' | null;
 }
 
 /** Metrics for tokens of one chain. */
@@ -90,15 +93,18 @@ export interface EvmIndexOptions {
   readonly maxTokens: number;
   /** An index younger than this is answered without fetching new blocks. */
   readonly freshMs: number;
+  /** Longest wait for a first count before answering "counting" (it carries on in the background). */
+  readonly answerWithinMs: number;
 }
 
-export const DEFAULT_EVM_INDEX: EvmIndexOptions = { chunkBlocks: 10_000n, maxChunks: 60, concurrency: 6, maxTokens: 40, freshMs: 15_000 };
+export const DEFAULT_EVM_INDEX: EvmIndexOptions = { chunkBlocks: 10_000n, maxChunks: 60, concurrency: 6, maxTokens: 40, freshMs: 15_000, answerWithinMs: 8_000 };
 
 /**
  * History budget per chain, in 10k-block requests (the provider's cap), sized from measured block times (2026-09-28):
- * Ethereum 12 s → ~2 weeks, Base 2 s → 2 weeks, BNB 0.45 s → 3 days, Arc 0.5 s → 3 days, Robinhood 0.1 s → 1 day.
+ * Ethereum 12 s → ~2 weeks, Base 2 s → 2 weeks, BNB 0.45 s → 3 days, Arc 0.5 s → 3 days, Robinhood 0.1 s → 3 days
+ * (a day wasn't enough: a 26-hour-old token read as "too old", 2026-09-28).
  */
-export const EVM_SCAN_CHUNKS: Readonly<Record<EvmChain, number>> = { ethereum: 12, base: 61, bnb: 58, arc: 52, robinhood: 87 };
+export const EVM_SCAN_CHUNKS: Readonly<Record<EvmChain, number>> = { ethereum: 12, base: 61, bnb: 58, arc: 52, robinhood: 261 };
 
 /** The provider refused a range, or timed out on it, because it holds too many logs for one answer. */
 function isTooManyLogs(err: unknown): boolean {
@@ -140,10 +146,20 @@ export class EvmHolderIndex implements TokenMetricsSource {
     private readonly now: () => number = Date.now,
   ) {}
 
-  /** Top-10 share and dev holdings (or "too old" when the creation is beyond the scan window). */
+  /**
+   * Top-10 share and dev holdings; "too old" when the creation is beyond the scan window, "counting" when the first
+   * count takes longer than `answerWithinMs` (it keeps running, and the next ask gets the numbers).
+   */
   async metrics(address: string): Promise<TokenMetrics> {
     const token = address.toLowerCase() as Hex;
-    const idx = await this.index(token);
+    const pending = this.index(token);
+    let timer: NodeJS.Timeout | undefined;
+    const late = new Promise<'late'>((r) => { timer = setTimeout(() => r('late'), this.opts.answerWithinMs); });
+    const idx = await Promise.race([pending, late]).finally(() => clearTimeout(timer));
+    if (idx === 'late') {
+      pending.catch(() => undefined); // still counting; a failure surfaces on the next ask
+      return { topTenPct: null, topHoldersPct: [], devWallet: null, devName: null, devHoldsPct: null, note: 'counting' };
+    }
     if (idx === 'too-old') return { topTenPct: null, topHoldersPct: [], devWallet: null, devName: null, devHoldsPct: null, note: 'too-old' };
     const supply = await this.erc20.totalSupply(token);
     const ranked = [...idx.balances.entries()].filter(([a, v]) => v > 0n && !BURN.has(a)).sort((x, y) => (y[1] > x[1] ? 1 : y[1] < x[1] ? -1 : 0));
@@ -312,6 +328,7 @@ export class TokenMetricsService {
     const p = source.metrics(ref.address).finally(() => this.inflight.delete(key));
     this.inflight.set(key, p);
     const value = await p;
+    if (value.note === 'counting') return value; // not an answer yet: ask the source again next time
     this.cache.delete(key);
     this.cache.set(key, { at: this.now(), value });
     if (this.cache.size > MAX_CACHED) this.cache.delete(this.cache.keys().next().value!);
