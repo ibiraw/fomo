@@ -1,8 +1,7 @@
 /**
  * @file themes.ts
- * @description Color themes the user can apply to fomo.family and the Limit panel. A theme overrides
- *              fomo's own CSS color variables (so the whole page follows) and the extension's tokens.
- *              fomo's variable names were read from the live site (2026-09-26).
+ * @description Color themes for the extension's own UI: the popup and the Limit panel (fomo's page itself keeps
+ *              fomo's colors). A theme sets the extension's tokens; `action` is shown in the picker's swatches.
  * @author Reborn1987
  */
 
@@ -71,47 +70,6 @@ export function themeById(id: unknown): Theme {
 export function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(Math.min(1, Math.max(0, alpha)) * 255).toString(16).padStart(2, '0');
   return `${hex.slice(0, 7)}${a}`;
-}
-
-/** CSS that recolors fomo's page by overriding its color variables. Empty for the default theme. */
-export function fomoOverrideCss(t: Theme): string {
-  if (t.id === DEFAULT_THEME.id) return '';
-  const v: Record<string, string> = {
-    '--color-background': t.bg,
-    '--color-bg-primary': t.bg,
-    '--color-bg-secondary': t.surface,
-    '--color-popover': t.surface,
-    '--color-bg-tertiary': withAlpha(t.text, 0.1),
-    '--color-bg-tertiary-solid': t.raised,
-    '--color-muted': t.raised,
-    '--color-border': t.line,
-    '--color-input': t.line,
-    '--color-foreground': t.text,
-    '--color-text-primary': t.text,
-    '--color-popover-foreground': t.text,
-    '--color-accent-foreground': t.text,
-    '--color-text-secondary': t.muted,
-    '--color-muted-foreground': t.muted,
-    '--color-text-tertiary': t.faint,
-    '--color-accent-primary': t.action,
-    '--color-primary': t.action,
-    '--color-ring': t.action,
-    '--color-accent-gradient-start': t.action,
-    '--color-accent-primary-transparent': withAlpha(t.action, 0.16),
-    '--color-accent': t.actionSoft,
-    '--color-accent-secondary': t.actionSoft,
-    '--color-secondary': t.actionSoft,
-    '--color-green': t.buy,
-    '--color-green-transparent': withAlpha(t.buy, 0.2),
-    '--color-red': t.sell,
-    '--color-red-transparent': withAlpha(t.sell, 0.2),
-    '--color-critical': t.sell,
-    '--color-critical-transparent': withAlpha(t.sell, 0.12),
-    '--color-destructive': t.sell,
-    '--fomo-limit-brand': t.brand,
-  };
-  const decls = Object.entries(v).map(([k, val]) => `  ${k}: ${val} !important;`).join('\n');
-  return `:root {\n${decls}\n}\nhtml, body { background: ${t.bg} !important; }`;
 }
 
 /** The extension's own design tokens (popup + Limit panel) for a theme. */

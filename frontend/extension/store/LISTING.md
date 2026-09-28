@@ -30,7 +30,7 @@ Everything to paste into the Chrome Web Store developer dashboard. Visibility: *
 > • See every open order for the token you're viewing, with one-click cancel.
 > • Sell orders cancel themselves once you've sold out of a token.
 > • Latest post from the token's X account, with its age at a glance.
-> • Themes that recolor fomo and the Limit panel.
+> • Themes for the popup and the Limit panel.
 > • Optional sounds when an order fills or fails.
 >
 > Pricing
@@ -87,6 +87,6 @@ Everything to paste into the Chrome Web Store developer dashboard. Visibility: *
 1. The Limit tab on a fomo token page with the market-cap slider and a take-profit order.
 2. The order list on a token (open, filled and cancelled orders).
 3. The popup's New order form.
-4. Themes: fomo recolored.
+4. Themes: the Limit panel and popup in another theme.
 5. Settings: sound themes.
 Capture with a demo account (no real balances visible).

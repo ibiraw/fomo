@@ -1,6 +1,6 @@
 /**
  * @file ThemePicker.tsx
- * @description Theme swatches. Choosing one recolors fomo.family and the Limit panel in every open tab.
+ * @description Theme swatches. Choosing one recolors the popup and the Limit panel in every open tab (not fomo's own page).
  * @author Reborn1987
  */
 
