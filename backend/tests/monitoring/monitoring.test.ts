@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { SqliteActivityStoreAdapter } from '../../src/adapters/storage/sqlite-activity-store.adapter.js';
 import { TelegramNotifierAdapter, type FetchFn } from '../../src/adapters/telegram/telegram-notifier.adapter.js';
 import { ActivityRelay, ENTRY_SEPARATOR, packMessages } from '../../src/core/monitoring/activity-relay.js';
-import { describeOrder, tokenLabel, usdCompact } from '../../src/core/monitoring/describe.js';
+import { describeOrder, networkIcon, tokenLabel, usdCompact } from '../../src/core/monitoring/describe.js';
 import { stripHtml, telegramHtml } from '../../src/core/monitoring/telegram-format.js';
 import type { Order } from '../../src/core/orders/order.js';
 import { NotifierPort, NotifierRateLimitError } from '../../src/ports/activity.js';
@@ -33,27 +33,14 @@ function setup() {
 }
 
 describe('ActivityRelay', () => {
-  it("uses an order entry's own leading icon as the line icon (🟢 / 🎯 / 🛒 …), the kind's icon otherwise", async () => {
-    const { notifier, relay } = setup();
-    relay.record('order', '🟢 LM-2 (@me) placed Limit buy $50 · x');
-    relay.record('order', 'LM-2 re-armed'); // no own icon → 📈
-    relay.record('account', '🟢 not an order'); // only order entries swap icons
-    await relay.deliver();
-    expect(notifier.sent[0]!.split(ENTRY_SEPARATOR)).toEqual([
-      '🟢 7:00:00 PM ET LM-2 (@me) placed Limit buy $50 · x',
-      '📈 7:00:00 PM ET LM-2 re-armed',
-      '👤 7:00:00 PM ET 🟢 not an order',
-    ]);
-  });
-
   it('delivers logged entries in one message and marks them sent', async () => {
     const { store, notifier, relay } = setup();
     relay.record('account', 'new account\nLM-222222'); // one line: newlines flattened
-    relay.record('order', '🟢 LM-222222\n\n(@me)\n\nplaced Limit buy $5 ·\n\n x'); // order layout kept, parts trimmed
+    relay.record('order', 'LM-222222\n\n🧍LM-222222 (@me)\n\n🟢 placed Limit buy $5\n\n x'); // order layout kept, parts trimmed
     await relay.deliver();
     expect(notifier.sent).toHaveLength(1);
-    // Times are US Eastern: t=0 is 7:00:00 PM ET on Dec 31, 1969.
-    expect(notifier.sent[0]).toBe(`👤 7:00:00 PM ET new account LM-222222${ENTRY_SEPARATOR}🟢 7:00:00 PM ET LM-222222\n\n(@me)\n\nplaced Limit buy $5 ·\n\nx`);
+    // Times are US Eastern: t=0 is 7:00:00 PM ET on Dec 31, 1969. Orders lead with ⏰.
+    expect(notifier.sent[0]).toBe(`👤 7:00:00 PM ET new account LM-222222${ENTRY_SEPARATOR}⏰ 7:00:00 PM ET LM-222222\n\n🧍LM-222222 (@me)\n\n🟢 placed Limit buy $5\n\nx`);
     expect(store.pending(10)).toEqual([]);
     await relay.deliver(); // nothing left
     expect(notifier.sent).toHaveLength(1);
@@ -153,25 +140,28 @@ describe('describeOrder', () => {
   } as unknown as Order;
   it('describes placements and outcomes, and skips intermediate states', () => {
     const CA = 'base:0x9500af4f2936aaffbc72860ce19e8d5ed2e8db07';
-    expect(describeOrder(base, 'LM-2 (@ibiraw)')).toBe(`🎯 LM-2\n\n(@ibiraw)\n\nplaced Take profit 50% ·\n\n${CA}\n\nMC ≥ $120.0K`);
-    expect(describeOrder(base, 'LM-2')).toBe(`🎯 LM-2\n\nplaced Take profit 50% ·\n\n${CA}\n\nMC ≥ $120.0K`); // no handle yet
-    expect(describeOrder({ ...base, attempts: 1, lastError: 'slippage: x' }, 'LM-2')).toMatch(/re-armed Take profit 50% after slippage ·\n\n[\s\S]*\n\nslippage: x$/);
-    expect(describeOrder({ ...base, status: 'filled', triggeredAtValue: 121_000 }, 'LM-2')).toBe(`🎯 LM-2\n\nFILLED Take profit 50% ·\n\n${CA}\n\nat $121.0K`);
-    expect(describeOrder({ ...base, status: 'cancelled' }, 'LM-2')).toBe(`🎯 LM-2\n\ncancelled Take profit 50% ·\n\n${CA}`); // no detail line
+    expect(describeOrder(base, 'LM-2 (@ibiraw)')).toBe(`LM-2\n\n🧍LM-2 (@ibiraw)\n\n🎯 placed Take profit 50%\n\n🔵 ${CA}\n\n📊 MC ≥ $120.0K`);
+    expect(describeOrder(base, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 placed Take profit 50%\n\n🔵 ${CA}\n\n📊 MC ≥ $120.0K`); // no handle yet
+    expect(describeOrder({ ...base, attempts: 1, lastError: 'slippage: x' }, 'LM-2')).toMatch(/🎯 re-armed Take profit 50% after slippage\n\n[\s\S]*\n\nℹ️ slippage: x$/);
+    expect(describeOrder({ ...base, status: 'filled', triggeredAtValue: 121_000 }, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 FILLED Take profit 50%\n\n🔵 ${CA}\n\n📊 at $121.0K`);
+    expect(describeOrder({ ...base, status: 'cancelled' }, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 cancelled Take profit 50%\n\n🔵 ${CA}`); // no detail line
     const kind = (side: string, direction: string) => describeOrder({ ...base, side, trigger: { ...base.trigger, direction } } as Order, 'x')!;
-    expect([kind('buy', 'below'), kind('buy', 'above'), kind('sell', 'above'), kind('sell', 'below')].map((t) => {
-      const parts = t.split('\n\n');
-      return `${parts[0]!.split(' ')[0]} ${parts[1]!.replace(/^placed /, '').replace(/ \S+ ·$/, '')}`;
-    })).toEqual(['🟢 Limit buy', '🚀 Breakout buy', '🎯 Take profit', '🛑 Stop loss']);
-    expect(describeOrder({ ...base, status: 'failed', lastError: 'ui_error: y' }, 'LM-2')).toMatch(/FAILED [\s\S]*ui_error: y$/);
+    expect([kind('buy', 'below'), kind('buy', 'above'), kind('sell', 'above'), kind('sell', 'below')].map((t) => t.split('\n\n')[2]!.replace('placed ', '').replace(/ \S+$/, '')))
+      .toEqual(['🟢 Limit buy', '🚀 Breakout buy', '🎯 Take profit', '🛑 Stop loss']);
+    expect(describeOrder({ ...base, status: 'failed', lastError: 'ui_error: y' }, 'LM-2')).toMatch(/FAILED [\s\S]*\n\nℹ️ ui_error: y$/);
     expect(describeOrder({ ...base, status: 'unknown' }, 'LM-2')).toMatch(/outcome unknown/);
-    expect(describeOrder({ ...base, status: 'cancelled', lastError: 'auto_cancelled: gone' }, 'LM-2')).toMatch(/cancelled [\s\S]*\n\nauto_cancelled: gone$/);
+    expect(describeOrder({ ...base, status: 'cancelled', lastError: 'auto_cancelled: gone' }, 'LM-2')).toMatch(/cancelled [\s\S]*\n\nℹ️ auto_cancelled: gone$/);
     expect(describeOrder({ ...base, status: 'triggered' }, 'LM-2')).toBeNull();
     const buy = { ...base, side: 'buy', trigger: { ...base.trigger, metric: 'price', direction: 'below', value: 0.00042 }, amount: { kind: 'usd', value: 25 } } as unknown as Order;
-    expect(describeOrder(buy, 'LM-2')).toBe(`🟢 LM-2\n\nplaced Limit buy $25 ·\n\n${CA}\n\nprice ≤ $0.000420`);
+    expect(describeOrder(buy, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🟢 placed Limit buy $25\n\n🔵 ${CA}\n\n📊 price ≤ $0.000420`);
     expect(describeOrder({ ...buy, trigger: { ...buy.trigger, direction: 'above' } }, 'LM-2')).toMatch(/Breakout buy/);
     expect(describeOrder({ ...base, trigger: { ...base.trigger, direction: 'below' } }, 'LM-2')).toMatch(/Stop loss/);
   });
+  it('colours each network: Solana purple, Base blue, Ethereum light blue, BNB yellow, Robinhood green, Arc grey', () => {
+    expect(['EcwFm5TJ3zuBXnsT6DngXMAMfsfELhwGc9JFgeVWpump', 'base:0x1', 'ethereum:0x1', 'bnb:0x1', 'robinhood:0x1', 'arc:0x1', 'other:0x1'].map(networkIcon))
+      .toEqual(['🟣', '🔵', '🩵', '🟡', '🟢', '🩶', '⚪']);
+  });
+
   it('formats amounts and tokens compactly', () => {
     expect([usdCompact(2.5e9), usdCompact(3.456e6), usdCompact(12.3)]).toEqual(['$2.50B', '$3.46M', '$12.30']);
     expect(tokenLabel('EcwFm5TJ3zuBXnsT6DngXMAMfsfELhwGc9JFgeVWpump')).toBe('EcwFm5…pump');

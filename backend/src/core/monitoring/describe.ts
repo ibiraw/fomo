@@ -36,16 +36,38 @@ export function orderIcon(o: Pick<Order, 'side' | 'trigger'>): string {
   return o.trigger.direction === 'above' ? '🎯' : '🛑';
 }
 
+/** Network colour shown before a token address: Solana 🟣, Base 🔵, Ethereum 🩵, BNB 🟡, Robinhood 🟢, Arc 🩶. */
+const NETWORK_ICON: Record<string, string> = { solana: '🟣', base: '🔵', ethereum: '🩵', bnb: '🟡', robinhood: '🟢', arc: '🩶' };
+
+/** The network icon for a token key ("base:0x…" → 🔵; a bare mint is Solana → 🟣). */
+export function networkIcon(key: string): string {
+  const chain = key.includes(':') ? key.slice(0, key.indexOf(':')) : 'solana';
+  return NETWORK_ICON[chain] ?? '⚪';
+}
+
+/** An optional last line: market info (📊 target, fill) or a reason (ℹ️ error, cancel reason). */
+export interface EntryDetail {
+  readonly kind: 'market' | 'reason';
+  readonly text: string;
+}
+
 /**
- * An order-type entry laid out in lines separated by blank lines — icon + short id, the fomo handle, what happened,
- * the token address (tap-to-copy in Telegram) and an optional detail:
- *   "🛑 LM-JPHDZS\n\n(@ibiraw)\n\ncancelled Stop loss 100% ·\n\n6prL…pump"
- * The relay puts the time after the icon and shows the icon in place of the generic 📈.
+ * An order-type entry laid out in lines separated by blank lines:
+ *   "LM-JPHDZS" (the relay prefixes "⏰ <time> ")
+ *   "🧍LM-JPHDZS (@ibiraw)"
+ *   "🟢 placed Limit buy $50"
+ *   "🟣 6prL…pump" (network colour + tap-to-copy address)
+ *   "📊 MC ≤ $162.9K"
  */
-export function orderEntry(icon: string, who: string, action: string, mint: string | null, detail: string | null = null): string {
-  const split = who.indexOf(' (');
-  const [id, handle] = split < 0 ? [who, null] : [who.slice(0, split), who.slice(split + 1)];
-  return [`${icon} ${id}`, handle, mint ? `${action} ·` : action, mint, detail].filter((part): part is string => !!part).join('\n\n');
+export function orderEntry(icon: string, who: string, action: string, mint: string | null, detail: EntryDetail | null = null): string {
+  const id = who.includes(' (') ? who.slice(0, who.indexOf(' (')) : who;
+  return [
+    id,
+    `🧍${who}`,
+    `${icon} ${action}`,
+    mint ? `${networkIcon(mint)} ${mint}` : null,
+    detail ? `${detail.kind === 'market' ? '📊' : 'ℹ️'} ${detail.text}` : null,
+  ].filter((part): part is string => !!part).join('\n\n');
 }
 
 /** Monitoring text for an order change (see orderEntry), or null when it isn't worth a message. */
@@ -53,18 +75,20 @@ export function describeOrder(o: Order, who: string): string | null {
   const amount = o.amount.kind === 'usd' ? `$${o.amount.value}` : `${o.amount.value}%`;
   const target = `${o.trigger.metric === 'marketCap' ? 'MC' : 'price'} ${o.trigger.direction === 'below' ? '≤' : '≥'} ${usdCompact(o.trigger.value)}`;
   const what = `${orderKind(o)} ${amount}`;
-  const entry = (action: string, detail: string | null = null) => orderEntry(orderIcon(o), who, action, o.mint, detail);
+  const entry = (action: string, detail: EntryDetail | null = null) => orderEntry(orderIcon(o), who, action, o.mint, detail);
+  const market = (text: string): EntryDetail => ({ kind: 'market', text });
+  const reason = (text: string | null): EntryDetail | null => (text ? { kind: 'reason', text } : null);
   switch (o.status) {
     case 'open':
-      return o.attempts === 0 ? entry(`placed ${what}`, target) : entry(`re-armed ${what} after slippage`, o.lastError);
+      return o.attempts === 0 ? entry(`placed ${what}`, market(target)) : entry(`re-armed ${what} after slippage`, reason(o.lastError));
     case 'filled':
-      return entry(`FILLED ${what}`, o.triggeredAtValue ? `at ${usdCompact(o.triggeredAtValue)}` : null);
+      return entry(`FILLED ${what}`, o.triggeredAtValue ? market(`at ${usdCompact(o.triggeredAtValue)}`) : null);
     case 'failed':
-      return entry(`FAILED ${what}`, o.lastError ?? 'unknown error');
+      return entry(`FAILED ${what}`, reason(o.lastError ?? 'unknown error'));
     case 'unknown':
-      return entry(`outcome unknown ${what}`, o.lastError);
+      return entry(`outcome unknown ${what}`, reason(o.lastError));
     case 'cancelled':
-      return entry(`cancelled ${what}`, o.lastError);
+      return entry(`cancelled ${what}`, reason(o.lastError));
     default:
       return null;
   }

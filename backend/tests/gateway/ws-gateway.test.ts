@@ -356,8 +356,8 @@ describe('WsGateway accounts', () => {
     const c = await authed(false);
     c.send({ type: 'trade.spot', reqId: 's1', side: 'buy', detail: 'Buying  $3.00 KEK', mint: MINT });
     expect((await c.next((m) => m.reqId === 's1')).data).toEqual({ logged: true });
-    expect(activity.at(-1)).toMatch(/^order: 🛒 LM-\w+\n\nSpot buy on fomo: Buying \$3\.00 KEK ·\n\n/); // whitespace squeezed
-    expect(activity.at(-1)!.endsWith(`\n\n${MINT}`)).toBe(true);
+    expect(activity.at(-1)).toMatch(/^order: LM-\w+\n\n🧍LM-\w+\n\n🛒 Spot buy on fomo: Buying \$3\.00 KEK\n\n/); // whitespace squeezed
+    expect(activity.at(-1)!.endsWith(`\n\n🟣 ${MINT}`)).toBe(true);
     c.send({ type: 'trade.spot', reqId: 's2', side: 'sell', detail: 'Selling 1.2M KEK' });
     expect((await c.next((m) => m.reqId === 's2')).data).toEqual({ logged: false }); // < 3 s after the last
     t += 5_000;
@@ -365,7 +365,7 @@ describe('WsGateway accounts', () => {
     expect((await c.next((m) => m.reqId === 's3')).data).toEqual({ logged: false }); // same text within a minute
     c.send({ type: 'trade.spot', reqId: 's4', side: 'sell', detail: 'Selling 1.2M KEK' });
     expect((await c.next((m) => m.reqId === 's4')).data).toEqual({ logged: true }); // new text, 5 s after the last logged one
-    expect(activity.at(-1)).toMatch(/^order: 💸 LM-\w+\n\nSpot sell on fomo: Selling 1\.2M KEK$/); // no token → no address line
+    expect(activity.at(-1)).toMatch(/\n\n💸 Spot sell on fomo: Selling 1\.2M KEK$/); // no token → no address line
     t += 5_000;
     c.send({ type: 'trade.spot', reqId: 's5', side: 'sell', detail: 'Selling 1.2M KEK' });
     expect((await c.next((m) => m.reqId === 's5')).data).toEqual({ logged: false }); // repeat within a minute
