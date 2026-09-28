@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
 import { SITE_THEMES, themeStyle, type SiteTheme } from '@/lib/themes';
 import { cn } from '@/lib/utils';
 
-const CYCLE_MS = 2_800;
+const CYCLE_MS = 1_600;
 
 /** A slice of fomo's token page recolored by the theme: header strip, chart line and the Limit panel. */
 function MiniFomo({ t }: { t: SiteTheme }) {
