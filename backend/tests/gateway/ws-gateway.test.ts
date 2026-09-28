@@ -353,7 +353,7 @@ describe('WsGateway accounts', () => {
       .toBe('**SELL ALL** on fomo: Selling 211.3K QCAT for $48.20 ⬆️ 12.4%');
     expect(spotLine('sell', 'Selling 95K QCAT', { all: false, soldPct: 45, usd: 21.67, pnlPct: -8.1 }, 'LM-1')[2])
       .toBe('**PARTIAL SELL** (45%) on fomo: Selling 95K QCAT for $21.67 ⬇️ 8.1%');
-    expect(spotLine('sell', 'Selling 95K QCAT', null, 'LM-1')).toEqual(['💸', 'LM-1', '**SPOT SELL** on fomo: Selling 95K QCAT']); // position unreadable
+    expect(spotLine('sell', 'Selling 95K QCAT', null, 'LM-1')).toEqual(['❌', 'LM-1', '**SPOT SELL** on fomo: Selling 95K QCAT']); // position unreadable
   });
 
   it("strips the toast's own relative time from spot-trade texts", () => {
@@ -381,7 +381,7 @@ describe('WsGateway accounts', () => {
     expect((await c.next((m) => m.reqId === 's3')).data).toEqual({ logged: false }); // same text within a minute
     c.send({ type: 'trade.spot', reqId: 's4', side: 'sell', detail: 'Selling 1.2M KEK' });
     expect((await c.next((m) => m.reqId === 's4')).data).toEqual({ logged: true }); // new text, 5 s after the last logged one
-    expect(activity.at(-1)).toMatch(/\n\n💸 \*\*SPOT SELL\*\* on fomo: Selling 1\.2M KEK$/); // no token → no address line
+    expect(activity.at(-1)).toMatch(/\n\n❌ \*\*SPOT SELL\*\* on fomo: Selling 1\.2M KEK$/); // no token → no address line
     t += 5_000;
     c.send({ type: 'trade.spot', reqId: 's5', side: 'sell', detail: 'Selling 1.2M KEK' });
     expect((await c.next((m) => m.reqId === 's5')).data).toEqual({ logged: false }); // repeat within a minute

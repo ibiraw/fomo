@@ -88,7 +88,7 @@ export function describeOrder(o: Order, who: string): string | null {
     case 'unknown':
       return entry(`outcome unknown ${what}`, reason(o.lastError));
     case 'cancelled':
-      return orderEntry('❌', who, `cancelled ${what}`, o.mint, reason(o.lastError));
+      return entry(`cancelled ${what}`, reason(o.lastError));
     default:
       return null;
   }

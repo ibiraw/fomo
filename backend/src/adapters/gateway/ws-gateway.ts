@@ -113,15 +113,15 @@ export interface SpotSell {
 /**
  * Icon, who and action line of a spot trade (bold type in Telegram):
  *   ✅ **SPOT BUY** on fomo: Buying $25.00 QCAT
- *   💸 **SELL ALL** on fomo: Selling 211.3K QCAT for $48.20 ⬆️ 12.4%
- *   💸 **PARTIAL SELL** (45%) on fomo: Selling 95K QCAT for $21.70 ⬇️ 8.1%
+ *   ❌ **SELL ALL** on fomo: Selling 211.3K QCAT for $48.20 ⬆️ 12.4%
+ *   ❌ **PARTIAL SELL** (45%) on fomo: Selling 95K QCAT for $21.70 ⬇️ 8.1%
  */
 export function spotLine(side: 'buy' | 'sell', text: string, sell: SpotSell | null, who: string): [string, string, string] {
   if (side === 'buy') return ['✅', who, `**SPOT BUY** on fomo: ${text}`];
-  if (!sell) return ['💸', who, `**SPOT SELL** on fomo: ${text}`];
+  if (!sell) return ['❌', who, `**SPOT SELL** on fomo: ${text}`];
   const kind = sell.all ? '**SELL ALL**' : `**PARTIAL SELL** (${sell.soldPct}%)`;
   const pnl = `${sell.pnlPct >= 0 ? '⬆️' : '⬇️'} ${Math.abs(sell.pnlPct).toFixed(1)}%`;
-  return ['💸', who, `${kind} on fomo: ${text} for $${sell.usd.toFixed(2)} ${pnl}`];
+  return ['❌', who, `${kind} on fomo: ${text} for $${sell.usd.toFixed(2)} ${pnl}`];
 }
 
 /** Spot-trade reports: at most one per connection per this window, and the same text only once a minute. */

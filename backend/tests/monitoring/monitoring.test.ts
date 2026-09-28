@@ -146,7 +146,7 @@ describe('describeOrder', () => {
     expect(describeOrder(base, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 placed **TAKE PROFIT** 50%\n\n💙 ${ADDR}\n\n📊 MC ≥ $120.0K`); // no handle yet
     expect(describeOrder({ ...base, attempts: 1, lastError: 'slippage: x' }, 'LM-2')).toMatch(/🎯 re-armed \*\*TAKE PROFIT\*\* 50% after slippage\n\n[\s\S]*\n\nℹ️ slippage: x$/);
     expect(describeOrder({ ...base, status: 'filled', triggeredAtValue: 121_000 }, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 FILLED **TAKE PROFIT** 50%\n\n💙 ${ADDR}\n\n📊 at $121.0K`);
-    expect(describeOrder({ ...base, status: 'cancelled' }, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n❌ cancelled **TAKE PROFIT** 50%\n\n💙 ${ADDR}`); // ❌, no detail line
+    expect(describeOrder({ ...base, status: 'cancelled' }, 'LM-2')).toBe(`LM-2\n\n🧍LM-2\n\n🎯 cancelled **TAKE PROFIT** 50%\n\n💙 ${ADDR}`); // type icon, no detail line
     const kind = (side: string, direction: string) => describeOrder({ ...base, side, trigger: { ...base.trigger, direction } } as Order, 'x')!;
     expect([kind('buy', 'below'), kind('buy', 'above'), kind('sell', 'above'), kind('sell', 'below')].map((t) => t.split('\n\n')[2]!.replace('placed ', '').replace(/ \S+$/, '')))
       .toEqual(['🟢 **LIMIT BUY**', '🚀 **BREAKOUT BUY**', '🎯 **TAKE PROFIT**', '🛑 **STOP LOSS**']);
