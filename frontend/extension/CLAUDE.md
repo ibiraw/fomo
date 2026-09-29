@@ -11,6 +11,7 @@ Chrome MV3 extension built with WXT. Connects to the local backend (ws://127.0.0
 | `lib/fomo-inject.ts` | Limit tab + show/hide CSS (visibility is on our wrapper `[data-fomo-limit-view]`, since `:host !important` beats page CSS) |
 | `entrypoints/popup/` | React popup (`App.tsx`) |
 | `components/orders/` | Shared UI: PairingForm, NewOrderForm, OrderList, Segmented (no dropdowns: portals escape the shadow root) |
+| `lib/hidden-orders.ts`, `hooks/use-hidden-orders.ts` | The ✕ at the top right of a finished order (filled / failed / cancelled / check fomo) removes it from the order list on this device (`storage.local.hiddenOrders`, pruned to ids the server still lists, max 2,000); the server's history is untouched |
 | `hooks/use-background.ts` | Popup/panel ⇄ background port |
 | `assets/theme.css` | Shared theme (vars on `:root, :host`) |
 | `lib/themes.ts`, `hooks/use-theme.ts`, `components/ThemePicker.tsx` | User themes (picked only in popup Settings; the Limit panel has no picker): override fomo's `--color-*` vars (page) + extension tokens (inline on popup root / shadow host). fomo prints white text on `action`, so `action` must keep >= 3:1 contrast with white (tested) |

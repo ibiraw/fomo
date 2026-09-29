@@ -1,7 +1,8 @@
 /**
  * @file OrderList.tsx
  * @description Compact, scrollable order list: one line per order (type, trigger, amount, status), live
- *              market cap and a clear Cancel button for active orders, and a one-line note when relevant.
+ *              market cap and a clear Cancel button for active orders, a small ✕ (top right) that removes a finished
+ *              order from the list on this device, and a one-line note when relevant.
  * @author Reborn1987
  */
 
@@ -10,6 +11,8 @@ import type React from 'react';
 import { X } from 'lucide-react';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useHiddenOrders } from '@/hooks/use-hidden-orders';
+import { canRemove, hideOrder } from '@/lib/hidden-orders';
 import {
   amountShort,
   formatUsdCompact,
@@ -52,8 +55,8 @@ interface Props {
 }
 
 /** One compact order row. */
-function OrderRow({ order, tick, onCancel, showMint, label, linkTarget }: {
-  order: Order; tick: PriceTick | undefined; onCancel: Props['onCancel']; showMint: boolean; label: string | undefined; linkTarget: '_blank' | '_self';
+function OrderRow({ order, tick, onCancel, onRemove, showMint, label, linkTarget }: {
+  order: Order; tick: PriceTick | undefined; onCancel: Props['onCancel']; onRemove: () => void; showMint: boolean; label: string | undefined; linkTarget: '_blank' | '_self';
 }) {
   const cancel = useMutation({ mutationFn: () => onCancel(order.id) });
   const active = isCancellable(order.status);
@@ -73,6 +76,17 @@ function OrderRow({ order, tick, onCancel, showMint, label, linkTarget }: {
           )}
         </span>
         <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold', STATUS_STYLE[order.status])}>{STATUS_LABEL[order.status]}</span>
+        {canRemove(order.status) && (
+          <button
+            type="button"
+            onClick={onRemove}
+            title="Remove from this list (your order history is kept)"
+            aria-label="Remove this order from the list"
+            className="-mr-1 inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <X className="size-3.5" aria-hidden />
+          </button>
+        )}
       </div>
 
       {active && (
@@ -101,6 +115,9 @@ function OrderRow({ order, tick, onCancel, showMint, label, linkTarget }: {
 
 /** All orders, active first. */
 export function OrderList({ orders, ticks, onCancel, height = 380, emptyText = 'No orders yet.', showMint = false, labels = {}, linkTarget = '_blank' }: Props) {
+  const hidden = useHiddenOrders();
+  const allIds = orders.map((o) => o.id);
+  orders = orders.filter((o) => !hidden.has(o.id));
   if (orders.length === 0) {
     return <p className="py-4 text-center text-xs text-muted-foreground">{emptyText}</p>;
   }
@@ -113,7 +130,10 @@ export function OrderList({ orders, ticks, onCancel, height = 380, emptyText = '
     >
       <div className="space-y-1.5">
         {sorted.map((o) => (
-          <OrderRow key={o.id} order={o} tick={ticks[o.mint]} onCancel={onCancel} showMint={showMint} label={labels[o.mint]} linkTarget={linkTarget} />
+          <OrderRow
+            key={o.id} order={o} tick={ticks[o.mint]} onCancel={onCancel} showMint={showMint} label={labels[o.mint]} linkTarget={linkTarget}
+            onRemove={() => void hideOrder(o.id, allIds).catch((err: unknown) => console.error('[limit] could not remove the order from the list', err))}
+          />
         ))}
       </div>
     </ScrollArea>
