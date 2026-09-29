@@ -77,7 +77,7 @@ export const DEFAULT_FOMO_DOM: FomoDomConfig = {
   profilePathPrefix: '/profile/',
   tabBaseClasses: 'flex-1 p-2 rounded-lg text-base font-bold transition-colors',
   tabInactiveClasses: 'bg-bg-secondary hover:bg-bg-tertiary text-text-secondary',
-  // Not observed yet (the owner describes "a small pop up at the bottom with a Reload button"); calibrate from the server.
+  // Observed 2026-09-29 (detected live, self-check passed): a fixed pill at the bottom centre, "New version available" + a "Reload" button + ✕.
   reloadLabels: ['Reload', 'Refresh', 'Update'],
   newVersionWords: ['new version', 'update available', 'updated', 'new update'],
   spotBuyPrefixes: ['Buying'],
