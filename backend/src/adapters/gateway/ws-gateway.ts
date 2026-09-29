@@ -391,21 +391,34 @@ export class WsGateway extends TradeExecutorPort {
     ws.on('close', () => this.onClose(client));
   }
 
-  /** Spends one message from the client's rate budget; false when it is exhausted. */
-  private allow(client: Client): boolean {
+  /**
+   * Spends one message from the client's rate budget: 'ok', 'drop' when the budget is spent (the message is refused,
+   * the connection stays), or 'close' once the client keeps going far past it (another full burst of refused messages).
+   * Closing on the first extra message cut the extension off right after every reconnect, when all its open tabs
+   * catch up at once — it reconnected, caught up again and was cut off again (2026-09-29).
+   */
+  private allow(client: Client): 'ok' | 'drop' | 'close' {
     const now = this.now();
     const burst = this.limits.messagesPerSecond * 2;
     client.tokens = Math.min(burst, client.tokens + ((now - client.refilledAt) / 1000) * this.limits.messagesPerSecond);
     client.refilledAt = now;
-    if (client.tokens < 1) return false;
     client.tokens -= 1;
-    return true;
+    if (client.tokens >= 0) return 'ok';
+    return client.tokens >= -burst ? 'drop' : 'close';
   }
 
   /** Parses and dispatches one client message. */
   private async onMessage(client: Client, raw: string): Promise<void> {
-    if (!this.allow(client)) {
+    const allowed = this.allow(client);
+    if (allowed === 'close') {
+      this.log(`closing ${client.userId ?? client.ip}: too many requests`);
       client.ws.close(4008, 'Too many requests');
+      return;
+    }
+    if (allowed === 'drop') {
+      // Refused, with an answer so the sender retries instead of waiting for a reply that never comes.
+      const reqId = /"reqId"\s*:\s*"([^"]{1,100})"/.exec(raw.slice(0, 400))?.[1];
+      if (reqId) this.send(client, { type: 'reply', reqId, ok: false, error: 'Too many requests, retry shortly' });
       return;
     }
     let msg: ClientMessage;

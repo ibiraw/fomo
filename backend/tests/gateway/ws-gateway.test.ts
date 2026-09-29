@@ -122,6 +122,19 @@ describe('WsGateway auth', () => {
     await authed(false, TOKEN); // existing accounts still log in
   });
 
+  it('refuses messages over the burst with an answer, keeping the connection', async () => {
+    sockets.splice(0).forEach((s) => s.terminate());
+    await gateway.close();
+    await start({ messagesPerSecond: 2, viewedTokens: 8, accountsPerIpPerHour: 5 });
+    const c = await authed(false); // the hello used one of the 4
+    for (let i = 0; i < 5; i++) c.send({ type: 'order.list', reqId: `r${i}` });
+    const refused = await c.next((m) => m.reqId === 'r3');
+    expect(refused).toMatchObject({ ok: false, error: 'Too many requests, retry shortly' });
+    expect((await c.next((m) => m.reqId === 'r4')).ok).toBe(false);
+    expect((await c.next((m) => m.reqId === 'r0')).ok).toBe(true);
+    expect(c.closeCode).toBeNull();
+  });
+
   it('closes connections that flood messages', async () => {
     sockets.splice(0).forEach((s) => s.terminate());
     await gateway.close();

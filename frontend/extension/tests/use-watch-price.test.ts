@@ -20,7 +20,7 @@ afterEach(() => vi.useRealTimers());
 
 describe('isTransientError', () => {
   it('knows "no answer" and "no connection" from real refusals', () => {
-    for (const m of ['Server did not answer in time', 'Connection closed', 'Connection lost', 'Not connected to the limit server']) expect(isTransientError(m)).toBe(true);
+    for (const m of ['Server did not answer in time', 'Connection closed', 'Connection lost', 'Not connected to the limit server', 'Too many requests, retry shortly']) expect(isTransientError(m)).toBe(true);
     expect(isTransientError('No Raydium CPMM pool for X')).toBe(false);
   });
 });
