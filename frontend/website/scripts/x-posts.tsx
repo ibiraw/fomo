@@ -155,7 +155,7 @@ const DESIGNS: Record<string, () => React.ReactElement> = {
       <div style={{ position: 'absolute', left: 0, right: 0, top: 230, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 26 }}>
         <div style={{ display: 'flex', fontSize: 200, fontWeight: 700, letterSpacing: -6, lineHeight: 1 }}>0</div>
         <div style={{ display: 'flex', fontSize: 60, fontWeight: 700, letterSpacing: -1 }}>private keys needed.</div>
-        <div style={{ display: 'flex', fontSize: 32, color: MUTED, maxWidth: 900, textAlign: 'center', lineHeight: 1.35 }}>No seed phrase either. limit clicks fomo's own Buy and Sell in your logged-in tab.</div>
+        <div style={{ display: 'flex', fontSize: 32, color: MUTED, maxWidth: 900, textAlign: 'center', lineHeight: 1.35 }}>No seed phrase either. limit clicks fomo&rsquo;s own Buy and Sell in your logged-in tab.</div>
       </div>
     </Frame>
   ),
@@ -241,7 +241,7 @@ const DESIGNS: Record<string, () => React.ReactElement> = {
           <div style={{ display: 'flex', fontSize: 24, color: MUTED, fontWeight: 700, letterSpacing: 2 }}>MKT CAP</div>
           <div style={{ display: 'flex', fontSize: 38, fontWeight: 700 }}>$200,000</div>
         </div>
-        <div style={{ display: 'flex', fontSize: 24, color: MUTED }}>If it hits, you'd get about $164 before fees</div>
+        <div style={{ display: 'flex', fontSize: 24, color: MUTED }}>If it hits, you&rsquo;d get about $164 before fees</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 18, padding: '22px 26px', background: 'rgba(34,197,94,0.12)', border: '2px solid rgba(34,197,94,0.35)' }}>
           <div style={{ display: 'flex', fontSize: 28, fontWeight: 700 }}>Take profit · 50%</div>
           <div style={{ display: 'flex', fontSize: 26, fontWeight: 700, color: GREEN }}>Filled</div>

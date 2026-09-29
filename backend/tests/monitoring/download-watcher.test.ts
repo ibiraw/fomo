@@ -24,9 +24,15 @@ class Batches extends LineSourcePort {
 
 describe('parseDownload', () => {
   it('counts completed GETs only, with a real country code', () => {
-    expect(parseDownload('2026-09-29T01:00:00+00:00 GET 200 301234 US')).toEqual({ at: Date.parse('2026-09-29T01:00:00Z'), country: 'US' });
-    expect(parseDownload('2026-09-29T01:00:00+00:00 GET 200 301234 XX')?.country).toBeNull(); // unknown
-    expect(parseDownload('2026-09-29T01:00:00+00:00 GET 200 301234 -')?.country).toBeNull();
+    expect(parseDownload('2026-09-29T01:00:00+00:00 GET 200 301234 US')).toEqual({ at: Date.parse('2026-09-29T01:00:00Z'), place: 'US' });
+    expect(parseDownload('2026-09-29T01:00:00+00:00 GET 200 301234 XX')?.place).toBeNull(); // unknown
+    expect(parseDownload('2026-09-29T01:00:00+00:00 GET 200 301234 -')?.place).toBeNull();
+    // Newer lines: "|"-separated with Cloudflare's region and city (city names have spaces).
+    expect(parseDownload('2026-09-29T01:00:00+00:00|GET|200|301234|CA|Ontario|Toronto')?.place).toBe('Toronto, Ontario, CA');
+    expect(parseDownload('2026-09-29T01:00:00+00:00|GET|200|301234|US|New York|New York City')?.place).toBe('New York City, New York, US');
+    expect(parseDownload('2026-09-29T01:00:00+00:00|GET|200|301234|SG|-|-')?.place).toBe('SG'); // headers off
+    expect(parseDownload('2026-09-29T01:00:00+00:00|GET|200|301234|US||<script>')?.place).toBe('US');
+    expect(parseDownload('2026-09-29T01:00:00+00:00|HEAD|200|0|US|Ohio|Columbus')).toBeNull();
     expect(parseDownload('2026-09-29T01:00:00+00:00 HEAD 200 0 US')).toBeNull();
     expect(parseDownload('2026-09-29T01:00:00+00:00 GET 206 1000 US')).toBeNull(); // a range request
     expect(parseDownload('2026-09-29T01:00:00+00:00 GET 404 153 US')).toBeNull();

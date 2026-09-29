@@ -48,6 +48,7 @@ export default function Privacy() {
             <li><b className="text-foreground">Subscription payments.</b> For the monthly subscription we record payments received by our wallets: chain, coin, amount, the sending wallet address and the transaction id — all public on the blockchain — which account they paid for, and until when.</li>
             <li><b className="text-foreground">Activity log.</b> A record of account, order and payment events (with your short user ID, e.g. LM-7K3Q2P) that we use to monitor the service and answer support requests; the operator receives these events as private notifications.</li>
             <li><b className="text-foreground">Technical logs.</b> Short-lived server logs (errors, order status changes). Our network provider (Cloudflare) processes IP addresses to deliver and protect the service.</li>
+            <li><b className="text-foreground">Downloads.</b> When you download limit from this website we record the time and an approximate location (city, region and country, as estimated by Cloudflare) to count downloads. We don&rsquo;t store your IP address.</li>
           </ul>
         </PolicyBlock>
 

@@ -1,8 +1,10 @@
 /**
  * @file download-watcher.ts
  * @description Tells the owner when someone downloads the extension from the website. nginx writes one line per
- *              request for /limit.zip ("<ISO time> <method> <status> <body bytes> <CF country>", see deploy/nginx.conf);
- *              completed downloads (GET, 200, bytes sent) become "limit.zip downloaded · from US · 2nd today (ET)".
+ *              request for /limit.zip ("<ISO time>|<method>|<status>|<body bytes>|<country>|<region>|<city>", from
+ *              Cloudflare's location headers, see deploy/nginx.conf; older lines are space-separated without region
+ *              and city); completed downloads (GET, 200, bytes sent) become
+ *              "limit.zip downloaded · from Toronto, Ontario, CA · 2nd today (ET)".
  *              HEAD checks, partial/ranged requests and errors are skipped. "Today" is US Eastern, the owner's day, by
  *              each line's own time; on start the existing log is read silently so the count survives restarts.
  * @author Reborn1987
@@ -11,14 +13,18 @@
 import type { LineSourcePort } from '../../ports/line-source.js';
 
 /** One completed download read from the log, or null for anything else. */
-export function parseDownload(line: string): { readonly at: number | null; readonly country: string | null } | null {
-  const [time, method, status, bytes, country] = line.trim().split(/\s+/);
+export function parseDownload(line: string): { readonly at: number | null; readonly place: string | null } | null {
+  const raw = line.trim();
+  const [time, method, status, bytes, country, region, city] = raw.includes('|') ? raw.split('|') : raw.split(/\s+/);
   if (method !== 'GET' || status !== '200' || !(Number(bytes) > 0)) return null;
   const at = Date.parse(time ?? '');
-  return {
-    at: Number.isFinite(at) ? at : null,
-    country: country && /^[A-Z]{2}$/.test(country) && country !== 'XX' && country !== 'T1' ? country : null,
+  const known = (s: string | undefined): string | null => {
+    const v = (s ?? '').trim();
+    return v && v !== '-' && v.length <= 60 && !/[<>|]/.test(v) ? v : null;
   };
+  const cc = country && /^[A-Z]{2}$/.test(country) && country !== 'XX' && country !== 'T1' ? country : null;
+  const parts = [known(city), known(region), cc].filter((p): p is string => p !== null);
+  return { at: Number.isFinite(at) ? at : null, place: parts.length ? parts.join(', ') : null };
 }
 
 /** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th, 21st. */
@@ -79,7 +85,7 @@ export class DownloadWatcher {
       if (day < this.day) continue; // an older day's line (only while catching up)
       if (day !== this.day) { this.day = day; this.count = 0; }
       this.count++;
-      if (announce) this.notify(`limit.zip downloaded${d.country ? ` · from ${d.country}` : ''} · ${ordinal(this.count)} today (ET)`);
+      if (announce) this.notify(`limit.zip downloaded${d.place ? ` · from ${d.place}` : ''} · ${ordinal(this.count)} today (ET)`);
     }
     return lines.length;
   }
