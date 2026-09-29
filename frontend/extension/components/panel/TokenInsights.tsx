@@ -75,7 +75,7 @@ function MetricsLines({ mint, send }: { mint: string; send: SendFn }) {
   );
   const usersIcon = <Users className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />;
   const devIcon = <UserRound className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />;
-  if (q.isPending) return row(usersIcon, 'Top 10 holders', <span className="text-muted-foreground">Counting holders… (fresh EVM tokens can take a moment)</span>);
+  if (q.isPending) return row(usersIcon, 'Top 10 holders', <span className="text-muted-foreground">Counting holders… (coins with many holders take a moment)</span>);
   if (q.isError) return row(usersIcon, 'Holder data', <span className="text-muted-foreground">Unavailable ({q.error.message})</span>);
   const m = q.data;
   if (m.note === 'counting') return row(usersIcon, 'Top 10 holders', <span className="text-muted-foreground">Counting holders… (busy coins take up to a minute)</span>);

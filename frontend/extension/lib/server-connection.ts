@@ -62,6 +62,17 @@ export class ServerCommandError extends Error {}
  */
 export class UnansweredError extends ServerCommandError {}
 
+/** Messages of errors that say nothing about the request itself: no answer yet, or no connection. */
+const TRANSIENT = ['Server did not answer in time', 'Connection closed', 'Connection lost', 'Not connected to the limit server'];
+
+/**
+ * True for an error message (as it crosses to the popup / panels) that only means "try again": the server was slow
+ * or unreachable, not that it refused the request.
+ */
+export function isTransientError(message: string): boolean {
+  return TRANSIENT.some((t) => message.startsWith(t));
+}
+
 export class ServerConnection {
   private socket: SocketLike | null = null;
   private status: ConnectionStatus = 'disconnected';
