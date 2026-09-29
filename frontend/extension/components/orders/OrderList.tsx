@@ -64,7 +64,7 @@ function OrderRow({ order, tick, onCancel, onRemove, showMint, label, linkTarget
   const done = order.status === 'cancelled' || order.status === 'filled';
 
   return (
-    <div className={cn('rounded-lg bg-secondary px-2.5 py-2', done && 'opacity-60')}>
+    <div className={cn('min-w-0 rounded-lg bg-secondary px-2.5 py-2', done && 'opacity-60')}>
       <div className="flex items-center gap-2 text-xs">
         <span className={cn('shrink-0 font-bold', order.side === 'buy' ? 'text-buy' : 'text-sell')}>{orderKind(order)}</span>
         <span className="min-w-0 flex-1 truncate text-foreground">
@@ -123,9 +123,11 @@ export function OrderList({ orders, ticks, onCancel, height = 380, emptyText = '
   }
   const sorted = [...orders].sort((a, b) => Number(isCancellable(b.status)) - Number(isCancellable(a.status)) || b.createdAt - a.createdAt);
   return (
-    // The height cap goes on the scrolling viewport; capping the ScrollArea root alone lets content spill out.
+    // The height cap goes on the scrolling viewport; capping the ScrollArea root alone lets content spill out. Radix
+    // wraps the content in a `display: table` box that grows to the longest line, so rows were wider than the panel
+    // (status and Cancel cut off): make that box a block so rows take the panel's width and truncate instead.
     <ScrollArea
-      className="pr-3 [&_[data-slot=scroll-area-viewport]]:max-h-[var(--order-list-max)]"
+      className="pr-3 [&_[data-slot=scroll-area-viewport]]:max-h-[var(--order-list-max)] [&_[data-slot=scroll-area-viewport]>div]:!block"
       style={{ '--order-list-max': `${height}px` } as React.CSSProperties}
     >
       <div className="space-y-1.5">
