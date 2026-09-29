@@ -391,6 +391,11 @@ export class OrderEngine {
     if (result.kind === 'slippage' && order.attempts < order.maxAttempts) {
       return this.store.transition(order.id, ['executing'], 'open', { lastError });
     }
+    // fomo refused the trade itself (e.g. right before a graduation): a sell tries again on the next trigger; a buy
+    // stays failed, so a misleading notice can never buy twice.
+    if (result.kind === 'rejected' && order.side === 'sell' && order.attempts < order.maxAttempts) {
+      return this.store.transition(order.id, ['executing'], 'open', { lastError });
+    }
     // A sell the wallet didn't confirm is tried again (selling a share of nothing sells nothing); a buy is never
     // retried blind — it could buy twice — so it waits for the user to check fomo.
     if (result.kind === 'unconfirmed') {

@@ -129,6 +129,24 @@ describe('OrderEngine triggering and execution', () => {
     expect(store.get(o.id)).toMatchObject({ status: 'failed', attempts: 2 });
   });
 
+  it('tries a sell fomo refused again on the next trigger, but never a refused buy', async () => {
+    const sell = await engine.createOrder('u1', {
+      mint: MINT, side: 'sell', trigger: { metric: 'price', direction: 'above', value: 1 }, amount: { kind: 'percent', value: 50 }, maxAttempts: 2,
+    });
+    exec.results.push({ ok: false, kind: 'rejected', message: 'FOMO reported: Failed to sell 1M X' });
+    feed.tick(MINT, 1);
+    await settle();
+    expect(store.get(sell.id)).toMatchObject({ status: 'open', attempts: 1, lastError: 'rejected: FOMO reported: Failed to sell 1M X' });
+    feed.tick(MINT, 1.1);
+    await settle();
+    expect(store.get(sell.id)).toMatchObject({ status: 'filled', attempts: 2 });
+    const buy = await engine.createOrder('u1', { ...limitBuy(1), mint: MINT2 });
+    exec.results.push({ ok: false, kind: 'rejected', message: 'FOMO reported: Failed to buy X' });
+    feed.tick(MINT2, 1);
+    await settle();
+    expect(store.get(buy.id)).toMatchObject({ status: 'failed', attempts: 1 });
+  });
+
   it('marks timeouts as unknown and other errors as failed', async () => {
     const a = await engine.createOrder('u1', limitBuy(1));
     const b = await engine.createOrder('u1', { ...limitBuy(1), mint: MINT2 });

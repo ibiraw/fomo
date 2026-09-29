@@ -57,7 +57,7 @@ export interface PriceTick {
  * `layout`: fomo's page wasn't recognised (a redesign) and nothing was clicked — the server pauses the account's trades
  * instead of failing the order, and they resume once the layout settings are fixed.
  */
-export type ExecutionErrorKind = 'slippage' | 'not_logged_in' | 'insufficient_funds' | 'ui_error' | 'timeout' | 'unknown' | 'layout';
+export type ExecutionErrorKind = 'slippage' | 'rejected' | 'not_logged_in' | 'insufficient_funds' | 'ui_error' | 'timeout' | 'unknown' | 'layout';
 
 export type ExecutionResult =
   | { readonly ok: true; readonly detail: string }

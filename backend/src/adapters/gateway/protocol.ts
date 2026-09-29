@@ -15,7 +15,7 @@ const ExecutionResultSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), detail: z.string() }),
   z.object({
     ok: z.literal(false),
-    kind: z.enum(['layout', 'slippage', 'not_logged_in', 'insufficient_funds', 'ui_error', 'timeout', 'unknown']),
+    kind: z.enum(['layout', 'slippage', 'rejected', 'not_logged_in', 'insufficient_funds', 'ui_error', 'timeout', 'unknown']),
     message: z.string(),
   }),
 ]);

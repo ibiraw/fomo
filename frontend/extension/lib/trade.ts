@@ -172,7 +172,8 @@ async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<E
     // Failure / slippage words come from fomo-dom-config (calibrate there once a real failure is observed).
     const { failureWords, slippageWords } = fomoDom();
     const failure = notificationTexts(doc).slice(before).find((s) => containsAnyWord(s, failureWords));
-    if (failure) return fail(containsAnyWord(failure, slippageWords) ? 'slippage' : 'ui_error', `FOMO reported: ${failure}`);
+    // fomo's own failure notice means nothing traded: slippage, or `rejected` for any other reason it gives.
+    if (failure) return fail(containsAnyWord(failure, slippageWords) ? 'slippage' : 'rejected', `FOMO reported: ${failure}`);
     const now = readBalance(p(), req.side);
     if (now !== null && now <= balance - Math.min(usd, balance) * 0.5) {
       return { ok: true, detail: `${req.side === 'buy' ? 'Bought' : 'Sold'} ~$${usd.toFixed(2)} (balance $${balance.toFixed(2)} → $${now.toFixed(2)})` };

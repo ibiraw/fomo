@@ -38,6 +38,7 @@ Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), 
 ## Order lifecycle
 `open → triggered → executing → filled | failed | unknown`, `open/triggered → cancelled`.
 - Slippage failure re-arms to `open` until `maxAttempts` (default 3).
+- fomo's own failure notice without a slippage word ("Failed to sell 1M X") is kind `rejected` (nothing traded): a sell re-arms like slippage; a buy fails (never risk buying twice).
 - Before executing, the trigger is re-checked against the latest price; if no longer met → back to `open`.
 - Timeout / extension disconnect / restart mid-trade → `unknown` (user must check FOMO).
 - One trade at a time.

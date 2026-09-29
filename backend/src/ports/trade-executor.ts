@@ -10,11 +10,13 @@ import type { Order } from '../core/orders/order.js';
  * Why a trade failed. `slippage` is retryable; `unknown` means the outcome could not be confirmed; `layout` means
  * fomo's page wasn't recognised and nothing was clicked — the order goes back to waiting and the account's trades
  * pause until the layout settings work again; `unconfirmed` means fomo's page looked done but the wallet didn't
- * change on-chain (e.g. a crashing price shrank the position's $ value like a sell would).
+ * change on-chain (e.g. a crashing price shrank the position's $ value like a sell would); `rejected` means fomo showed
+ * its own failure notice for the trade ("Failed to sell 1M X") without a reason we recognise: nothing traded.
  */
 export type ExecutionErrorKind =
   | 'layout'
   | 'slippage'
+  | 'rejected'
   | 'not_logged_in'
   | 'insufficient_funds'
   | 'ui_error'

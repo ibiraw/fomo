@@ -93,11 +93,11 @@ describe('executeTrade', () => {
       .toMatchObject({ ok: false, kind: 'insufficient_funds', message: expect.stringMatching(/only \$3.00/) });
   });
 
-  it('maps FOMO failure notices to slippage / ui_error', async () => {
+  it('maps FOMO failure notices to slippage / rejected', async () => {
     mountFakeFomo(document, { cash: 100, position: 0, outcome: 'slippage' });
     expect(await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST)).toMatchObject({ ok: false, kind: 'slippage' });
     mountFakeFomo(document, { cash: 100, position: 0, outcome: 'error' });
-    expect(await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST)).toMatchObject({ ok: false, kind: 'ui_error' });
+    expect(await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST)).toMatchObject({ ok: false, kind: 'rejected' });
   });
 
   it('reports unknown when nothing confirms the trade', async () => {
