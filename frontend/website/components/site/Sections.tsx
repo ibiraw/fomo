@@ -82,7 +82,7 @@ export function Hero() {
           {[
             ['~2.6s', 'trigger to filled'],
             ['0', 'private keys needed'],
-            ['on-chain', 'live prices'],
+            ['<1s', 'price updates, on-chain'],
           ].map(([v, l]) => (
             <div key={l} className="rounded-xl border bg-card/50 px-3 py-4">
               <dt className="sr-only">{l}</dt>
@@ -110,7 +110,7 @@ export function SectionHead({ eyebrow, title, sub }: { eyebrow: string; title: s
 /** Feature cards; `since` hides a card until that version is public. */
 const FEATURES: readonly { icon: typeof Timer; title: string; body: string; since?: string }[] = [
   { icon: MousePointerClick, title: 'A native Limit tab', body: "Sits next to fomo's Buy and Sell. Presets, a −100% to +100% market-cap slider, and the order type worked out for you." },
-  { icon: Radio, title: 'Live on-chain prices', body: 'Reads launchpad curves and DEX pools straight from the chain on Solana, Base, Ethereum, BNB, Robinhood and Arc — sub-second. Anything else falls back to a slower price, clearly marked.' },
+  { icon: Radio, title: 'Private RPC, live prices', body: 'limit streams launchpad curves and DEX pools over its own dedicated blockchain connections on Solana, Base, Ethereum, BNB, Robinhood and Arc, so a new price lands in under a second, the moment a trade confirms. Anything else falls back to a slower price, clearly marked.' },
   { icon: CircleCheck, title: 'Confirmed on-chain', body: 'A fill only counts when your wallet balance actually changes — no guessing from the page.' },
   { icon: Timer, since: '1.2.0', title: "The token's last post", body: "See how long ago the token's X account last posted — green when fresh, red when it's gone quiet — with a preview." },
   { icon: BellOff, title: 'Auto-cancel', body: 'Sold out of a token? Its leftover take-profits and stop-losses cancel themselves.' },
