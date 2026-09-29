@@ -111,11 +111,11 @@ function transfer(from: string, to: string, value: bigint, block: bigint, tx: He
 }
 
 /** A chain with the token's supply answer, and an index over it with a small chunk and budget. */
-function evmSetup(opts: { maxChunks?: number; freshMs?: number; maxTokens?: number; answerWithinMs?: number } = {}) {
+function evmSetup(opts: { maxChunks?: number; freshMs?: number; maxTokens?: number; answerWithinMs?: number; maxHolders?: number } = {}) {
   let t = 0;
   const rpc = new FakeEvmRpc('base');
   rpc.on(TOKEN, ERC20_ABI, 'totalSupply', 1_000n);
-  const index = new EvmHolderIndex(rpc, new Erc20Reader(rpc), { chunkBlocks: 100n, maxChunks: opts.maxChunks ?? 5, concurrency: 2, maxTokens: opts.maxTokens ?? 40, freshMs: opts.freshMs ?? 1_000, answerWithinMs: opts.answerWithinMs ?? 5_000 }, () => t);
+  const index = new EvmHolderIndex(rpc, new Erc20Reader(rpc), { chunkBlocks: 100n, maxChunks: opts.maxChunks ?? 5, concurrency: 2, maxTokens: opts.maxTokens ?? 40, freshMs: opts.freshMs ?? 1_000, answerWithinMs: opts.answerWithinMs ?? 5_000, ...(opts.maxHolders ? { maxHolders: opts.maxHolders } : {}) }, () => t);
   return { rpc, index, advance: (ms: number) => { t += ms; } };
 }
 
@@ -139,6 +139,17 @@ describe('EvmHolderIndex', () => {
     // wallets: 1 → 200, 2 → 150, dev → 60 ; pool (contract) and 0x…dead left out
     expect(m).toEqual({ topTenPct: 41, topHoldersPct: [20, 15, 6], devWallet: DEV, devName: null, devHoldsPct: 6, note: null });
     expect(rpc.getLogsCalls.length).toBeLessThanOrEqual(5);
+  });
+
+  it('stops scanning a token with more holders than the cap (an established token, not a fresh coin)', async () => {
+    const { rpc, index } = evmSetup({ maxChunks: 5, maxHolders: 3 });
+    rpc.head = 450n;
+    rpc.history = [
+      transfer(ZERO, addr(1), 1_000n, 10n), // the creation is in the last chunk; the cap stops the scan before it
+      ...[2, 3, 4, 5].map((n, i) => transfer(addr(1), addr(n), 1n, 440n - BigInt(i))),
+    ];
+    expect((await index.metrics(TOKEN)).note).toBe('too-old');
+    expect(rpc.getLogsCalls.length).toBeLessThan(5);
   });
 
   it('says "too old" when the creation is beyond the scan budget', async () => {

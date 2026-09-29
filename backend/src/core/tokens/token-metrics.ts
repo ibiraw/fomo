@@ -95,7 +95,12 @@ export interface EvmIndexOptions {
   readonly freshMs: number;
   /** Longest wait for a first count before answering "counting" (it carries on in the background). */
   readonly answerWithinMs: number;
+  /** A token with more holders than this while scanning is no fresh coin: answered "too old" (bounds memory). */
+  readonly maxHolders?: number;
 }
+
+/** Default `maxHolders`. */
+const MAX_HOLDERS = 200_000;
 
 export const DEFAULT_EVM_INDEX: EvmIndexOptions = { chunkBlocks: 10_000n, maxChunks: 60, concurrency: 6, maxTokens: 40, freshMs: 15_000, answerWithinMs: 8_000 };
 
@@ -227,10 +232,15 @@ export class EvmHolderIndex implements TokenMetricsSource {
     return value;
   }
 
-  /** Scans back from `head` until the mint (creation) is found or the budget runs out. */
+  /**
+   * Scans back from `head` until the mint (creation) is found or the budget runs out. Each batch of logs is added to
+   * the balances straight away and dropped: keeping every log of a busy token until its creation turned up filled the
+   * server's memory (over 1 GB, then a crash, 2026-09-29) — only to answer "too old".
+   */
   private async build(token: Hex, head: bigint): Promise<Indexed | 'too-old'> {
     const { chunkBlocks, maxChunks, concurrency } = this.opts;
-    const logs: EvmLog[] = [];
+    const maxHolders = this.opts.maxHolders ?? MAX_HOLDERS;
+    const balances = new Map<string, bigint>();
     let creation: EvmLog | null = null;
     for (let start = 0; start < maxChunks && !creation; start += concurrency) {
       const ranges: [bigint, bigint][] = [];
@@ -242,13 +252,15 @@ export class EvmHolderIndex implements TokenMetricsSource {
       }
       if (ranges.length === 0) break;
       const batches = await Promise.all(ranges.map(([from, to]) => this.logs(token, from, to)));
-      for (const b of batches) logs.push(...b);
-      creation = earliestMint(logs);
+      for (const b of batches) {
+        apply(balances, b);
+        const mint = earliestMint(b);
+        if (mint) creation = creation ? earliestMint([creation, mint]) : mint;
+      }
+      if (balances.size > maxHolders) return 'too-old'; // an established token, not a fresh coin
       if (ranges[ranges.length - 1]![0] === 0n) break; // reached the chain's first block
     }
     if (!creation) return 'too-old';
-    const balances = new Map<string, bigint>();
-    apply(balances, logs);
     return { balances, scannedTo: head, creationTx: creation.transactionHash, dev: null, updatedAt: this.now() };
   }
 
