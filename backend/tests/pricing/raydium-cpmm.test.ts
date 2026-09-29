@@ -25,7 +25,7 @@ const POOL = '2Sra9Xw28W25LecbFhHzV4nP2BoWx7G1mqyMJPnJHFF5' as Address;
 const V0 = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P' as Address;
 const V1 = 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA' as Address;
 const JUP = 'https://lite-api.jup.ag/price/v3';
-const DS = `https://api.dexscreener.com/tokens/v1/solana/${BOP}`;
+const DS = `https://api.dexscreener.com/token-pairs/v1/solana/${BOP}`;
 const enc = getAddressEncoder();
 
 /** CPMM pool bytes (token0 = quote, token1 = BOP, like BOP's real pool ordering may be). */

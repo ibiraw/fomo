@@ -19,6 +19,9 @@ const dec = getAddressDecoder();
 export interface DammV2Pool {
   readonly tokenAMint: Address;
   readonly tokenBMint: Address;
+  /** Token accounts holding each side's reserve. */
+  readonly tokenAVault: Address;
+  readonly tokenBVault: Address;
   /** Q64.64 square root of price (token B per token A, raw units). */
   readonly sqrtPrice: bigint;
   readonly status: number;
@@ -34,6 +37,8 @@ export function decodeDammV2Pool(data: Uint8Array): DammV2Pool {
   return {
     tokenAMint: dec.decode(data.subarray(168, 200)),
     tokenBMint: dec.decode(data.subarray(200, 232)),
+    tokenAVault: dec.decode(data.subarray(232, 264)),
+    tokenBVault: dec.decode(data.subarray(264, 296)),
     sqrtPrice: dv.getBigUint64(456, true) + (dv.getBigUint64(464, true) << 64n),
     status: data[481]!,
   };

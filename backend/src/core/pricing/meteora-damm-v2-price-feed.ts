@@ -9,8 +9,9 @@
 import { UnsupportedPoolError } from '../errors.js';
 import { PriceFeedPort, type PriceListener, type PriceTick, type PriceWatch } from '../../ports/price-feed.js';
 import type { SolanaAccountsPort } from '../../ports/solana-accounts.js';
+import { decodeTokenAccountAmount } from './decoders.js';
 import { marketCapUsd } from './math.js';
-import { dammV2PriceBPerA, decodeDammV2Pool } from './meteora-damm-v2.js';
+import { dammV2PriceBPerA, decodeDammV2Pool, type DammV2Pool } from './meteora-damm-v2.js';
 import type { PoolDirectory } from './pool-directory.js';
 import type { UsdQuotes } from './usd-quotes.js';
 
@@ -20,6 +21,9 @@ interface Watched {
   readonly stops: (() => void)[];
   lastTick: PriceTick | null;
 }
+
+/** Listed pools compared on-chain at most. */
+const MAX_CANDIDATES = 8;
 
 export class MeteoraDammV2PriceFeed extends PriceFeedPort {
   private readonly watched = new Map<string, Watched>();
@@ -43,7 +47,7 @@ export class MeteoraDammV2PriceFeed extends PriceFeedPort {
     this.watched.clear();
   }
 
-  /** Streams the token's most liquid DAMM v2 pool; UnsupportedPoolError if it has none. */
+  /** Streams the DAMM v2 pool holding the most of the token; UnsupportedPoolError if it has none. */
   async watch(mint: string, listener: PriceListener): Promise<PriceWatch> {
     let w = this.watched.get(mint);
     if (!w) {
@@ -65,15 +69,36 @@ export class MeteoraDammV2PriceFeed extends PriceFeedPort {
     };
   }
 
+  /**
+   * The listed DAMM v2 pool that holds the most of the token, read on-chain. DexScreener's liquidity can't be trusted
+   * for this: a pool quoted in a token it can't price shows none (FISHING's real pool, quoted in "BITCOIN", 2026-09-28)
+   * while $1 dust pools at wrong prices rank above it.
+   */
+  private async pick(mint: string): Promise<{ address: string; pool: DammV2Pool }> {
+    const listed = (await this.directory.find(mint)).filter((p) => p.dexId === 'meteora' && p.labels.includes('DYN2')).slice(0, MAX_CANDIDATES);
+    if (listed.length === 0) throw new UnsupportedPoolError(`No Meteora DAMM v2 pool for ${mint}`);
+    const read = await Promise.all(listed.map(async (l) => {
+      try {
+        const raw = await this.accounts.getAccount(l.address);
+        if (!raw) return null;
+        const pool = decodeDammV2Pool(raw);
+        if (pool.tokenAMint !== mint && pool.tokenBMint !== mint) return null;
+        const vault = await this.accounts.getAccount(pool.tokenAMint === mint ? pool.tokenAVault : pool.tokenBVault);
+        return vault ? { address: l.address, pool, held: decodeTokenAccountAmount(vault) } : null;
+      } catch {
+        return null; // not a DAMM v2 pool after all, or unreadable: skip it
+      }
+    }));
+    const best = read.filter((r) => r !== null).sort((x, y) => (y.held > x.held ? 1 : y.held < x.held ? -1 : 0))[0];
+    if (!best) throw new UnsupportedPoolError(`No readable Meteora DAMM v2 pool for ${mint}`);
+    return best;
+  }
+
   /** Finds and verifies the pool, then subscribes to it. */
   private async open(mint: string): Promise<Watched> {
-    const listed = (await this.directory.find(mint)).find((p) => p.dexId === 'meteora' && p.labels.includes('DYN2'));
-    if (!listed) throw new UnsupportedPoolError(`No Meteora DAMM v2 pool for ${mint}`);
-    const raw = await this.accounts.getAccount(listed.address);
-    if (!raw) throw new UnsupportedPoolError(`Meteora DAMM v2 pool ${listed.address} not found on-chain`);
-    const pool = decodeDammV2Pool(raw);
+    const { address, pool } = await this.pick(mint);
+    const listed = { address };
     const isA = pool.tokenAMint === mint;
-    if (!isA && pool.tokenBMint !== mint) throw new UnsupportedPoolError(`Meteora pool ${listed.address} is not for ${mint}`);
     const quoteMint = isA ? pool.tokenBMint : pool.tokenAMint;
     await this.quotes.track(quoteMint);
     const [supply, a, b] = await Promise.all([

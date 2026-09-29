@@ -8,8 +8,10 @@
 
 import type { HttpJsonPort } from '../../ports/http-json.js';
 
-const DEXSCREENER_TOKEN_URL = 'https://api.dexscreener.com/tokens/v1/';
-/** Lists up to 30 pools per token (the tokens endpoint returns only a token's main pair on EVM chains). */
+/**
+ * Lists up to 30 pools per token. The tokens endpoint returns only a token's main pair, on Solana too: a graduated
+ * Meteora DBC coin (FISHING, 2026-09-28) listed just its old curve there, so its DAMM v2 pools were never found.
+ */
 const DEXSCREENER_PAIRS_URL = 'https://api.dexscreener.com/token-pairs/v1/';
 const CACHE_MS = 10 * 60_000;
 
@@ -43,7 +45,7 @@ export class PoolDirectory {
     const key = `${chain}:${mint}`;
     const hit = this.cache.get(key);
     if (hit && this.now() - hit.at < maxAgeMs) return hit.pools;
-    const json = await this.http.getJson(`${chain === 'solana' ? DEXSCREENER_TOKEN_URL : DEXSCREENER_PAIRS_URL}${chain}/${mint}`, 8_000);
+    const json = await this.http.getJson(`${DEXSCREENER_PAIRS_URL}${chain}/${mint}`, 8_000);
     const pools = (Array.isArray(json) ? json : [])
       .map((p: Record<string, unknown>): ListedPool => ({
         dexId: String(p.dexId ?? ''),
