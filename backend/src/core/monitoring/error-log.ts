@@ -9,10 +9,19 @@
 /** Repeats of the same context+message within this window log one line instead of a full dump. */
 export const LOG_REPEAT_MS = 60_000;
 
-/** "Name: message", first line only. */
+/**
+ * "Name: message", first line only. WebSocket error events aren't Errors: they are named and described by their
+ * error, message or type (plain String() gave "[object ErrorEvent]", which said nothing).
+ */
 export function errorHeadline(err: unknown): string {
-  const text = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-  return text.split('\n')[0]!;
+  if (err instanceof Error) return `${err.name}: ${err.message}`.split('\n')[0]!;
+  if (err && typeof err === 'object') {
+    const e = err as { error?: unknown; message?: unknown; type?: unknown };
+    if (e.error instanceof Error) return errorHeadline(e.error);
+    const detail = typeof e.message === 'string' && e.message ? e.message : typeof e.type === 'string' && e.type ? e.type : null;
+    if (detail) return `${err.constructor?.name || 'Object'}: ${detail}`.split('\n')[0]!;
+  }
+  return String(err).split('\n')[0]!;
 }
 
 /** Above this many remembered messages, entries past their window are dropped (messages can carry addresses). */

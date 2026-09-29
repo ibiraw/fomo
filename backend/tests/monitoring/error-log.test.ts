@@ -26,6 +26,14 @@ describe('errorHeadline', () => {
   it('stringifies non-errors', () => {
     expect(errorHeadline('plain\nsecond')).toBe('plain');
   });
+
+  it('names WebSocket error events by their error, message or type', () => {
+    class ErrorEvent { constructor(readonly type: string, readonly message = '', readonly error?: unknown) {} }
+    expect(errorHeadline(new ErrorEvent('error'))).toBe('ErrorEvent: error');
+    expect(errorHeadline(new ErrorEvent('error', 'getaddrinfo ENOTFOUND'))).toBe('ErrorEvent: getaddrinfo ENOTFOUND');
+    expect(errorHeadline(new ErrorEvent('error', '', new RangeError('bad frame')))).toBe('RangeError: bad frame');
+    expect(errorHeadline({})).toBe('[object Object]');
+  });
 });
 
 describe('ErrorLog', () => {
