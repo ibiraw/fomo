@@ -178,7 +178,10 @@ export class EvmPoolPriceFeed extends PriceFeedPort {
     cur.rechecking = true;
     try {
       const listed = await this.directory.find(token, dexScreenerChain(this.chain), this.recheckMs);
-      const better = listed.filter((p) => p.address.toLowerCase() !== cur.pool && p.liquidityUsd >= Math.max(cur.liquidityUsd, 1) * SWITCH_FACTOR);
+      // Only pools quoted in a stablecoin or the wrapped native token: moving to a pool quoted in another watched
+      // token could make two streams price each other (ETH priced in X, X priced in ETH → endless updates, 2026-09-29).
+      const other = (p: ListedPool): string => (p.baseAddress.toLowerCase() === token ? p.quoteAddress : p.baseAddress);
+      const better = listed.filter((p) => p.address.toLowerCase() !== cur.pool && p.liquidityUsd >= Math.max(cur.liquidityUsd, 1) * SWITCH_FACTOR && this.quotes.isAnchor(other(p)));
       if (better.length === 0 || this.streams.get(key) !== cur) return;
       const next = await this.openFrom(key, token, better).catch((err: unknown) => {
         if (err instanceof UnsupportedPoolError) return null;

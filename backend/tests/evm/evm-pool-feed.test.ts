@@ -113,6 +113,31 @@ describe('EvmPoolPriceFeed', () => {
     await feed.close();
   });
 
+  it('never moves to a pool quoted in a non-anchor token, however liquid (two streams could price each other)', async () => {
+    const DUST = '0x8888888888888888888888888888888888888888';
+    const OTHER_TOKEN = '0x9999999999999999999999999999999999999999';
+    const BIG = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const { rpc, quotes } = setup();
+    rpc.on(DUST, POOL_ABI, 'token0', TOKEN).on(DUST, POOL_ABI, 'getReserves', [10n ** 24n, 2n * 10n ** 17n, 0]);
+    const http = new FakeHttp({
+      [pairsUrl(WETH)]: [pair({ labels: ['v3'], address: WETH_POOL, base: WETH, quote: USDC, priceNative: 2000 })],
+      [pairsUrl(TOKEN)]: [pair({ labels: ['v2'], address: DUST, base: TOKEN, quote: WETH, priceNative: 2e-7, liquidity: 1 })],
+    });
+    const feed = new EvmPoolPriceFeed('base', rpc, new Erc20Reader(rpc), new PoolDirectory(http), quotes, V4, () => undefined, 20);
+    quotes.setFeed(feed);
+    const ticks: PriceTick[] = [];
+    const w = await feed.watch(`base:${TOKEN}`, (t) => ticks.push(t));
+    http.docs[pairsUrl(TOKEN)] = [
+      pair({ labels: ['v2'], address: BIG, base: TOKEN, quote: OTHER_TOKEN, priceNative: 1, liquidity: 1e6 }),
+      pair({ labels: ['v2'], address: DUST, base: TOKEN, quote: WETH, priceNative: 2e-7, liquidity: 1 }),
+    ];
+    await new Promise((r) => setTimeout(r, 80));
+    expect(rpc.subs.some((x) => x.filter.address === BIG)).toBe(false);
+    expect(ticks.at(-1)!.priceUsd).toBeCloseTo(0.0004, 7); // still the anchored pool
+    w.stop();
+    await feed.close();
+  });
+
   it('prices a v2 pair through its quote token, skipping pools that revert', async () => {
     const { rpc, feed } = setup();
     const ticks: PriceTick[] = [];
