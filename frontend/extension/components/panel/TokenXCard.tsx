@@ -92,12 +92,12 @@ export function TokenXCard({ mint, send, pageLink = null }: { mint: string; send
             {showPost ? <ChevronUp className="size-3.5" aria-hidden /> : <ChevronDown className="size-3.5" aria-hidden />}
           </button>
           {showPost && (
-            <a href={result.post.url} target="_blank" rel="noreferrer" className="block space-y-2 rounded-md border border-input bg-secondary p-2 transition-colors hover:border-foreground/40">
+            <a href={result.post.url} target="_blank" rel="noreferrer" className="block min-w-0 space-y-2 overflow-hidden rounded-md border border-input bg-secondary p-2 transition-colors hover:border-foreground/40">
               <p className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span>@{result.post.author} · {new Date(result.post.time).toLocaleString()}</span>
                 <span className="inline-flex shrink-0 items-center gap-1 font-medium text-foreground underline underline-offset-2">Open on X <ExternalLink className="size-3" aria-hidden /></span>
               </p>
-              {result.post.text && <p className="whitespace-pre-wrap text-xs leading-relaxed">{result.post.text}</p>}
+              {result.post.text && <p className="whitespace-pre-wrap text-xs leading-relaxed [overflow-wrap:anywhere]">{result.post.text}</p>}
               {result.post.image && <img src={result.post.image} alt="" className="max-h-40 w-full rounded object-cover" />}
             </a>
           )}
