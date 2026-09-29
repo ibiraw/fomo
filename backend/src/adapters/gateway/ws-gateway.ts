@@ -123,13 +123,9 @@ export interface SpotSell {
 export function spotLine(side: 'buy' | 'sell', text: string, sell: SpotSell | null, who: string): [string, string, string] {
   if (side === 'buy') return ['✅', who, `**SPOT BUY** on fomo: ${text}`];
   if (!sell) return ['❌', who, `**SPOT SELL** on fomo: ${text}`];
+  // Only all vs. partial: the $ proceeds and PnL read off fomo's positions box were unreliable (owner, 2026-09-28).
   const kind = sell.all ? '**SELL ALL**' : `**PARTIAL SELL** (${sell.soldPct}%)`;
-  // What came back is not the profit: the gain/loss is spelled out in $ (cost = proceeds ÷ (1 + PnL)).
-  const growth = 1 + sell.pnlPct / 100;
-  const pnlUsd = growth > 0 ? Math.abs(sell.usd - sell.usd / growth) : null;
-  const verb = sell.pnlPct >= 0 ? 'made' : 'lost';
-  const pnl = `${sell.pnlPct >= 0 ? '⬆️' : '⬇️'} ${verb}${pnlUsd !== null ? ` $${pnlUsd.toFixed(2)}` : ''} (${Math.abs(sell.pnlPct).toFixed(1)}%)`;
-  return ['❌', who, `${kind} on fomo: ${text}, got $${sell.usd.toFixed(2)} · ${pnl}`];
+  return ['❌', who, `${kind} on fomo: ${text}`];
 }
 
 /** Spot-trade reports: at most one per connection per this window, and the same text only once a minute. */
