@@ -111,11 +111,11 @@ function transfer(from: string, to: string, value: bigint, block: bigint, tx: He
 }
 
 /** A chain with the token's supply answer, and an index over it with a small chunk and budget. */
-function evmSetup(opts: { maxChunks?: number; freshMs?: number; maxTokens?: number; answerWithinMs?: number; maxHolders?: number } = {}) {
+function evmSetup(opts: { maxChunks?: number; freshMs?: number; maxTokens?: number; answerWithinMs?: number; maxHolders?: number; idleMs?: number } = {}) {
   let t = 0;
   const rpc = new FakeEvmRpc('base');
   rpc.on(TOKEN, ERC20_ABI, 'totalSupply', 1_000n);
-  const index = new EvmHolderIndex(rpc, new Erc20Reader(rpc), { chunkBlocks: 100n, maxChunks: opts.maxChunks ?? 5, concurrency: 2, maxTokens: opts.maxTokens ?? 40, freshMs: opts.freshMs ?? 1_000, answerWithinMs: opts.answerWithinMs ?? 5_000, ...(opts.maxHolders ? { maxHolders: opts.maxHolders } : {}) }, () => t);
+  const index = new EvmHolderIndex(rpc, new Erc20Reader(rpc), { chunkBlocks: 100n, maxChunks: opts.maxChunks ?? 5, concurrency: 2, maxTokens: opts.maxTokens ?? 40, freshMs: opts.freshMs ?? 1_000, answerWithinMs: opts.answerWithinMs ?? 5_000, ...(opts.maxHolders ? { maxHolders: opts.maxHolders } : {}), ...(opts.idleMs ? { idleMs: opts.idleMs } : {}) }, () => t);
   return { rpc, index, advance: (ms: number) => { t += ms; } };
 }
 
@@ -139,6 +139,22 @@ describe('EvmHolderIndex', () => {
     // wallets: 1 → 200, 2 → 150, dev → 60 ; pool (contract) and 0x…dead left out
     expect(m).toEqual({ topTenPct: 41, topHoldersPct: [20, 15, 6], devWallet: DEV, devName: null, devHoldsPct: 6, note: null });
     expect(rpc.getLogsCalls.length).toBeLessThanOrEqual(5);
+  });
+
+  it('drops an index nobody asked about for a while, and rebuilds it from scratch when asked again', async () => {
+    const { rpc, index, advance } = evmSetup({ freshMs: 1_000, idleMs: 60_000 });
+    rpc.head = 450n;
+    rpc.senders.set('0x01', addr(9) as Hex);
+    rpc.history = [transfer(ZERO, addr(1), 1_000n, 120n), transfer(addr(1), addr(2), 100n, 300n)];
+    const OTHER_TOKEN = ('0x' + 'cd'.repeat(20)) as Hex;
+    rpc.on(OTHER_TOKEN, ERC20_ABI, 'totalSupply', 1_000n);
+    await index.metrics(TOKEN);
+    const built = rpc.getLogsCalls.length;
+    advance(61_000);
+    await index.metrics(OTHER_TOKEN); // storing another index drops the idle one
+    const before = rpc.getLogsCalls.length;
+    await index.metrics(TOKEN);
+    expect(rpc.getLogsCalls.length - before).toBe(built); // a full rebuild, not an update from where it left off
   });
 
   it('stops scanning a token with more holders than the cap (an established token, not a fresh coin)', async () => {

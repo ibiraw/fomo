@@ -97,10 +97,16 @@ export interface EvmIndexOptions {
   readonly answerWithinMs: number;
   /** A token with more holders than this while scanning is no fresh coin: answered "too old" (bounds memory). */
   readonly maxHolders?: number;
+  /** An index nobody asked about for this long is dropped (the Limit panel re-asks every 30 s while a coin is open). */
+  readonly idleMs?: number;
 }
 
-/** Default `maxHolders`. */
-const MAX_HOLDERS = 200_000;
+/**
+ * Defaults for `maxHolders` / `idleMs`. Fresh coins have a few thousand holders; holding up to 40 lists of up to
+ * 200,000 until a 41st coin pushed one out let the server's memory climb to 450 MB in 3.5 h (2026-09-29).
+ */
+const MAX_HOLDERS = 50_000;
+const IDLE_MS = 10 * 60_000;
 
 export const DEFAULT_EVM_INDEX: EvmIndexOptions = { chunkBlocks: 10_000n, maxChunks: 60, concurrency: 6, maxTokens: 40, freshMs: 15_000, answerWithinMs: 8_000 };
 
@@ -225,8 +231,10 @@ export class EvmHolderIndex implements TokenMetricsSource {
     return this.keep(token, await this.build(token, head));
   }
 
-  /** Stores the index (dropping the least recently asked token past the cap). */
+  /** Stores the index (dropping indexes nobody asked about lately, and the least recently asked token past the cap). */
   private keep(token: Hex, value: Indexed | 'too-old'): Indexed | 'too-old' {
+    const idleMs = this.opts.idleMs ?? IDLE_MS;
+    for (const [t, v] of this.tokens) if (v !== 'too-old' && this.now() - v.updatedAt > idleMs) this.tokens.delete(t);
     this.tokens.set(token, value);
     if (this.tokens.size > this.opts.maxTokens) this.tokens.delete(this.tokens.keys().next().value!);
     return value;
