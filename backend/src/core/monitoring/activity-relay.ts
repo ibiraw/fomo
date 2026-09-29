@@ -27,6 +27,7 @@ const ICON: Record<ActivityKind, string> = {
   subscription: '⭐',
   error: '⚠️',
   alert: '🚨',
+  download: '⬇️',
 };
 
 /** Who gets each kind (see the file description). */
@@ -37,6 +38,7 @@ export const ROUTE: Record<ActivityKind, 'group' | 'owner' | 'none'> = {
   subscription: 'group',
   server: 'owner',
   alert: 'owner',
+  download: 'owner', // someone downloaded the extension from the website
   error: 'none',
 };
 

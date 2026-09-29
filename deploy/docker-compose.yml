@@ -7,8 +7,11 @@ services:
     build: ../backend
     restart: unless-stopped
     env_file: server.env
+    environment:
+      DOWNLOAD_LOG: /app/logs/downloads.log
     volumes:
       - ./data:/app/data
+      - ./logs:/app/logs:ro
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
@@ -19,6 +22,7 @@ services:
     volumes:
       - ./site:/usr/share/nginx/html:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./logs:/var/log/limit
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }

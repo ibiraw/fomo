@@ -22,6 +22,8 @@ import { launchLabDetector, LaunchpadService, meteoraDbcDetector, pumpDetector, 
 import { DEFAULT_EVM_INDEX, EVM_SCAN_CHUNKS, EvmHolderIndex, SolanaTokenMetrics, TokenMetricsService, type TokenMetricsSource } from './core/tokens/token-metrics.js';
 import { TelegramNotifierAdapter } from './adapters/telegram/telegram-notifier.adapter.js';
 import { ActivityRelay } from './core/monitoring/activity-relay.js';
+import { DownloadWatcher } from './core/monitoring/download-watcher.js';
+import { FileTailAdapter } from './adapters/logs/file-tail.adapter.js';
 import { ErrorLog, errorHeadline } from './core/monitoring/error-log.js';
 import { LayoutAlerts } from './core/monitoring/layout-alerts.js';
 import { OutageTracker } from './core/monitoring/outage-tracker.js';
@@ -236,6 +238,9 @@ async function main(): Promise<void> {
   guard.start();
   await billing?.start();
   relay.start();
+  // Extension downloads from the website → the owner's chat.
+  const downloads = cfg.downloadLog ? new DownloadWatcher(new FileTailAdapter(cfg.downloadLog), (text) => relay.record('download', text), logError('downloads')) : null;
+  downloads?.start();
   relay.record('server', `server started · ${[...evm.keys()].length + 1} chains · paywall ${cfg.paywall ? `$${cfg.paywall.priceUsd}/${cfg.paywall.periodDays}d` : 'off'}`);
   if (!cfg.telegram) log('Telegram monitoring off (set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID); activity is still logged to the database');
   if (!billing) log('paywall off (PAYWALL_ENABLED is not true)');
@@ -247,6 +252,7 @@ async function main(): Promise<void> {
     log('shutting down');
     guard?.stop();
     relay.stop();
+    downloads?.stop();
     fomoDom.stop();
     access.stop();
     outages.stop();

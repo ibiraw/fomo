@@ -57,6 +57,8 @@ const EnvSchema = z.object({
   /** Optional Jupiter API key; without it the keyless lite endpoint is used. */
   JUPITER_API_KEY: z.string().min(1).optional(),
   JUPITER_POLL_MS: z.coerce.number().int().min(1_000).default(1_500),
+  /** The website's download log (nginx, see deploy/nginx.conf); downloads are announced to the owner. Off when unset. */
+  DOWNLOAD_LOG: z.string().min(1).optional(),
 });
 
 /** Validated runtime configuration. */
@@ -86,6 +88,8 @@ export interface AppConfig {
   /** RPC endpoints per EVM chain; chains without both URLs are not enabled. */
   readonly evm: ReadonlyMap<EvmChain, { readonly http: string; readonly wss: string }>;
   readonly jupiter: { readonly url: string; readonly apiKey: string | null; readonly pollMs: number };
+  /** The website's download log, or null (no download notices). */
+  readonly downloadLog: string | null;
 }
 
 /** Reads the pairing token from DATA_DIR, generating one on first run. */
@@ -150,6 +154,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     trustProxy: e.GATEWAY_TRUST_PROXY === 'true',
     maxActiveOrdersPerUser: e.MAX_ACTIVE_ORDERS_PER_USER,
     dbPath: join(e.DATA_DIR, 'orders.db'),
+    downloadLog: e.DOWNLOAD_LOG ?? null,
     pairingToken: loadOrCreateToken(e.DATA_DIR),
     execTimeoutMs: e.EXEC_TIMEOUT_MS,
     fomoWallet: e.FOMO_WALLET ?? null,
