@@ -36,3 +36,13 @@ export class AuthError extends FomoError {}
 
 /** A per-user limit was reached (open orders, watched tokens, request rate). */
 export class LimitError extends FomoError {}
+
+/**
+ * The price couldn't be read right now (RPC busy or down, server still starting) — says nothing about the token.
+ * The extension retries these quietly instead of telling the user the token isn't supported.
+ */
+export class PriceUnavailableError extends FomoError {
+  constructor() {
+    super('Price temporarily unavailable, retrying');
+  }
+}

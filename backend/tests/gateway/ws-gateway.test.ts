@@ -220,6 +220,20 @@ describe('WsGateway commands', () => {
     await c.next((m) => m.type === 'tick');
   });
 
+  it('tells a temporary price failure (busy RPC) apart from an unsupported token', async () => {
+    const c = await authed(false);
+    const realWatch = feed.watch.bind(feed);
+    feed.watch = async () => { throw new Error('scan aborted: scan abandoned after waiting 17238ms for a scan slot'); };
+    c.send({ type: 'price.watch', reqId: 'busy', mint: MINT });
+    expect((await c.next((m) => m.reqId === 'busy')).error).toBe('Price temporarily unavailable, retrying');
+    feed.watch = realWatch;
+    feed.unsupported.add(MINT2);
+    c.send({ type: 'price.watch', reqId: 'nope', mint: MINT2 });
+    expect((await c.next((m) => m.reqId === 'nope')).error).toBe(`unsupported ${MINT2}`);
+    c.send({ type: 'price.watch', reqId: 'ok', mint: MINT });
+    expect((await c.next((m) => m.reqId === 'ok')).ok).toBe(true);
+  });
+
   it('answers token.info, or explains when it is unavailable', async () => {
     const c = await authed(false);
     c.send({ type: 'token.info', reqId: 't1', mint: MINT });

@@ -20,7 +20,7 @@ import type { BillingService } from '../../core/billing/billing-service.js';
 import { versionOf, type Feature, type ReleaseService } from '../../core/releases/releases.js';
 import type { LaunchpadService } from '../../core/tokens/launchpad-service.js';
 import type { TokenMetricsService } from '../../core/tokens/token-metrics.js';
-import { AuthError, FomoError } from '../../core/errors.js';
+import { AccountNotFoundError, AuthError, FomoError, PriceUnavailableError, UnsupportedPoolError, ValidationError } from '../../core/errors.js';
 import type { Order, OrderStatus } from '../../core/orders/order.js';
 import type { EngineEvent, OrderEngine } from '../../core/orders/order-engine.js';
 import type { TokenInfoService } from '../../core/tokens/token-info-service.js';
@@ -525,7 +525,13 @@ export class WsGateway extends TradeExecutorPort {
             client.viewed.delete(oldest); // keep the most recent tokens the user looked at
           }
           client.viewed.add(msg.mint);
-          return engine.viewMint(msg.mint);
+          return engine.viewMint(msg.mint).catch((err: unknown) => {
+            // Only "this token can't be priced" is a refusal; anything else (a busy RPC right after a restart
+            // answered "Internal error", shown as "not available for this token", 2026-09-30) is temporary.
+            if (err instanceof UnsupportedPoolError || err instanceof AccountNotFoundError || err instanceof ValidationError) throw err;
+            this.log(`price.watch ${msg.mint} failed: ${err instanceof Error ? err.message : String(err)}`);
+            throw new PriceUnavailableError();
+          });
         });
       case 'token.info':
         return this.reply(client, msg.reqId, () => {

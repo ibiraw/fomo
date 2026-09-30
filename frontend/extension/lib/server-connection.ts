@@ -62,8 +62,12 @@ export class ServerCommandError extends Error {}
  */
 export class UnansweredError extends ServerCommandError {}
 
-/** Messages of errors that say nothing about the request itself: no answer yet, or no connection. */
-const TRANSIENT = ['Server did not answer in time', 'Connection closed', 'Connection lost', 'Not connected to the limit server', 'Too many requests'];
+/**
+ * Messages of errors that say nothing about the request itself: no answer yet, no connection, or the server couldn't
+ * read a price right now (its PriceUnavailableError: a busy RPC right after a restart used to show "Limit orders
+ * aren't available for this token" for a token that was fine, 2026-09-30).
+ */
+const TRANSIENT = ['Server did not answer in time', 'Connection closed', 'Connection lost', 'Not connected to the limit server', 'Too many requests', 'Price temporarily unavailable'];
 
 /**
  * True for an error message (as it crosses to the popup / panels) that only means "try again": the server was slow
