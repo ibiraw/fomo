@@ -42,6 +42,7 @@ Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), 
 - Before executing, the trigger is re-checked against the latest price; if no longer met → back to `open`.
 - Timeout / extension disconnect / restart mid-trade → `unknown` (user must check FOMO).
 - One trade at a time.
+- Every active mint is watched at start and re-tried every `REWATCH_MS` (15 s) until it is: a watch that failed once (the RPC refusing a pool search while busy right after a restart, 2026-09-30) used to leave its orders open but unwatched until someone opened the token.
 
 ## Accounts
 - The extension makes a random key (≥ 32 base64url chars) and sends it in `hello`; the server stores only its SHA-256. `create: true` registers unknown keys (max `accountsPerIpPerHour` per IP; behind Cloudflare set `GATEWAY_TRUST_PROXY=true`).

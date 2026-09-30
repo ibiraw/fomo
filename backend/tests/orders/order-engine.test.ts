@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SqliteOrderStoreAdapter } from '../../src/adapters/storage/sqlite-order-store.adapter.js';
 import { OrderStateError, UnsupportedPoolError, ValidationError } from '../../src/core/errors.js';
 import { CreateOrderSchema } from '../../src/core/orders/order.js';
-import { OrderEngine, type EngineEvent } from '../../src/core/orders/order-engine.js';
+import { OrderEngine, REWATCH_MS, type EngineEvent } from '../../src/core/orders/order-engine.js';
 import { FakeExecutor, FakePriceFeed } from '../helpers/fakes.js';
 
 const MINT = 'EcwFm5TJ3zuBXnsT6DngXMAMfsfELhwGc9JFgeVWpump';
@@ -259,5 +259,39 @@ describe('OrderEngine.start recovery', () => {
     const errs: unknown[] = [];
     await new OrderEngine(s, f, new FakeExecutor(), () => undefined, (err) => errs.push(err)).start();
     expect(errs[0]).toBeInstanceOf(UnsupportedPoolError);
+  });
+
+  it('keeps retrying a watch that failed at restart, then triggers the order (RPC busy, 2026-09-30)', async () => {
+    vi.useFakeTimers();
+    try {
+      const s = new SqliteOrderStoreAdapter(':memory:');
+      const order = s.create(CreateOrderSchema.parse(limitBuy(1)), 'u1');
+      const f = new FakePriceFeed();
+      let refuse = 2;
+      const realWatch = f.watch.bind(f);
+      f.watch = async (mint, l) => {
+        if (refuse-- > 0) throw new Error('scan aborted: scan abandoned after waiting 17238ms for a scan slot');
+        return realWatch(mint, l);
+      };
+      const errs: unknown[] = [];
+      const x = new FakeExecutor();
+      const e = new OrderEngine(s, f, x, () => undefined, (err) => errs.push(err));
+      await e.start();
+      expect(f.listeners.has(MINT)).toBe(false);
+      await vi.advanceTimersByTimeAsync(REWATCH_MS); // second refusal
+      expect(f.listeners.has(MINT)).toBe(false);
+      await vi.advanceTimersByTimeAsync(REWATCH_MS); // watched now
+      expect(f.listeners.has(MINT)).toBe(true);
+      expect(errs).toHaveLength(2);
+      f.tick(MINT, 0.5);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(x.executed.map((o) => o.id)).toEqual([order.id]);
+      const calls = f.watchCalls;
+      await vi.advanceTimersByTimeAsync(REWATCH_MS * 3); // already watched: no more attempts
+      expect(f.watchCalls).toBe(calls);
+      e.stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

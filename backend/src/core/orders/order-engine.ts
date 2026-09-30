@@ -30,6 +30,12 @@ export type EngineEvent =
 const ACTIVE = ['open', 'triggered'] as const;
 /** How long a viewer's interest keeps a mint's price stream alive without orders. */
 export const VIEW_TTL_MS = 5 * 60_000;
+/**
+ * How often mints with active orders but no price stream are watched again. A watch can fail for a moment, e.g. the
+ * RPC refusing a pool search while it is busy right after a restart (2026-09-30); without a retry those orders
+ * stayed open but unwatched until someone opened the token.
+ */
+export const REWATCH_MS = 15_000;
 /** Default cap on open + triggered orders per account. */
 export const DEFAULT_MAX_ACTIVE_PER_USER = 25;
 
@@ -50,6 +56,8 @@ export class OrderEngine {
   /** mint -> time until which someone is viewing it (keeps the price stream open without orders). */
   private readonly viewers = new Map<string, number>();
   private sweepTimer: NodeJS.Timeout | null = null;
+  private rewatchTimer: NodeJS.Timeout | null = null;
+  private healing = false;
 
   /**
    * @param store durable orders @param feed live prices @param executor trade placement
@@ -76,7 +84,8 @@ export class OrderEngine {
 
   /**
    * Recovers state after a restart: 'executing' orders become 'unknown' (the trade may or may not
-   * have gone through), triggered orders are re-queued, and every active mint is watched again.
+   * have gone through), triggered orders are re-queued, and every active mint is watched again (and re-tried
+   * every REWATCH_MS until it is).
    */
   async start(): Promise<void> {
     for (const o of this.store.list(['executing'])) {
@@ -84,15 +93,10 @@ export class OrderEngine {
         lastError: 'Server restarted while this trade was executing. Check FOMO to see if it went through.',
       }));
     }
-    for (const mint of new Set(this.store.list([...ACTIVE]).map((o) => o.mint))) {
-      try {
-        await this.ensureWatch(mint);
-      } catch (err) {
-        this.onError(err);
-      }
-    }
+    await this.healWatches();
     for (const o of this.store.list(['triggered']).reverse()) this.enqueue(o);
     this.sweepTimer = setInterval(() => this.sweepViewers(), 60_000);
+    this.rewatchTimer = setInterval(() => void this.healWatches(), REWATCH_MS);
     for (const userId of this.queues.keys()) void this.pump(userId);
   }
 
@@ -104,6 +108,24 @@ export class OrderEngine {
     await this.ensureWatch(mint);
     this.viewers.set(mint, this.now() + VIEW_TTL_MS);
     return this.lastTick.get(mint) ?? null;
+  }
+
+  /** Watches every mint that has active orders but no price stream; failures are reported and retried next round. */
+  async healWatches(): Promise<void> {
+    if (this.healing) return;
+    this.healing = true;
+    try {
+      for (const mint of new Set(this.store.list([...ACTIVE]).map((o) => o.mint))) {
+        if (this.watches.has(mint)) continue;
+        try {
+          await this.ensureWatch(mint);
+        } catch (err) {
+          this.onError(err);
+        }
+      }
+    } finally {
+      this.healing = false;
+    }
   }
 
   /** Drops expired viewer interest and closes streams nobody needs. */
@@ -228,6 +250,7 @@ export class OrderEngine {
   /** Stops all price streams. */
   stop(): void {
     if (this.sweepTimer) clearInterval(this.sweepTimer);
+    if (this.rewatchTimer) clearInterval(this.rewatchTimer);
     this.watches.forEach((w) => w.stop());
     this.watches.clear();
   }
