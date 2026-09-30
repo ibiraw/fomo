@@ -113,6 +113,31 @@ describe('EvmPoolPriceFeed', () => {
     await feed.close();
   });
 
+  it('opens a new stream from a fresh listing, not one cached minutes ago with only dust pools (IRIS, 2026-09-30)', async () => {
+    const DUST = '0x8888888888888888888888888888888888888888';
+    const { rpc, quotes } = setup();
+    rpc.on(DUST, POOL_ABI, 'token0', TOKEN).on(DUST, POOL_ABI, 'getReserves', [10n ** 24n, 2n * 10n ** 17n, 0]);
+    const http = new FakeHttp({
+      [pairsUrl(WETH)]: [pair({ labels: ['v3'], address: WETH_POOL, base: WETH, quote: USDC, priceNative: 2000 })],
+      [pairsUrl(TOKEN)]: [pair({ labels: ['v2'], address: DUST, base: TOKEN, quote: WETH, priceNative: 2e-7, liquidity: 1 })],
+    });
+    let t = 0;
+    const feed = new EvmPoolPriceFeed('base', rpc, new Erc20Reader(rpc), new PoolDirectory(http, () => t), quotes, V4, () => undefined, 3_600_000);
+    quotes.setFeed(feed);
+    const first = await feed.watch(`base:${TOKEN}`, () => undefined);
+    first.stop(); // nobody watching: the stream closes, the listing stays cached
+    http.docs[pairsUrl(TOKEN)] = [
+      pair({ labels: ['v2'], address: PAIR, base: TOKEN, quote: WETH, priceNative: 1e-6, liquidity: 25_000 }),
+      pair({ labels: ['v2'], address: DUST, base: TOKEN, quote: WETH, priceNative: 2e-7, liquidity: 1 }),
+    ];
+    t += 60_000; // a minute later, well inside the directory's 10-min cache
+    const ticks: PriceTick[] = [];
+    const w = await feed.watch(`base:${TOKEN}`, (tk) => ticks.push(tk));
+    expect(ticks.at(-1)!.priceUsd).toBeCloseTo(0.002, 6); // the real pool straight away
+    w.stop();
+    await feed.close();
+  });
+
   it('never moves to a pool quoted in a non-anchor token, however liquid (two streams could price each other)', async () => {
     const DUST = '0x8888888888888888888888888888888888888888';
     const OTHER_TOKEN = '0x9999999999999999999999999999999999999999';

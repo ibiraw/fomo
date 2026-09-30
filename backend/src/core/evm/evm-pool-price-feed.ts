@@ -69,6 +69,12 @@ interface Stream {
 
 /** A pool must hold this many times the current one's liquidity for the stream to move to it. */
 const SWITCH_FACTOR = 2;
+/**
+ * A new stream reads DexScreener's listing at most this old. The directory's 10-min cache once opened IRIS (Robinhood,
+ * 2026-09-30) from a listing saved just after its graduation, when only dust pools ($12K MC vs $63K real) were listed:
+ * a take profit placed in the 2 min before the re-check moved it filled at once.
+ */
+const OPEN_LISTING_MAX_AGE_MS = 15_000;
 
 /** 32-byte word `i` of ABI data as bigint. */
 function word(data: Hex, i: number): bigint {
@@ -158,7 +164,7 @@ export class EvmPoolPriceFeed extends PriceFeedPort {
   /** Finds the pool, reads its state, subscribes to its price events. */
   private async open(key: string): Promise<Stream> {
     const token = parseTokenKey(key).address.toLowerCase();
-    let listed = await this.directory.find(token, dexScreenerChain(this.chain));
+    let listed = await this.directory.find(token, dexScreenerChain(this.chain), OPEN_LISTING_MAX_AGE_MS);
     if (this.quotes.resolvingQuote()) {
       // Pricing a quote token: pools against stables / wrapped native first (short, loop-free routes).
       const anchored = (p: ListedPool) => this.quotes.isAnchor(p.baseAddress.toLowerCase() === token ? p.quoteAddress : p.baseAddress);
