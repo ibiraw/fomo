@@ -12,7 +12,7 @@ import { PYTH_SOL_USD_ACCOUNT, USDC_MINT, WSOL_MINT } from '../../src/core/prici
 import { PoolDirectory } from '../../src/core/pricing/pool-directory.js';
 import { CPMM_POOL_DISCRIMINATOR, decodeCpmmPool } from '../../src/core/pricing/raydium-cpmm.js';
 import { RaydiumCpmmPriceFeed, sidesFor } from '../../src/core/pricing/raydium-cpmm-price-feed.js';
-import { UsdQuotes } from '../../src/core/pricing/usd-quotes.js';
+import { isOnchainReadable, UsdQuotes } from '../../src/core/pricing/usd-quotes.js';
 import { VaultPair } from '../../src/core/pricing/vault-pair.js';
 import { HttpJsonPort } from '../../src/ports/http-json.js';
 import type { PriceTick } from '../../src/ports/price-feed.js';
@@ -222,6 +222,51 @@ describe('UsdQuotes on-chain chaining', () => {
     await b.quotes.track(BONK); // on-chain watch never ticks
     expect(b.quotes.usd(BONK)).toBe(0.00005);
     expect(b.onchain.listeners.has(BONK)).toBe(false);
+  });
+
+  it('uses Jupiter when the quote token trades mostly in pools the feeds cannot read (TTWO: CLMM $151K vs CPMM $545)', async () => {
+    const { http, quotes, onchain } = await chainSetup();
+    const ds = `https://api.dexscreener.com/token-pairs/v1/solana/${BONK}`;
+    http.docs[ds] = [
+      { dexId: 'raydium', labels: ['CPMM'], pairAddress: 'thin', liquidity: { usd: 545 } },
+      { dexId: 'raydium', labels: ['CLMM'], pairAddress: 'deep', liquidity: { usd: 151_360 } },
+      { dexId: 'meteora', labels: ['DLMM'], pairAddress: 'dlmm', liquidity: { usd: 6_109 } },
+    ];
+    quotes.setOnchainFeed(onchain, new PoolDirectory(http));
+    http.jup[BONK] = 202.69;
+    await quotes.track(BONK);
+    expect(quotes.usd(BONK)).toBe(202.69);
+    expect(onchain.listeners.has(BONK)).toBe(false); // the thin CPMM pool was never used
+  });
+
+  it('keeps the live on-chain route when the most liquid pool is readable, or the directory has nothing to say', async () => {
+    const a = await chainSetup();
+    const ds = `https://api.dexscreener.com/token-pairs/v1/solana/${BONK}`;
+    a.http.docs[ds] = [
+      { dexId: 'meteora', labels: ['DYN2'], pairAddress: 'main', liquidity: { usd: 90_000 } },
+      { dexId: 'raydium', labels: ['CLMM'], pairAddress: 'side', liquidity: { usd: 2_000 } },
+    ];
+    a.quotes.setOnchainFeed(a.onchain, new PoolDirectory(a.http));
+    const p = a.quotes.track(BONK);
+    await vi.waitFor(() => expect(a.onchain.listeners.has(BONK)).toBe(true));
+    a.onchain.tick(BONK, 0.00003);
+    await p;
+    expect(a.quotes.usd(BONK)).toBe(0.00003);
+    // DexScreener down (404 here): logged, and the on-chain route is still tried.
+    const b = await chainSetup();
+    b.quotes.setOnchainFeed(b.onchain, new PoolDirectory(b.http));
+    const q = b.quotes.track(BONK);
+    await vi.waitFor(() => expect(b.onchain.listeners.has(BONK)).toBe(true));
+    b.onchain.tick(BONK, 0.00004);
+    await q;
+    expect(b.quotes.usd(BONK)).toBe(0.00004);
+    expect(b.errors.some((e) => e instanceof Error && /404/.test(e.message))).toBe(true);
+  });
+
+  it('knows which listed pools the on-chain feeds read', () => {
+    const pool = (dexId: string, labels: string[] = []) => ({ dexId, labels, address: 'x', liquidityUsd: 1, baseAddress: '', quoteAddress: '', quoteSymbol: '', priceNative: 0, priceUsd: 0 });
+    expect([pool('pumpfun'), pool('pumpswap'), pool('meteoradbc'), pool('raydium', ['CPMM']), pool('raydium', ['LaunchLab']), pool('meteora', ['DYN2'])].every(isOnchainReadable)).toBe(true);
+    expect([pool('raydium', ['CLMM']), pool('raydium'), pool('meteora', ['DLMM']), pool('orca'), pool('meteora', ['DYN'])].some(isOnchainReadable)).toBe(false);
   });
 
   it('refuses cycles and reports unexpected on-chain errors', async () => {

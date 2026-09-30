@@ -117,7 +117,7 @@ async function main(): Promise<void> {
     damm2,
   ]);
   // Quote tokens like VBUCKS are priced through the same on-chain feeds before falling back to Jupiter.
-  quotes.setOnchainFeed(onchain);
+  quotes.setOnchainFeed(onchain, directory);
   const solanaFeed = new CompositePriceFeed([onchain, jupiter]);
   const evm = new Map<EvmChain, EvmChainParts>([...cfg.evm].map(([chain, urls]) => [chain, buildEvmChain(chain, urls, directory, http, logError, rpcSinks)]));
   const feed = new ChainRouterPriceFeed(new Map<Chain, PriceFeedPort>([['solana', solanaFeed], ...[...evm].map(([c, p]) => [c, p.feed] as const)]));

@@ -3,12 +3,17 @@
  * @description USD prices for AMM quote tokens: SOL live from Pyth, USD stablecoins at $1, other tokens
  *              priced live through the on-chain feeds themselves (e.g. SCAR/VBUCKS → VBUCKS/SILV → SILV/SOL),
  *              and Jupiter polling only when no on-chain route works. Chains are depth-limited and cycle-safe.
+ *              The on-chain route is used only when the token's most liquid pool is one the feeds can read:
+ *              TTWO (a tokenized stock stonkfun pairs with) trades mostly in Raydium CLMM / Meteora DLMM pools,
+ *              and its $545 CPMM pool put it at ~$151 instead of ~$203, a quarter off every coin quoted in it
+ *              (2026-09-30). Jupiter, which routes through every pool type, prices those.
  * @author Reborn1987
  */
 
 import { AccountNotFoundError, UnsupportedPoolError } from '../errors.js';
 import type { HttpJsonPort } from '../../ports/http-json.js';
 import type { PriceFeedPort } from '../../ports/price-feed.js';
+import type { ListedPool, PoolDirectory } from './pool-directory.js';
 import type { AccountSubscription, SolanaAccountsPort } from '../../ports/solana-accounts.js';
 import { PYTH_SOL_USD_ACCOUNT, USDC_MINT, WSOL_MINT } from './addresses.js';
 import { decodePythPrice } from './decoders.js';
@@ -25,6 +30,22 @@ export const USD_STABLES = new Set<string>([
 /** Most quote tokens resolved on-chain at once (bounds chains like A→B→C→SOL). */
 const MAX_CHAIN = 3;
 
+/** Whether the on-chain feeds can read this kind of listed pool (pump.fun, PumpSwap, LaunchLab, CPMM, DBC, DAMM v2). */
+export function isOnchainReadable(pool: ListedPool): boolean {
+  switch (pool.dexId) {
+    case 'pumpfun':
+    case 'pumpswap':
+    case 'meteoradbc':
+      return true;
+    case 'raydium':
+      return pool.labels.includes('CPMM') || pool.labels.includes('LaunchLab');
+    case 'meteora':
+      return pool.labels.includes('DYN2');
+    default:
+      return false;
+  }
+}
+
 /** Called with the quote mint whose USD price changed. */
 export type QuoteChangeListener = (mint: string) => void;
 
@@ -36,6 +57,8 @@ export class UsdQuotes {
   private timer: NodeJS.Timeout | null = null;
   /** On-chain feeds used to price quote tokens (set after the feeds exist; they depend on this class). */
   private onchain: PriceFeedPort | null = null;
+  /** Where quote tokens trade (decides whether the on-chain route reflects their real price). */
+  private directory: PoolDirectory | null = null;
   /** Quote tokens priced live on-chain. */
   private readonly live = new Set<string>();
   /** Quote tokens being resolved right now (cycle and depth guard). */
@@ -55,9 +78,13 @@ export class UsdQuotes {
     private readonly firstTickMs = 5_000,
   ) {}
 
-  /** Lets quote tokens be priced by the on-chain feeds (call once the feeds are built). */
-  setOnchainFeed(feed: PriceFeedPort): void {
+  /**
+   * Lets quote tokens be priced by the on-chain feeds (call once the feeds are built). With a directory, only
+   * tokens whose most liquid pool the feeds can read take that route; the rest use Jupiter.
+   */
+  setOnchainFeed(feed: PriceFeedPort, directory: PoolDirectory | null = null): void {
     this.onchain = feed;
+    this.directory = directory;
   }
 
   /** Loads SOL/USD (fail fast) and streams it. */
@@ -99,9 +126,9 @@ export class UsdQuotes {
     return p;
   }
 
-  /** On-chain route when available and within depth, then Jupiter. */
+  /** On-chain route when available, within depth and where the token really trades; then Jupiter. */
   private async resolve(mint: string): Promise<void> {
-    if (this.onchain && this.resolving.size < MAX_CHAIN) {
+    if (this.onchain && this.resolving.size < MAX_CHAIN && (await this.tradesMostlyOnchain(mint))) {
       this.resolving.add(mint);
       try {
         if (await this.trackOnchain(this.onchain, mint)) return;
@@ -112,6 +139,21 @@ export class UsdQuotes {
       }
     }
     await this.trackJupiter(mint);
+  }
+
+  /**
+   * True when the token's most liquid listed pool is one the on-chain feeds read (or nothing says otherwise:
+   * no directory, no listing with liquidity, or the directory is unreachable).
+   */
+  private async tradesMostlyOnchain(mint: string): Promise<boolean> {
+    if (!this.directory) return true;
+    try {
+      const top = (await this.directory.find(mint))[0];
+      return !top || top.liquidityUsd <= 0 || isOnchainReadable(top);
+    } catch (err) {
+      this.onError(err);
+      return true;
+    }
   }
 
   /** Streams the quote token's own price; true once a first price arrived in time. */
