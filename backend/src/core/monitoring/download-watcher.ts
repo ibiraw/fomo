@@ -7,6 +7,10 @@
  *              "limit.zip downloaded · from Toronto, Ontario, CA · 2nd today (ET)".
  *              HEAD checks, partial/ranged requests and errors are skipped. "Today" is US Eastern, the owner's day, by
  *              each line's own time; on start the existing log is read silently so the count survives restarts.
+ *              The same place again within REPEAT_MS is one person, not counted again: browsers and scanners fetch the
+ *              file twice in the same second (Warsaw, Seoul) and people re-download after a failed try (Villerupt,
+ *              2 min apart), which read as "11th, 12th" (2026-09-30). A repeat within a minute is silent; a later one
+ *              says "downloaded again". nginx keeps no IPs, so the place is the only key.
  * @author Reborn1987
  */
 
@@ -34,12 +38,19 @@ export function ordinal(n: number): string {
   return `${n}${suffix}`;
 }
 
+/** Downloads from the same place within this window count as one person. */
+export const REPEAT_MS = 10 * 60_000;
+/** A repeat sooner than this (a double fetch, not a person trying again) sends nothing. */
+const SILENT_REPEAT_MS = 60_000;
+
 const ET_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
 
 export class DownloadWatcher {
   private timer: NodeJS.Timeout | null = null;
   private day = '';
   private count = 0;
+  /** place -> time of its last download (for grouping repeats). */
+  private readonly lastAt = new Map<string, number>();
 
   /**
    * @param source the download log @param notify sends one message to the owner @param onError sink for read errors
@@ -81,12 +92,27 @@ export class DownloadWatcher {
     for (const line of lines) {
       const d = parseDownload(line);
       if (!d) continue;
-      const day = ET_DAY.format(d.at ?? this.now());
+      const at = d.at ?? this.now();
+      const day = ET_DAY.format(at);
       if (day < this.day) continue; // an older day's line (only while catching up)
       if (day !== this.day) { this.day = day; this.count = 0; }
+      const since = this.sinceLast(d.place, at);
+      if (since !== null && since <= REPEAT_MS) {
+        if (announce && since >= SILENT_REPEAT_MS) this.notify(`limit.zip downloaded again · from ${d.place} (same place within 10 min, not counted)`);
+        continue;
+      }
       this.count++;
       if (announce) this.notify(`limit.zip downloaded${d.place ? ` · from ${d.place}` : ''} · ${ordinal(this.count)} today (ET)`);
     }
     return lines.length;
+  }
+
+  /** How long since `place` last downloaded (null for no place or none yet); records this download. */
+  private sinceLast(place: string | null, at: number): number | null {
+    if (!place) return null;
+    const last = this.lastAt.get(place);
+    this.lastAt.set(place, at);
+    for (const [p, t] of this.lastAt) if (at - t > REPEAT_MS) this.lastAt.delete(p);
+    return last === undefined ? null : Math.abs(at - last);
   }
 }

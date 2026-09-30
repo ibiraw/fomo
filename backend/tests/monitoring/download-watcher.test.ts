@@ -65,6 +65,46 @@ describe('DownloadWatcher', () => {
     expect(sent.at(-1)).toBe('limit.zip downloaded · from US · 1st today (ET)');
   });
 
+  it('counts the same place within 10 minutes once: a double fetch is silent, a later retry says "again" (2026-09-30)', () => {
+    const sent: string[] = [];
+    const source = new Batches([[]]);
+    const w = new DownloadWatcher(source, (t) => sent.push(t), () => undefined, () => Date.parse('2026-09-30T19:00:00Z'), 60_000);
+    w.start();
+    w.stop();
+    source.batches.push([
+      '2026-09-30T19:23:29+00:00|GET|200|300475|PL|Mazovia|Warsaw',
+      '2026-09-30T19:23:29+00:00|GET|200|300475|PL|Mazovia|Warsaw', // same second: browser/scanner double fetch
+      '2026-09-30T19:29:20+00:00|GET|200|300475|FR|Grand Est|Villerupt',
+      '2026-09-30T19:31:25+00:00|GET|200|300475|FR|Grand Est|Villerupt', // 2 min later: trying again
+      '2026-09-30T19:45:00+00:00|GET|200|300475|FR|Grand Est|Villerupt', // 13.5 min later: counts again
+      '2026-09-30T19:46:00+00:00|GET|200|300475|-|-|-', // no place: never grouped
+      '2026-09-30T19:46:00+00:00|GET|200|300475|-|-|-',
+    ]);
+    w.check();
+    expect(sent).toEqual([
+      'limit.zip downloaded · from Warsaw, Mazovia, PL · 1st today (ET)',
+      'limit.zip downloaded · from Villerupt, Grand Est, FR · 2nd today (ET)',
+      'limit.zip downloaded again · from Villerupt, Grand Est, FR (same place within 10 min, not counted)',
+      'limit.zip downloaded · from Villerupt, Grand Est, FR · 3rd today (ET)',
+      'limit.zip downloaded · 4th today (ET)',
+      'limit.zip downloaded · 5th today (ET)',
+    ]);
+  });
+
+  it('applies the same grouping to the silent catch-up, so the count survives a restart', () => {
+    const sent: string[] = [];
+    const source = new Batches([
+      ['2026-09-30T19:23:29+00:00|GET|200|1|PL|Mazovia|Warsaw', '2026-09-30T19:23:29+00:00|GET|200|1|PL|Mazovia|Warsaw'],
+      [],
+    ]);
+    const w = new DownloadWatcher(source, (t) => sent.push(t), () => undefined, () => Date.parse('2026-09-30T20:00:00Z'), 60_000);
+    w.start();
+    w.stop();
+    source.batches.push(['2026-09-30T20:00:00+00:00|GET|200|1|US|Florida|Tampa']);
+    w.check();
+    expect(sent).toEqual(['limit.zip downloaded · from Tampa, Florida, US · 2nd today (ET)']);
+  });
+
   it('reports read errors and keeps going', () => {
     const errors: unknown[] = [];
     const source = new (class extends LineSourcePort { readNew(): string[] { throw new Error('EACCES'); } })();
