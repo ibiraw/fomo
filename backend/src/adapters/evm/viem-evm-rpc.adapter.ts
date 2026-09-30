@@ -99,25 +99,36 @@ export class ViemEvmRpcAdapter extends EvmRpcPort {
     return raw.filter((l) => !l.removed).map(toLog);
   }
 
-  /** Subscribes to logs; on socket errors it re-subscribes with exponential backoff until stop(). */
+  /**
+   * Subscribes to logs; on socket errors it re-subscribes with exponential backoff until stop().
+   * A failed eth_subscribe is reported twice by viem (the `onError` callback and the rejected promise), so each
+   * attempt re-subscribes at most once: reacting to both doubled the subscriptions on every failure, and a BNB RPC
+   * outage grew them past the heap limit (server crash 2026-09-30).
+   */
   subscribeLogs(filter: LogFilter, listener: (log: EvmLog) => void): LogSubscription {
     let stopped = false;
     let unsubscribe: (() => void) | null = null;
     let retryMs = RETRY_MIN_MS;
     let retryTimer: NodeJS.Timeout | null = null;
+    /** Current attempt; reports from older attempts (or a second report from this one) are ignored. */
+    let attempt = 0;
 
-    const resubscribeLater = (err: unknown): void => {
-      if (stopped || this.closed) return;
+    const resubscribeLater = (fromAttempt: number, err: unknown): void => {
+      if (stopped || this.closed || fromAttempt !== attempt) return;
+      attempt++;
       this.onError(err);
       this.health?.down(err);
       unsubscribe?.();
       unsubscribe = null;
+      if (retryTimer) clearTimeout(retryTimer);
       retryTimer = setTimeout(open, retryMs);
       retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
     };
 
     const open = (): void => {
       if (stopped) return;
+      const current = attempt;
+      const failed = (err: unknown): void => resubscribeLater(current, err);
       const params = { address: filter.address, ...(filter.topics ? { topics: filter.topics } : {}) };
       // viem's socket transport exposes the raw eth_subscribe API used by its own watch* actions.
       const transport = this.wsClient.transport as unknown as {
@@ -132,16 +143,16 @@ export class ViemEvmRpcAdapter extends EvmRpcPort {
             retryMs = RETRY_MIN_MS;
             listener(toLog(raw));
           },
-          onError: resubscribeLater,
+          onError: failed,
         })
         .then((sub) => {
-          if (stopped) void sub.unsubscribe().catch(() => undefined);
+          if (stopped || current !== attempt) void sub.unsubscribe().catch(() => undefined);
           else {
             unsubscribe = () => void sub.unsubscribe().catch(() => undefined);
             this.health?.up();
           }
         })
-        .catch(resubscribeLater);
+        .catch(failed);
     };
 
     open();
