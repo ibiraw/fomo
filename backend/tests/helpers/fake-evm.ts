@@ -91,7 +91,9 @@ export class FakeEvmRpc extends EvmRpcPort {
   async getLogs(filter: LogFilter, fromBlock: bigint, toBlock: bigint): Promise<EvmLog[]> {
     this.getLogsCalls.push([fromBlock, toBlock]);
     const addrs = ((Array.isArray(filter.address) ? filter.address : [filter.address]) as string[]).map((a) => a.toLowerCase());
-    return this.history.filter((l) => addrs.includes(l.address) && l.blockNumber >= fromBlock && l.blockNumber <= toBlock);
+    // Topic filters as a node applies them: null = any, an array = any of these.
+    const topicOk = (l: EvmLog): boolean => (filter.topics ?? []).every((f, i) => f === null || f === undefined || (Array.isArray(f) ? f.includes(l.topics[i]!) : l.topics[i] === f));
+    return this.history.filter((l) => addrs.includes(l.address) && l.blockNumber >= fromBlock && l.blockNumber <= toBlock && topicOk(l));
   }
 
   /** Records the subscription. */

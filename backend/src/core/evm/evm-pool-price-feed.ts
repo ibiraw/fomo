@@ -23,6 +23,7 @@ import { isRevert, readContract } from './contract.js';
 import { NATIVE, type Erc20Reader } from './erc20.js';
 import type { EvmUsdQuotes } from './evm-usd-quotes.js';
 import { priceFromReserves, priceFromSqrtX96, toUnits } from './pool-math.js';
+import type { V4PoolFinder } from './v4-pool-finder.js';
 
 export const SYNC_TOPIC = toEventSelector('Sync(uint112,uint112)');
 export const V3_SWAP_TOPIC = toEventSelector('Swap(address,address,int256,int256,uint160,uint128,int24)');
@@ -107,6 +108,7 @@ export class EvmPoolPriceFeed extends PriceFeedPort {
     private readonly v4: V4Deployment | null,
     private readonly onError: (err: unknown) => void,
     private readonly recheckMs = 120_000,
+    private readonly v4Finder: V4PoolFinder | null = null,
   ) {
     super();
   }
@@ -162,7 +164,16 @@ export class EvmPoolPriceFeed extends PriceFeedPort {
       const anchored = (p: ListedPool) => this.quotes.isAnchor(p.baseAddress.toLowerCase() === token ? p.quoteAddress : p.baseAddress);
       listed = [...listed.filter(anchored), ...listed.filter((p) => !anchored(p))];
     }
-    const stream = await this.openFrom(key, token, listed);
+    let stream: Stream;
+    try {
+      stream = await this.openFrom(key, token, listed);
+    } catch (err) {
+      // Nothing usable on DexScreener (not listed yet, or too small to be listed): look for its v4 pools on-chain.
+      if (!(err instanceof UnsupportedPoolError) || !this.v4Finder) throw err;
+      const found = await this.v4Finder.find(token);
+      if (found.length === 0) throw err;
+      stream = await this.openFrom(key, token, found);
+    }
     stream.recheck = setInterval(() => void this.recheck(key, token), this.recheckMs);
     stream.recheck.unref?.();
     return stream;

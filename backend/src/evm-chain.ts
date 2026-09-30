@@ -13,6 +13,8 @@ import { EVM_ADDRESSES } from './core/evm/evm-addresses.js';
 import { EvmPoolPriceFeed } from './core/evm/evm-pool-price-feed.js';
 import { EvmUsdQuotes } from './core/evm/evm-usd-quotes.js';
 import { flap, fourMeme, LaunchpadPriceFeed, pons } from './core/evm/launchpad-price-feed.js';
+import { V4PoolFinder } from './core/evm/v4-pool-finder.js';
+import { EVM_SCAN_CHUNKS } from './core/tokens/token-metrics.js';
 import { evmCodeTemplateDetector } from './core/tokens/code-templates.js';
 import { evmLaunchpadDetector, type LaunchpadDetector } from './core/tokens/launchpad-service.js';
 import { CompositePriceFeed } from './core/pricing/composite-price-feed.js';
@@ -55,7 +57,9 @@ export function buildEvmChain(
   const rpc = new ViemEvmRpcAdapter(chain, urls.http, urls.wss, sinks.onError, sinks.health);
   const erc20 = new Erc20Reader(rpc);
   const quotes = new EvmUsdQuotes(chain, new Set(addr.stables), addr.wrappedNative);
-  const pools = new EvmPoolPriceFeed(chain, rpc, erc20, directory, quotes, addr.v4, logError(`pools:${chain}`));
+  // v4 pools DexScreener doesn't list are found on-chain (same fresh-token window as holder stats).
+  const v4Finder = addr.v4 ? new V4PoolFinder(rpc, addr.v4.poolManager, addr.v4.stateView, { chunkBlocks: 10_000n, maxChunks: EVM_SCAN_CHUNKS[chain], concurrency: 4, cacheMs: 10 * 60_000 }) : null;
+  const pools = new EvmPoolPriceFeed(chain, rpc, erc20, directory, quotes, addr.v4, logError(`pools:${chain}`), 120_000, v4Finder);
   const dexscreener = new DexScreenerPriceFeed(chain, http, erc20, 3_000, logError(`dexscreener:${chain}`));
   const afterCurve = new CompositePriceFeed([pools, dexscreener]);
   const protocols = [
