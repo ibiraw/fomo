@@ -7,7 +7,7 @@
 
 export const LIMIT_TOKEN = {
   /** Contract address (Solana mint). Empty until launch. */
-  ca: '',
+  ca: '9qUTeFNXFh35YmdtayeniRUr8o31rXYzMK3Jv5Zypump',
   symbol: 'LIMIT',
   name: 'limit',
   chain: 'Solana',
