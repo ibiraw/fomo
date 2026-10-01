@@ -50,7 +50,7 @@ async function tokenAsset(key: string, d: Deps): Promise<PaymentAsset> {
   const ref = parseTokenKey(key);
   if (ref.chain === 'solana') {
     const supply = await d.solana.getMintSupply(ref.address);
-    return { chain: 'solana', address: ref.address, symbol: 'TOKEN', decimals: supply.decimals, kind: 'token' };
+    return { chain: 'solana', address: ref.address, symbol: d.paywall.tokenSymbol ?? 'TOKEN', decimals: supply.decimals, kind: 'token' };
   }
   const parts = d.evm.get(ref.chain);
   if (!parts) throw new Error(`PAY_TOKEN is on ${ref.chain}, which has no RPC configured`);

@@ -44,6 +44,8 @@ const EnvSchema = z.object({
   PAY_EVM_TREASURY: z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'Not a valid EVM address').optional(),
   /** Platform token once launched: a Solana mint or `<chain>:<0xaddress>`. */
   PAY_TOKEN: z.string().optional(),
+  /** Symbol shown for a Solana PAY_TOKEN (EVM tokens report their own). */
+  PAY_TOKEN_SYMBOL: z.string().regex(/^[A-Za-z0-9$]{1,12}$/).default('TOKEN'),
   UNLOCK_PRICE_USD: z.coerce.number().positive().default(50),
   UNLOCK_TOKEN_PRICE_USD: z.coerce.number().positive().default(35),
   FREE_ORDERS: z.coerce.number().int().min(0).default(3),
@@ -80,6 +82,8 @@ export interface AppConfig {
   readonly paywall: {
     readonly treasury: { readonly solana: string; readonly evm: string };
     readonly token: string | null;
+    /** Symbol shown for a Solana token (PAY_TOKEN_SYMBOL). */
+    readonly tokenSymbol: string;
     readonly priceUsd: number;
     readonly tokenPriceUsd: number;
     readonly freeOrders: number;
@@ -124,6 +128,7 @@ function paywallFrom(e: z.infer<typeof EnvSchema>): AppConfig['paywall'] {
   return {
     treasury: { solana: e.PAY_SOLANA_TREASURY, evm: e.PAY_EVM_TREASURY.toLowerCase() },
     token: e.PAY_TOKEN ? canonicalTokenKey(e.PAY_TOKEN) : null,
+    tokenSymbol: e.PAY_TOKEN_SYMBOL,
     priceUsd: e.UNLOCK_PRICE_USD,
     tokenPriceUsd: e.UNLOCK_TOKEN_PRICE_USD,
     freeOrders: e.FREE_ORDERS,

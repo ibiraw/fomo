@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { isReleased } from '@/lib/releases';
 import { LogoWord, MoonMark } from './Logo';
+import { TokenStrip } from './TokenCA';
 
 /** Lowercase wordmark. */
 export function Wordmark({ className = '' }: { className?: string }) {
@@ -77,6 +78,7 @@ export function Hero() {
     <section id="top" className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-x-0 -top-40 mx-auto h-[28rem] max-w-3xl rounded-full bg-brand/10 blur-3xl" />
       <div className="relative mx-auto max-w-4xl px-5 pb-16 pt-20 text-center md:pt-28">
+        <TokenStrip />
         <Badge variant="outline" className="mb-6 border-border text-muted-foreground">Unofficial · not affiliated with fomo.family</Badge>
         <h1 className="text-balance text-4xl font-bold tracking-tight md:text-6xl">
           Limit orders for <span className="text-brand">fomo</span>.
