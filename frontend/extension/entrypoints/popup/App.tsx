@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Segmented } from '@/components/orders/Segmented';
 import { AutoRiskAckSettings } from '@/components/AutoRiskAckSettings';
+import { UpdateBanner } from '@/components/UpdateBanner';
 import { KeepAwakeSettings } from '@/components/KeepAwakeSettings';
 import { OrderSounds } from '@/components/OrderSounds';
 import { ThemePicker } from '@/components/ThemePicker';
@@ -75,6 +76,7 @@ export default function App() {
         </h1>
         <Badge className={cn(state.status === 'connected' ? 'bg-buy/20 text-buy' : 'bg-sell/20 text-sell')}>{STATUS_TEXT[state.status]}</Badge>
       </header>
+      <UpdateBanner release={release} />
 
       {!hasAccount ? (
         <NoAccount reason={state.status === 'bad_token' ? 'rejected' : 'deleted'} send={send} />

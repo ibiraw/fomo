@@ -53,9 +53,16 @@ describe('ReleaseService', () => {
   const releases = new ReleaseService(() => config, new Set(['legacy']));
 
   it('gives the public version to everyone, and every feature to early access and the owner', () => {
-    expect(releases.viewFor({ id: 'u1', shortId: 'LM-ABC123' })).toEqual({ version: '1.1.0', features: ['themes', 'sounds'], early: false });
-    expect(releases.viewFor({ id: 'u2', shortId: 'LM-FR1END' })).toEqual({ version: LATEST_VERSION, features: featuresOf(LATEST_VERSION), early: true });
+    expect(releases.viewFor({ id: 'u1', shortId: 'LM-ABC123' })).toEqual({ version: '1.1.0', features: ['themes', 'sounds'], early: false, latestExtension: null });
+    expect(releases.viewFor({ id: 'u2', shortId: 'LM-FR1END' })).toEqual({ version: LATEST_VERSION, features: featuresOf(LATEST_VERSION), early: true, latestExtension: null });
     expect(releases.viewFor({ id: 'legacy', shortId: 'LM-WFA346' }).early).toBe(true);
+  });
+
+  it('passes the newest extension build on to everyone, and rejects a malformed one', () => {
+    const withLatest = new ReleaseService(() => ({ ...config, latestExtension: '1.0.3' }));
+    expect(withLatest.viewFor({ id: 'u1', shortId: 'LM-ABC123' }).latestExtension).toBe('1.0.3');
+    expect(parseAccessConfig('{"publicVersion":"1.0.0","latestExtension":"1.0.3"}')).toMatchObject({ ok: true, config: { latestExtension: '1.0.3' } });
+    expect(parseAccessConfig('{"publicVersion":"1.0.0","latestExtension":"v1"}')).toMatchObject({ ok: false });
   });
 
   it('makes a free-until day last through its end (UTC)', () => {

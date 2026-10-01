@@ -16,12 +16,14 @@ export interface ReleaseView {
   readonly features: readonly Feature[];
   /** Early access (friends): every feature built so far. */
   readonly early: boolean;
+  /** Newest extension build on limit.family (null when the server doesn't say). */
+  readonly latestExtension: string | null;
 }
 
 export const RELEASE_STORAGE_KEY = 'release';
 
 /** Shown before the server has told us anything: the first version, no extras. */
-export const BASE_RELEASE: ReleaseView = { version: '1.0.0', features: [], early: false };
+export const BASE_RELEASE: ReleaseView = { version: '1.0.0', features: [], early: false, latestExtension: null };
 
 const FEATURES: readonly Feature[] = ['themes', 'sounds', 'xPost', 'launchpad', 'tokenMetrics', 'quickTrade'];
 
@@ -34,7 +36,22 @@ export function toRelease(value: unknown): ReleaseView {
     version: v.version,
     features: v.features.filter((f): f is Feature => FEATURES.includes(f as Feature)),
     early: v.early === true,
+    latestExtension: typeof v.latestExtension === 'string' && SEMVER.test(v.latestExtension) ? v.latestExtension : null,
   };
+}
+
+const SEMVER = /^\d+\.\d+\.\d+$/;
+
+/** -1 / 0 / 1 comparing "major.minor.patch" versions. */
+export function compareVersions(a: string, b: string): number {
+  const x = a.split('.').map(Number), y = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) < (y[i] ?? 0) ? -1 : 1;
+  return 0;
+}
+
+/** The newer build to install, or null when this build (`current`) is up to date. */
+export function updateAvailable(release: ReleaseView, current: string): string | null {
+  return release.latestExtension && SEMVER.test(current) && compareVersions(current, release.latestExtension) < 0 ? release.latestExtension : null;
 }
 
 /** True when the release includes the feature. */

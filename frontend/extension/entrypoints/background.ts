@@ -18,7 +18,7 @@ import {
 } from '@/lib/messages';
 import { ServerConnection, type ConnectionStatus } from '@/lib/server-connection';
 import { FOMO_DOM_STORAGE_KEY } from '@/lib/fomo-dom-config';
-import { hasFeature, loadRelease, RELEASE_STORAGE_KEY, toRelease } from '@/lib/release';
+import { hasFeature, loadRelease, RELEASE_STORAGE_KEY, toRelease, updateAvailable } from '@/lib/release';
 import type { QuickTradeReply, QuickTradeRequest } from '@/lib/quick-trade';
 import type { FomoHealthMessage } from '@/lib/fomo-health-watch';
 import type { SpotTradeMessage } from '@/lib/fomo-spot-watch';
@@ -149,6 +149,10 @@ export default defineBackground({
       onRelease: (release) => {
         const op = release ? browser.storage.local.set({ [RELEASE_STORAGE_KEY]: toRelease(release) }) : browser.storage.local.remove(RELEASE_STORAGE_KEY);
         void op.catch((err: unknown) => console.error('[limit] could not save the release', err));
+        // A newer build on limit.family: "NEW" on the toolbar icon until this copy is updated (the popup explains how).
+        const newer = updateAvailable(toRelease(release), browser.runtime.getManifest().version);
+        void browser.action.setBadgeText({ text: newer ? 'NEW' : '' }).catch(() => undefined);
+        if (newer) void browser.action.setBadgeBackgroundColor({ color: '#516af6' }).catch(() => undefined);
       },
       onExecute: async (o) => {
         trading = o.mint;

@@ -10,7 +10,7 @@
  */
 
 /** The version the public has. */
-export const SITE_VERSION = '1.0.2';
+export const SITE_VERSION = '1.0.3';
 
 /** Numeric compare of "major.minor.patch" versions. */
 function compare(a: string, b: string): number {
@@ -33,6 +33,15 @@ export interface ChangelogEntry {
 
 /** Newest first; only released versions are shown. */
 export const CHANGELOG: readonly ChangelogEntry[] = [
+  {
+    version: '1.0.3',
+    date: '2026-10-01',
+    title: 'limit tells you when to update',
+    items: [
+      'From this version on, a NEW badge on the limit icon and a note in the popup tell you when a newer version is out, with the download link and the steps',
+      "This is the last update you have to spot yourself: download the new zip, replace your limit folder with it (same place), then click reload on limit in your browser's extensions page",
+    ],
+  },
   {
     version: '1.0.2',
     date: '2026-10-01',

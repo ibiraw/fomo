@@ -8,7 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loadTheme, THEME_KEY } from '../hooks/use-theme';
-import { BASE_RELEASE, hasFeature, loadRelease, onReleaseChange, RELEASE_STORAGE_KEY, toRelease, type ReleaseView } from '../lib/release';
+import { BASE_RELEASE, hasFeature, loadRelease, onReleaseChange, RELEASE_STORAGE_KEY, toRelease, updateAvailable, type ReleaseView } from '../lib/release';
 import { DEFAULT_THEME } from '../lib/themes';
 
 type Listener = (changes: Record<string, { newValue?: unknown }>, area: string) => void;
@@ -37,7 +37,7 @@ beforeEach(() => vi.stubGlobal('browser', fakeStorage()));
 describe('toRelease', () => {
   it('keeps known features and falls back to v1.0.0 for anything malformed', () => {
     expect(toRelease({ version: '1.2.0', features: ['themes', 'sounds', 'xPost', 'bogus'], early: true }))
-      .toEqual({ version: '1.2.0', features: ['themes', 'sounds', 'xPost'], early: true });
+      .toEqual({ version: '1.2.0', features: ['themes', 'sounds', 'xPost'], early: true, latestExtension: null });
     for (const bad of [null, undefined, 'x', { version: 1, features: [] }, { version: '1.1.0' }, { version: '1.1', features: [] }, { version: 'v1', features: [] }]) {
       expect(toRelease(bad)).toBe(BASE_RELEASE);
     }
@@ -55,7 +55,7 @@ describe('stored release', () => {
     const seen: ReleaseView[] = [];
     const off = onReleaseChange((r) => seen.push(r));
     await browser.storage.local.set({ [RELEASE_STORAGE_KEY]: { version: '1.1.0', features: ['themes', 'sounds'], early: false } });
-    expect(seen.at(-1)).toEqual({ version: '1.1.0', features: ['themes', 'sounds'], early: false });
+    expect(seen.at(-1)).toEqual({ version: '1.1.0', features: ['themes', 'sounds'], early: false, latestExtension: null });
     off();
   });
 
@@ -64,5 +64,20 @@ describe('stored release', () => {
     expect(await loadTheme()).toBe(DEFAULT_THEME);
     await browser.storage.local.set({ [RELEASE_STORAGE_KEY]: { version: '1.1.0', features: ['themes', 'sounds'], early: false } });
     expect((await loadTheme()).id).toBe('gold');
+  });
+});
+
+describe('update available', () => {
+  const r = (latestExtension: string | null) => ({ ...BASE_RELEASE, latestExtension });
+  it('offers a newer build only', () => {
+    expect(updateAvailable(r('1.0.3'), '1.0.2')).toBe('1.0.3');
+    expect(updateAvailable(r('1.0.3'), '1.0.3')).toBeNull();
+    expect(updateAvailable(r('1.0.3'), '1.1.0')).toBeNull();
+    expect(updateAvailable(r('1.10.0'), '1.9.9')).toBe('1.10.0');
+    expect(updateAvailable(r(null), '1.0.0')).toBeNull();
+  });
+  it('reads latestExtension from the server, ignoring junk', () => {
+    expect(toRelease({ version: '1.0.2', features: [], latestExtension: '1.0.3' }).latestExtension).toBe('1.0.3');
+    expect(toRelease({ version: '1.0.2', features: [], latestExtension: 'soon' }).latestExtension).toBeNull();
   });
 });

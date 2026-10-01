@@ -8,6 +8,7 @@
  *              v1.0.1  extension update: keep the computer awake while orders wait, auto-tick fomo's risk warning
  *                      (setting), sells re-armed when the wallet shows they never sold, 5 tries (no gated features)
  *              v1.0.2  fix: the balance is found with custom fomo presets (e.g. $300 instead of $100)
+ *              v1.0.3  "Update available" banner + NEW badge when access.json `latestExtension` is newer than the build
  *              v1.1.0  themes and order sounds
  *              v1.2.0  the token's latest X post
  *              v1.3.0  which launchpad a token came from
@@ -27,6 +28,7 @@ export const RELEASES: readonly { readonly version: string; readonly adds: reado
   { version: '1.0.0', adds: [] },
   { version: '1.0.1', adds: [] },
   { version: '1.0.2', adds: [] },
+  { version: '1.0.3', adds: [] },
   { version: '1.1.0', adds: ['themes', 'sounds'] },
   { version: '1.2.0', adds: ['xPost'] },
   { version: '1.3.0', adds: ['launchpad'] },
@@ -57,6 +59,8 @@ export interface ReleaseView {
   readonly features: readonly Feature[];
   /** Early access: every feature built so far, before it is public. */
   readonly early: boolean;
+  /** Newest extension build on limit.family (access file `latestExtension`); older builds show "Update available". */
+  readonly latestExtension: string | null;
 }
 
 /** Who sees what, and who uses limit for free until when. Short ids like "LM-7K3Q2P". */
@@ -65,6 +69,8 @@ export interface AccessConfig {
   readonly earlyAccess: readonly string[];
   /** Short id → last free day ("2026-11-01", free through the end of that day, UTC). */
   readonly freeUntil: Readonly<Record<string, string>>;
+  /** Newest extension build users can download ("1.0.3"); extensions older than it show an update banner. */
+  readonly latestExtension?: string | undefined;
 }
 
 /** Used when there is no access file: the first version for everyone, no early access, nobody free. */
@@ -78,6 +84,7 @@ const AccessSchema = z
     publicVersion: z.enum(VERSIONS as [string, ...string[]]),
     earlyAccess: z.array(ShortId).max(500).default([]),
     freeUntil: z.record(ShortId, Day).default({}),
+    latestExtension: z.string().regex(/^\d+\.\d+\.\d+$/, 'a version like 1.0.3').optional(),
   })
   .strict();
 
@@ -111,7 +118,7 @@ export class ReleaseService {
     const c = this.config();
     const early = this.permanent.has(account.id) || c.earlyAccess.includes(account.shortId);
     const version = early ? LATEST_VERSION : c.publicVersion;
-    return { version, features: featuresOf(version), early };
+    return { version, features: featuresOf(version), early, latestExtension: c.latestExtension ?? null };
   }
 
   /** End of the account's free period (ms, end of the listed day UTC), or null when it has none. */
