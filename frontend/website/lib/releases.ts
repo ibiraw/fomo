@@ -10,7 +10,7 @@
  */
 
 /** The version the public has. */
-export const SITE_VERSION = '1.0.3';
+export const SITE_VERSION = '1.1.0';
 
 /** Numeric compare of "major.minor.patch" versions. */
 function compare(a: string, b: string): number {
@@ -33,6 +33,16 @@ export interface ChangelogEntry {
 
 /** Newest first; only released versions are shown. */
 export const CHANGELOG: readonly ChangelogEntry[] = [
+  {
+    version: '1.1.0',
+    date: '2026-10-01',
+    title: 'Themes and order sounds',
+    items: [
+      'Themes: 8 new looks (Mono, Midnight Gold, Signal Blue, Deep Teal, Royal Lavender, Ice, Solar Flare, Neon Tokyo) that recolor fomo.family and your Limit panel in every open tab — Settings → Theme',
+      'Order sounds: hear when a buy fills, a take profit or stop loss hits, or an order fails. 6 sound themes (Arcade, Chime, Cash register, Soft pop, Degen, Sonar) with volume — Settings → Order sounds',
+      'Nothing to download: it switches on in the version you already have',
+    ],
+  },
   {
     version: '1.0.3',
     date: '2026-10-01',
