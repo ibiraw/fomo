@@ -45,6 +45,9 @@ interface Deps {
   readonly freeUntil: (userId: string) => number | null;
 }
 
+/** How long to wait before trying to price the platform token again. */
+const TOKEN_RETRY_MS = 30_000;
+
 /** Resolves the platform token's decimals and symbol from its chain. */
 async function tokenAsset(key: string, d: Deps): Promise<PaymentAsset> {
   const ref = parseTokenKey(key);
@@ -100,16 +103,32 @@ export async function buildBilling(d: Deps): Promise<BillingParts> {
     ...[...d.evm].map(([chain, p]) => new EvmPaymentWatcher(chain, p.rpc, assetsOn(chain), d.paywall.treasury.evm, store, receive, d.logError(`pay:${chain}`))),
   ];
 
+  // The platform token's price stream. A token no feed can price yet (brand new, a launchpad limit doesn't read)
+  // must never stop the server: its payment option waits (price unknown) and the watch is retried in the background.
+  let stopped = false;
+  let retry: ReturnType<typeof setTimeout> | null = null;
+  const watchToken = async (key: string): Promise<void> => {
+    try {
+      tokenWatch = await d.feed.watch(key, (tick) => { tokenPrice = tick.priceUsd; });
+      d.log(`pay token ${token?.symbol ?? key} is priced`);
+    } catch (err) {
+      d.logError('pay:token-price')(err);
+      if (!stopped) retry = setTimeout(() => void watchToken(key), TOKEN_RETRY_MS);
+    }
+  };
+
   return {
     service,
     store,
     async start() {
       service.settleAll(); // payments recorded before a restart or a price change
-      if (d.paywall.token) tokenWatch = await d.feed.watch(d.paywall.token, (tick) => { tokenPrice = tick.priceUsd; });
+      if (d.paywall.token) void watchToken(d.paywall.token);
       for (const w of watchers) w.start();
       d.log(`paywall on: $${d.paywall.priceUsd} USDC or $${d.paywall.tokenPriceUsd} in ${token ? token.symbol : '(token not launched)'} per ${d.paywall.periodDays} days, ${d.paywall.freeOrders} free orders`);
     },
     stop() {
+      stopped = true;
+      if (retry) clearTimeout(retry);
       for (const w of watchers) w.stop();
       tokenWatch?.stop();
       store.close();
