@@ -10,7 +10,7 @@
  */
 
 /** The version the public has. */
-export const SITE_VERSION = '1.1.0';
+export const SITE_VERSION = '1.2.0';
 
 /** Numeric compare of "major.minor.patch" versions. */
 function compare(a: string, b: string): number {
@@ -33,6 +33,16 @@ export interface ChangelogEntry {
 
 /** Newest first; only released versions are shown. */
 export const CHANGELOG: readonly ChangelogEntry[] = [
+  {
+    version: '1.2.0',
+    date: '2026-10-01',
+    title: "The token's latest X post",
+    items: [
+      "See the token's latest post from its own X account right in the Limit panel and the popup, so you know what the dev just said before you set an order",
+      "It's read with your own x.com login in a background tab; nothing from X is sent to our server",
+      'Nothing to download: it switches on in the version you already have',
+    ],
+  },
   {
     version: '1.1.0',
     date: '2026-10-01',
