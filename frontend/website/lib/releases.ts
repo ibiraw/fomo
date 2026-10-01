@@ -10,7 +10,7 @@
  */
 
 /** The version the public has. */
-export const SITE_VERSION = '1.0.0';
+export const SITE_VERSION = '1.0.1';
 
 /** Numeric compare of "major.minor.patch" versions. */
 function compare(a: string, b: string): number {
@@ -33,6 +33,17 @@ export interface ChangelogEntry {
 
 /** Newest first; only released versions are shown. */
 export const CHANGELOG: readonly ChangelogEntry[] = [
+  {
+    version: '1.0.1',
+    date: '2026-10-01',
+    title: "Orders that don't sleep",
+    items: [
+      'Keeps your computer awake while you have orders waiting, so they can still trade (the screen can still turn off) — Settings → Keep computer awake',
+      "Take profits and stop losses that get no answer from fomo are checked on your wallet on-chain and tried again while the price is still at your target, up to 5 tries",
+      "New setting: auto-tick fomo's \"I understand the risks\" warning on the Buy tab, so a hyped launch isn't slowed down (off by default)",
+      "To update: download the new zip, replace your limit folder with it, then click reload on limit in your browser's extensions page",
+    ],
+  },
   {
     version: '1.0.0',
     date: '2026-09-28',

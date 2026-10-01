@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   openGraph: { title: TITLE, description: DESCRIPTION, type: 'website', siteName: 'limit' },
-  twitter: { card: 'summary_large_image', title: TITLE, description: DESCRIPTION },
+  twitter: { card: 'summary_large_image', site: '@limitdotfamily', creator: '@limitdotfamily', title: TITLE, description: DESCRIPTION },
 };
 
 export const viewport: Viewport = { themeColor: '#08080f', colorScheme: 'dark' };

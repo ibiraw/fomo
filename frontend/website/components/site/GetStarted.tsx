@@ -16,7 +16,7 @@ import { SectionHead } from './Sections';
  * Where the packed extension is served (copied into the site root on deploy). Served with no-store, so updates are
  * live at once; the query only skips a copy Cloudflare cached before that header existed.
  */
-export const EXTENSION_ZIP = '/limit.zip?v=2';
+export const EXTENSION_ZIP = '/limit.zip?v=3';
 
 /** Paywall defaults (backend config). */
 const FREE_ORDERS = 3;
