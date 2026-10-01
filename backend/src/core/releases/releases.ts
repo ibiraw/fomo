@@ -7,6 +7,7 @@
  *              v1.0.0  limit orders (limit, breakout, take profit, stop loss) on every chain
  *              v1.0.1  extension update: keep the computer awake while orders wait, auto-tick fomo's risk warning
  *                      (setting), sells re-armed when the wallet shows they never sold, 5 tries (no gated features)
+ *              v1.0.2  fix: the balance is found with custom fomo presets (e.g. $300 instead of $100)
  *              v1.1.0  themes and order sounds
  *              v1.2.0  the token's latest X post
  *              v1.3.0  which launchpad a token came from
@@ -25,6 +26,7 @@ export type Feature = 'themes' | 'sounds' | 'xPost' | 'launchpad' | 'tokenMetric
 export const RELEASES: readonly { readonly version: string; readonly adds: readonly Feature[] }[] = [
   { version: '1.0.0', adds: [] },
   { version: '1.0.1', adds: [] },
+  { version: '1.0.2', adds: [] },
   { version: '1.1.0', adds: ['themes', 'sounds'] },
   { version: '1.2.0', adds: ['xPost'] },
   { version: '1.3.0', adds: ['launchpad'] },

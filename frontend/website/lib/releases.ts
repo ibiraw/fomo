@@ -10,7 +10,7 @@
  */
 
 /** The version the public has. */
-export const SITE_VERSION = '1.0.1';
+export const SITE_VERSION = '1.0.2';
 
 /** Numeric compare of "major.minor.patch" versions. */
 function compare(a: string, b: string): number {
@@ -33,6 +33,15 @@ export interface ChangelogEntry {
 
 /** Newest first; only released versions are shown. */
 export const CHANGELOG: readonly ChangelogEntry[] = [
+  {
+    version: '1.0.2',
+    date: '2026-10-01',
+    title: 'Works with your own fomo presets',
+    items: [
+      "If you changed fomo's quick amounts (say $300 instead of $100), limit could lose track of your balance and pause your trades. It now finds it whatever your presets are, on Buy and Sell",
+      "To update: download the new zip, replace your limit folder with it, then click reload on limit in your browser's extensions page",
+    ],
+  },
   {
     version: '1.0.1',
     date: '2026-10-01',

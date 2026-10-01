@@ -63,7 +63,8 @@ export function setReactInputValue(input: HTMLInputElement, value: string): void
 export function readBalance(panel: HTMLElement, side: OrderSide): number | null {
   const all = [...panel.querySelectorAll('*')];
   const last = fomoDom().lastPreset[side];
-  const presetIdx = all.findIndex((el) => el.tagName === 'BUTTON' && (el.textContent ?? '').trim() === last);
+  let presetIdx = all.findIndex((el) => el.tagName === 'BUTTON' && (el.textContent ?? '').trim() === last);
+  if (presetIdx < 0) presetIdx = lastCustomPreset(panel, all, side);
   if (presetIdx < 0) return null;
   for (const el of all.slice(presetIdx + 1)) {
     if (el.tagName === 'BUTTON') continue; // skip nested preset content / Max
@@ -71,6 +72,27 @@ export function readBalance(panel: HTMLElement, side: OrderSide): number | null 
     if (v !== null) return v;
   }
   return null;
+}
+
+/** A preset's label: "$25", "$1.5K" on the Buy tab, "25%" on the Sell tab. */
+const PRESET_LABEL: Record<OrderSide, RegExp> = { buy: /^\$[\d,]+(?:\.\d+)?[KkMm]?$/, sell: /^\d+(?:\.\d+)?%$/ };
+
+/**
+ * Index (in `all`) of the last preset button when the user changed fomo's presets (e.g. "$300" instead of "$100",
+ * LM-WFA346 2026-10-01): the last of the run of preset-looking buttons that follows the amount input. -1 if none.
+ */
+function lastCustomPreset(panel: HTMLElement, all: Element[], side: OrderSide): number {
+  const input = findAmountInput(panel);
+  const from = input ? all.indexOf(input) : -1;
+  if (from < 0) return -1;
+  let found = -1;
+  for (let i = from + 1; i < all.length; i++) {
+    const el = all[i]!;
+    if (el.tagName !== 'BUTTON') continue;
+    if (PRESET_LABEL[side].test((el.textContent ?? '').trim())) found = i;
+    else if (found >= 0) break; // the run of presets ended (Max, submit…)
+  }
+  return found;
 }
 
 /** The submit button ("Buy <symbol>" / "Sell <symbol>", or a status label like "Fetching quote..."). */

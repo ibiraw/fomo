@@ -8,15 +8,16 @@
 
 import { Download, Gift, RefreshCw, Store, Wallet } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { LIMIT_TOKEN, tokenLive } from '@/lib/token';
 import { SectionHead } from './Sections';
+import { TokenBox } from './TokenCA';
 
 /**
  * Where the packed extension is served (copied into the site root on deploy). Served with no-store, so updates are
  * live at once; the query only skips a copy Cloudflare cached before that header existed.
  */
-export const EXTENSION_ZIP = '/limit.zip?v=3';
+export const EXTENSION_ZIP = '/limit.zip?v=4';
 
 /** Paywall defaults (backend config). */
 const FREE_ORDERS = 3;
@@ -99,6 +100,7 @@ export function Pricing() {
           <Wallet className="size-5 text-brand" aria-hidden />
           <p className="mt-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">Monthly</p>
           <p className="mt-1 text-4xl font-bold">${PRICE_USD} <span className="text-base font-medium text-muted-foreground">USDC / {PERIOD_DAYS} days</span></p>
+          {tokenLive() && <p className="mt-1 text-sm font-semibold text-buy">or ${LIMIT_TOKEN.monthUsd} in ${LIMIT_TOKEN.symbol}</p>}
           <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
             <li>· Up to {MAX_OPEN_ORDERS} orders waiting at a time, on every chain.</li>
             <li>· Nothing renews by itself. Paying early adds {PERIOD_DAYS} days to the end — you never lose days.</li>
@@ -116,14 +118,11 @@ export function Pricing() {
           <li className="rounded-xl border bg-background p-4"><span className="font-semibold text-foreground">From an exchange</span><span className="mt-1 block text-muted-foreground">Paste the withdrawal&apos;s transaction link into “Paid from an exchange?”.</span></li>
         </ul>
         <p className="mt-4 text-xs text-muted-foreground">
-          Accepted: official USDC on Solana, Ethereum, Base, BNB Chain and Arc, or USDG on Robinhood Chain. Crypto payments are final and non-refundable.
+          Accepted: official USDC on Solana, Ethereum, Base, BNB Chain and Arc, or USDG on Robinhood Chain{tokenLive() ? `, or $${LIMIT_TOKEN.symbol} on Solana` : ''}. Crypto payments are final and non-refundable.
         </p>
       </div>
 
-      <div className="mx-auto mt-4 flex max-w-4xl flex-wrap items-center gap-3 rounded-xl border border-sell/40 bg-sell/10 p-4 text-sm">
-        <Badge className="bg-sell/20 text-sell">No token yet</Badge>
-        <p className="text-muted-foreground">A limit token hasn&apos;t launched. Anything claiming to be it right now is fake.</p>
-      </div>
+      <TokenBox />
     </section>
   );
 }
