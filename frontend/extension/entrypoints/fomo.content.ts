@@ -16,6 +16,7 @@ import { keyFromPath, tokenPath } from '@/lib/token-key';
 import { DEFAULT_QUICK_PRESETS, QUICK_PRESETS_KEY, QuickTradeButtons, toQuickPresets, type QuickPresets, type QuickTradeReply } from '@/lib/quick-trade';
 import { hasFeature, loadRelease, onReleaseChange } from '@/lib/release';
 import { executeTrade } from '@/lib/trade';
+import { AUTO_RISK_ACK_KEY, parseAutoRiskAck, RiskAckTicker } from '@/lib/risk-ack';
 import type { ExecutionResult, TradeRequest } from '@/lib/types';
 
 /** Messages the background worker sends to this script. */
@@ -76,6 +77,7 @@ export default defineContentScript({
       }
     };
     startQuickTrade();
+    startRiskAck();
     browser.runtime.onMessage.addListener((msg: ContentMessage, _sender, sendResponse) => {
       if (msg.type === 'fomo.ping') {
         sendResponse({ onMint: onMintPage(msg.mint) } satisfies PingReply);
@@ -96,6 +98,30 @@ export default defineContentScript({
     for (const delayMs of [0, 5_000, 30_000]) setTimeout(reportWallets, delayMs);
   },
 });
+
+/**
+ * Auto-tick fomo's risk warning on the Buy tab (setting, off by default): watches the page while it's on and ticks the
+ * "I understand the risks" checkbox the moment it shows up, so a hyped launch isn't delayed by it.
+ */
+function startRiskAck(): void {
+  const ticker = new RiskAckTicker(document);
+  let pending: ReturnType<typeof setTimeout> | null = null;
+  const schedule = (): void => {
+    if (pending) return;
+    pending = setTimeout(() => { pending = null; ticker.scan(); }, 40); // fast: this is about saving seconds
+  };
+  const observer = new MutationObserver(schedule);
+  const apply = (on: boolean): void => {
+    observer.disconnect();
+    if (!on) return;
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    schedule();
+  };
+  void browser.storage.local.get(AUTO_RISK_ACK_KEY).then((st) => apply(parseAutoRiskAck(st[AUTO_RISK_ACK_KEY])));
+  browser.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && AUTO_RISK_ACK_KEY in changes) apply(parseAutoRiskAck(changes[AUTO_RISK_ACK_KEY]!.newValue));
+  });
+}
 
 /** The quick Buy/Sell buttons (null until started). */
 let quickButtons: QuickTradeButtons | null = null;

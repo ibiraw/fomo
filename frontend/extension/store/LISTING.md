@@ -62,6 +62,7 @@ Everything to paste into the Chrome Web Store developer dashboard. Visibility: *
 | `scripting` | Adds the trade helper to fomo.family tabs that were already open before the extension was installed or updated, so orders can run without the user reloading fomo. |
 | `alarms` | Wakes the extension every 30 seconds to keep its connection to the order server alive, so orders still trigger when the popup is closed. |
 | `offscreen` | Plays the optional order sounds (fill / take profit / stop loss / failed). Extension service workers cannot play audio themselves. |
+| `power` | While the user has orders waiting, keeps the computer from going to sleep (the screen may still turn off) so the orders can still trade. On by default, can be turned off in Settings; released as soon as no order is waiting. |
 | Host: `https://fomo.family/*` | Adds the Limit tab to fomo's trade panel, reads the market cap and the user's balance shown on the page, clicks fomo's Buy/Sell buttons when an order triggers, and reads the user's public wallet addresses from their logged-in session. |
 | Host: `https://x.com/*` | Reads the latest post of a token's X account (with the user's own X session) when the user opens it in the Limit panel. |
 

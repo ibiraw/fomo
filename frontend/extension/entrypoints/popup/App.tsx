@@ -15,6 +15,8 @@ import { TokenXCard } from '@/components/panel/TokenXCard';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Segmented } from '@/components/orders/Segmented';
+import { AutoRiskAckSettings } from '@/components/AutoRiskAckSettings';
+import { KeepAwakeSettings } from '@/components/KeepAwakeSettings';
 import { OrderSounds } from '@/components/OrderSounds';
 import { ThemePicker } from '@/components/ThemePicker';
 import { useBackground } from '@/hooks/use-background';
@@ -113,6 +115,8 @@ export default function App() {
               <ThemePicker />
             </SettingsCard>}
             {hasFeature(release, 'quickTrade') && <QuickTradeSettings />}
+            <AutoRiskAckSettings />
+            <KeepAwakeSettings />
             {hasFeature(release, 'sounds') && <OrderSounds />}
             <AccountSection account={state.account} serverUrl={state.serverUrl} send={send} />
           </TabsContent>

@@ -26,6 +26,7 @@ import { XLatestService } from '@/lib/x-latest';
 import { scrapeLatestPost } from '@/lib/x-scraper';
 import { loadSoundSettings, soundForUpdate, type PlaySoundMessage, type SoundEvent } from '@/lib/sounds';
 import type { Order, PriceTick } from '@/lib/types';
+import { DEFAULT_KEEP_AWAKE, hasWaitingOrders, KEEP_AWAKE_KEY, KeepAwake, loadKeepAwake, parseKeepAwake, type PowerApi } from '@/lib/keep-awake';
 
 const KEEPALIVE_ALARM = 'fomo-keepalive';
 const OFFSCREEN_PATH = '/offscreen.html';
@@ -78,6 +79,14 @@ export default defineBackground({
     let detectedUserId: string | null = null;
     const orders = new Map<string, Order>();
     const ticks: Record<string, PriceTick> = {};
+    // Keep the computer awake while orders wait (setting on by default): a sleeping PC can't trade.
+    const awake = new KeepAwake((globalThis as unknown as { chrome?: { power?: PowerApi } }).chrome?.power);
+    let keepAwakeOn = DEFAULT_KEEP_AWAKE;
+    const syncAwake = (): void => { awake.sync(keepAwakeOn && hasWaitingOrders(orders.values())); };
+    void loadKeepAwake().then((v) => { keepAwakeOn = v; syncAwake(); });
+    browser.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && KEEP_AWAKE_KEY in changes) { keepAwakeOn = parseKeepAwake(changes[KEEP_AWAKE_KEY]!.newValue); syncAwake(); }
+    });
     const ports = new Set<Browser.runtime.Port>();
 
     /** Snapshot for the popup. */
@@ -119,11 +128,13 @@ export default defineBackground({
         orders.clear();
         list.forEach((o) => orders.set(o.id, o));
         latest.forEach((t) => (ticks[t.mint] = t));
+        syncAwake();
         push();
       },
       onOrder: (o) => {
         const sound = soundForUpdate(orders.get(o.id), o);
         orders.set(o.id, o);
+        syncAwake();
         push();
         if (sound) void playSound(sound).catch((err: unknown) => console.error('[limit] sound failed', err));
       },
@@ -294,6 +305,7 @@ export default defineBackground({
           token = null;
           account = null;
           orders.clear();
+          syncAwake();
           await browser.storage.local.remove('token');
           await browser.storage.local.set({ accountDeleted: true });
           status = 'no_token';

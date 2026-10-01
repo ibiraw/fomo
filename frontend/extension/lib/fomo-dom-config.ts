@@ -59,6 +59,8 @@ export interface FomoDomConfig {
   readonly feedItem: string;
   /** Text of the token's X button in About ("Twitter"); only an x.com / twitter.com link with exactly this text counts. */
   readonly xLinkLabels: readonly string[];
+  /** Words of the risk-warning checkbox label above Buy ("I understand the risks of trading this token."). */
+  readonly riskAckWords: readonly string[];
 }
 
 /** Built-in values (what fomo.family looked like when this version shipped). */
@@ -89,6 +91,9 @@ export const DEFAULT_FOMO_DOM: FomoDomConfig = {
   sideTabInactiveClass: 'text-text-secondary',
   feedItem: '.border-b.border-bg-secondary',
   xLinkLabels: ['Twitter'],
+  // Observed 2026-10-01 on memefi: a red box "Warning: 3 issues" / "I understand the risks of trading this token."
+  // with a square checkbox button on its left; Buy stays disabled until it is ticked.
+  riskAckWords: ['I understand the risks'],
 };
 
 /** Checks that a string is a usable CSS selector (injectable; content scripts pass a DOM-backed check). */
@@ -155,6 +160,7 @@ export function parseFomoDomConfig(raw: unknown, isSelector: SelectorCheck = dom
     sideTabInactiveClass: cls('sideTabInactiveClass') ?? d.sideTabInactiveClass,
     feedItem: sel('feedItem') ?? d.feedItem,
     xLinkLabels: words('xLinkLabels') ?? d.xLinkLabels,
+    riskAckWords: words('riskAckWords') ?? d.riskAckWords,
   };
 }
 
