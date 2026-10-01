@@ -10,7 +10,7 @@
  */
 
 /** The version the public has. */
-export const SITE_VERSION = '1.2.0';
+export const SITE_VERSION = '1.3.0';
 
 /** Numeric compare of "major.minor.patch" versions. */
 function compare(a: string, b: string): number {
@@ -33,6 +33,16 @@ export interface ChangelogEntry {
 
 /** Newest first; only released versions are shown. */
 export const CHANGELOG: readonly ChangelogEntry[] = [
+  {
+    version: '1.3.0',
+    date: '2026-10-01',
+    title: 'Where a token launched',
+    items: [
+      'See which launchpad a token came from (pump.fun, Raydium LaunchLab and its platforms, Meteora DBC, four.meme, flap.sh, pons and more) right in the Limit panel and the popup',
+      "And whether it's still on its bonding curve or has graduated, before you set an order",
+      'Nothing to download: it switches on in the version you already have',
+    ],
+  },
   {
     version: '1.2.0',
     date: '2026-10-01',
