@@ -19,7 +19,7 @@ describe('SqliteOrderStoreAdapter', () => {
     const store = new SqliteOrderStoreAdapter(':memory:', () => 1000);
     const o = store.create(input, 'u1');
     expect(o).toMatchObject({
-      mint: MINT, side: 'buy', status: 'open', attempts: 0, maxAttempts: 3, lastError: null, triggeredAtValue: null,
+      mint: MINT, side: 'buy', status: 'open', attempts: 0, maxAttempts: 5, lastError: null, triggeredAtValue: null,
       trigger: { metric: 'marketCap', direction: 'below', value: 3000 }, amount: { kind: 'usd', value: 5 }, createdAt: 1000,
     });
     expect(store.get(o.id)).toEqual(o);

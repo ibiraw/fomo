@@ -13,8 +13,8 @@ import { canonicalTokenKey, isTokenKey } from '../chains/token-key.js';
 
 /** FOMO's minimum trade size in USD. */
 export const MIN_TRADE_USD = 2;
-/** Default number of execution attempts (slippage failures re-arm the order). */
-export const DEFAULT_MAX_ATTEMPTS = 3;
+/** Default number of execution attempts (slippage, fomo rejections and sells the wallet never confirmed re-arm the order). */
+export const DEFAULT_MAX_ATTEMPTS = 5;
 /** Quick (market) trades retry a slippage failure once, so they never land long after the tap. */
 export const MARKET_MAX_ATTEMPTS = 2;
 /** A quick trade that hasn't started this long after the tap (server restart, extension offline) is cancelled. */

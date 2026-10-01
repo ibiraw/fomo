@@ -37,10 +37,11 @@ Node 22 + TypeScript (strict). Shared server: live prices (shared by everyone), 
 
 ## Order lifecycle
 `open → triggered → executing → filled | failed | unknown`, `open/triggered → cancelled`.
-- Slippage failure re-arms to `open` until `maxAttempts` (default 3).
+- Slippage failure re-arms to `open` until `maxAttempts` (default 5; raised from 3 on 2026-10-01, open orders bumped in the DB).
 - fomo's own failure notice without a slippage word ("Failed to sell 1M X") is kind `rejected` (nothing traded): a sell re-arms like slippage; a buy fails (never risk buying twice).
 - Before executing, the trigger is re-checked against the latest price; if no longer met → back to `open`.
-- Timeout / extension disconnect / restart mid-trade → `unknown` (user must check FOMO).
+- Timeout / unknown with a wallet confirmer: the wallet is watched during the trade + `chainGraceMs` (20 s). A balance change → `filled`; none → kind `unconfirmed`: a sell re-arms to `open` (fires again only while its trigger is still met) and is `failed` once out of tries; a buy stays `unknown` (never bought twice blind). LM-SKFK2V's PRIORS take profit parked as unknown though the tokens never left (2026-10-01).
+- No confirmer (no wallet known, or the balance snapshot failed) / restart mid-trade → `unknown` (user must check FOMO).
 - One trade at a time.
 - Every active mint is watched at start and re-tried every `REWATCH_MS` (15 s) until it is: a watch that failed once (the RPC refusing a pool search while busy right after a restart, 2026-09-30) used to leave its orders open but unwatched until someone opened the token.
 

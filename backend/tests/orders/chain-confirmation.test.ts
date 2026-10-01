@@ -106,7 +106,37 @@ describe('OrderEngine on-chain confirmation', () => {
     expect(store.get(o.id)?.status).toBe('filled');
   });
 
-  it('keeps unknown when the chain shows nothing within the grace period', async () => {
+  it('re-arms a sell that timed out when the wallet shows it never sold, and fails it once out of tries', async () => {
+    // LM-SKFK2V's take profit on PRIORS (2026-10-01): the fomo tab never answered, the tokens never left the wallet,
+    // and the order used to park as unknown for good.
+    const { accounts, store, feed, exec, engine } = await setup(30);
+    accounts.balances.set(KEY, 201_633n);
+    const tp = await engine.createOrder('u1', { ...BUY, side: 'sell', trigger: { metric: 'price', direction: 'above', value: 2 }, amount: { kind: 'percent', value: 100 } });
+    for (let i = 1; i <= tp.maxAttempts; i++) {
+      exec.results.push({ ok: false, kind: 'timeout', message: 'No result from extension within 90s' });
+      feed.tick(MINT, 2);
+      await settle(80);
+      expect(store.get(tp.id)).toMatchObject({ status: i < tp.maxAttempts ? 'open' : 'failed', attempts: i });
+    }
+    expect(store.get(tp.id)?.lastError).toMatch(/^unconfirmed: timeout .*wallet didn't change on-chain/);
+    expect(tp.maxAttempts).toBe(5);
+  });
+
+  it('does not re-fire a re-armed sell while the trigger is no longer met', async () => {
+    const { accounts, store, feed, exec, engine } = await setup(30);
+    accounts.balances.set(KEY, 10n);
+    const tp = await engine.createOrder('u1', { ...BUY, side: 'sell', trigger: { metric: 'price', direction: 'above', value: 2 }, amount: { kind: 'percent', value: 100 } });
+    exec.results.push({ ok: false, kind: 'timeout', message: 'no answer' });
+    feed.tick(MINT, 2);
+    await settle(80);
+    expect(store.get(tp.id)).toMatchObject({ status: 'open', attempts: 1 });
+    feed.tick(MINT, 1.5); // below the take profit: stays open, not traded
+    await settle(40);
+    expect(store.get(tp.id)).toMatchObject({ status: 'open', attempts: 1 });
+    expect(exec.executed.filter((o) => o.id === tp.id)).toHaveLength(1);
+  });
+
+  it('keeps a buy unknown when the chain shows nothing within the grace period', async () => {
     const { store, feed, exec, engine } = await setup(30);
     exec.results.push({ ok: false, kind: 'timeout', message: 'no answer' });
     const o = await engine.createOrder('u1', BUY);

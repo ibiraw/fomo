@@ -399,9 +399,11 @@ export class OrderEngine {
       if (!result.ok && result.kind !== 'unknown' && result.kind !== 'timeout') return result;
       const change = await Promise.race([chain, sleep(this.chainGraceMs, abort.signal).then(() => null)]);
       if (change) return result.ok ? result : { ok: true, detail: `Confirmed on-chain (token balance ${change.before} → ${change.after})` };
+      // No on-chain change: a UI success didn't really trade, and a timeout / unknown didn't either. Both are
+      // `unconfirmed`, so a sell is tried again (its trigger is re-checked first) instead of parking as unknown.
       return result.ok
         ? { ok: false, kind: 'unconfirmed', message: `fomo showed it done (${result.detail}), but the wallet didn't change on-chain` }
-        : result;
+        : { ok: false, kind: 'unconfirmed', message: `${result.kind} (${result.message}), and the wallet didn't change on-chain` };
     } finally {
       abort.abort();
     }
@@ -419,11 +421,12 @@ export class OrderEngine {
     if (result.kind === 'rejected' && order.side === 'sell' && order.attempts < order.maxAttempts) {
       return this.store.transition(order.id, ['executing'], 'open', { lastError });
     }
-    // A sell the wallet didn't confirm is tried again (selling a share of nothing sells nothing); a buy is never
-    // retried blind — it could buy twice — so it waits for the user to check fomo.
+    // A sell the wallet didn't confirm is tried again (selling a share of nothing sells nothing) and, out of tries,
+    // is failed: the chain shows it never sold. A buy is never retried blind — it could buy twice — so it waits for
+    // the user to check fomo.
     if (result.kind === 'unconfirmed') {
-      const retry = order.side === 'sell' && order.attempts < order.maxAttempts;
-      return this.store.transition(order.id, ['executing'], retry ? 'open' : 'unknown', { lastError });
+      if (order.side === 'sell') return this.store.transition(order.id, ['executing'], order.attempts < order.maxAttempts ? 'open' : 'failed', { lastError });
+      return this.store.transition(order.id, ['executing'], 'unknown', { lastError });
     }
     const next = result.kind === 'timeout' || result.kind === 'unknown' ? 'unknown' : 'failed';
     return this.store.transition(order.id, ['executing'], next, { lastError });

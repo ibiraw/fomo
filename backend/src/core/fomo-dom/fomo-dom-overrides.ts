@@ -44,6 +44,7 @@ export const FomoDomOverridesSchema = z
     sideTabInactiveClass: Classes,
     feedItem: Text,
     xLinkLabels: Words,
+    riskAckWords: Words,
   })
   .partial()
   .strict();
