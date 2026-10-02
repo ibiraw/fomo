@@ -10,7 +10,7 @@
  */
 
 /** The version the public has. */
-export const SITE_VERSION = '1.3.0';
+export const SITE_VERSION = '1.4.0';
 
 /** Numeric compare of "major.minor.patch" versions. */
 function compare(a: string, b: string): number {
@@ -33,6 +33,16 @@ export interface ChangelogEntry {
 
 /** Newest first; only released versions are shown. */
 export const CHANGELOG: readonly ChangelogEntry[] = [
+  {
+    version: '1.4.0',
+    date: '2026-10-02',
+    title: 'Who holds the token',
+    items: [
+      "Top 10 holders' share of the supply (red at 50%+, yellow at 30%+), with the 5 biggest wallets broken out",
+      'How much the dev still holds (red at 15%+, yellow at 5%+), so you can spot a coin one wallet can dump',
+      'In the Limit panel and the popup, refreshed every 30 seconds. Nothing to download: it switches on in the version you already have',
+    ],
+  },
   {
     version: '1.3.0',
     date: '2026-10-01',
