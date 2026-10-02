@@ -407,18 +407,22 @@ describe('WsGateway accounts', () => {
     expect(activity.at(-1)).toMatch(/^order: LM-\w+\n\n🧍LM-\w+\n\n✅ \*\*SPOT BUY\*\* on fomo: Buying \$3\.00 KEK\n\n/); // whitespace squeezed
     expect(activity.at(-1)!.endsWith(`\n\n💜 ${MINT}`)).toBe(true);
     c.send({ type: 'trade.spot', reqId: 's2', side: 'sell', detail: 'Selling 1.2M KEK' });
-    expect((await c.next((m) => m.reqId === 's2')).data).toEqual({ logged: false }); // < 3 s after the last
-    t += 5_000;
-    c.send({ type: 'trade.spot', reqId: 's3', side: 'buy', detail: 'Buying $3.00 KEK', mint: MINT });
-    expect((await c.next((m) => m.reqId === 's3')).data).toEqual({ logged: false }); // same text within a minute
-    c.send({ type: 'trade.spot', reqId: 's4', side: 'sell', detail: 'Selling 1.2M KEK' });
-    expect((await c.next((m) => m.reqId === 's4')).data).toEqual({ logged: true }); // new text, 5 s after the last logged one
+    expect((await c.next((m) => m.reqId === 's2')).data).toEqual({ logged: true }); // a different trade right after: logged
     expect(activity.at(-1)).toMatch(/\n\n❌ \*\*SPOT SELL\*\* on fomo: Selling 1\.2M KEK$/); // no token → no address line
     t += 5_000;
     c.send({ type: 'trade.spot', reqId: 's5', side: 'sell', detail: 'Selling 1.2M KEK' });
     expect((await c.next((m) => m.reqId === 's5')).data).toEqual({ logged: false }); // repeat within a minute
+    c.send({ type: 'trade.spot', reqId: 's3', side: 'buy', detail: 'Buying $3.00 KEK', mint: MINT });
+    expect((await c.next((m) => m.reqId === 's3')).data).toEqual({ logged: false }); // also a repeat
     expect(activity.filter((a) => a.includes('SPOT'))).toHaveLength(2);
-    t += 5_000;
+    // Three fast buys of different tokens (owner, 2026-10-02) are all logged; a flood past 8 in 10 s is not.
+    t += 61_000;
+    for (let i = 0; i < 9; i++) {
+      c.send({ type: 'trade.spot', reqId: `f${i}`, side: 'buy', detail: `Buying $5.00 T${i}` });
+      expect((await c.next((m) => m.reqId === `f${i}`)).data).toEqual({ logged: i < 8 });
+    }
+    expect(activity.filter((a) => a.includes('SPOT'))).toHaveLength(10);
+    t += 61_000;
     // Unreadable sell details (or token) are dropped; the sell itself is still logged.
     c.send({ type: 'trade.spot', reqId: 's6', side: 'sell', detail: 'Selling 5K KEK', mint: 'not-a-token', sell: { all: true, soldPct: 100, usd: 3, pnlPct: -150 } });
     expect((await c.next((m) => m.reqId === 's6')).data).toEqual({ logged: true });

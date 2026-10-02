@@ -90,8 +90,8 @@ interface Client {
   layoutPausedUntil: number | null;
   /** The pending automatic retry (one per connection, however many failures are reported). */
   layoutTimer: NodeJS.Timeout | null;
-  /** Last spot-trade report (text + time), so a repeat or a flood can't spam the monitoring chat. */
-  lastSpot: { readonly text: string; readonly at: number } | null;
+  /** Spot-trade reports logged in the last minute (text + time), so a repeat or a flood can't spam the monitoring chat. */
+  spots: { readonly text: string; readonly at: number }[];
 }
 
 /**
@@ -128,9 +128,14 @@ export function spotLine(side: 'buy' | 'sell', text: string, sell: SpotSell | nu
   return ['❌', who, `${kind} on fomo: ${text}`];
 }
 
-/** Spot-trade reports: at most one per connection per this window, and the same text only once a minute. */
-const SPOT_MIN_GAP_MS = 3_000;
+/**
+ * Spot-trade reports: the same text only once a minute, and at most SPOT_BURST per SPOT_BURST_MS per connection.
+ * Different trades in quick succession all count: a 3 s minimum gap between any two dropped the 2nd and 3rd of three
+ * fast buys (owner, 2026-10-02).
+ */
 const SPOT_REPEAT_MS = 60_000;
+const SPOT_BURST = 8;
+const SPOT_BURST_MS = 10_000;
 
 /** An execution awaiting the extension's answer. */
 interface PendingExec {
@@ -378,7 +383,7 @@ export class WsGateway extends TradeExecutorPort {
   /** Registers a new socket; it must send a valid hello before anything else. */
   private onConnection(ws: WebSocket, req: IncomingMessage): void {
     const burst = this.limits.messagesPerSecond * 2;
-    const client: Client = { ws, ip: this.clientIp(req), userId: null, viewed: new Set(), tokens: burst, refilledAt: this.now(), helloTimer: null, executor: false, layoutPausedUntil: null, layoutTimer: null, lastSpot: null };
+    const client: Client = { ws, ip: this.clientIp(req), userId: null, viewed: new Set(), tokens: burst, refilledAt: this.now(), helloTimer: null, executor: false, layoutPausedUntil: null, layoutTimer: null, spots: [] };
     client.helloTimer = setTimeout(() => {
       client.helloTimer = null;
       if (client.userId === null) ws.close(4001, 'Log in first');
@@ -615,10 +620,11 @@ export class WsGateway extends TradeExecutorPort {
         return this.reply(client, msg.reqId, async () => {
           const now = this.now();
           const text = spotText(msg.detail);
-          const last = client.lastSpot;
-          const skip = last !== null && (now - last.at < SPOT_MIN_GAP_MS || (last.text === text && now - last.at < SPOT_REPEAT_MS));
-          if (skip) return { logged: false };
-          client.lastSpot = { text, at: now };
+          client.spots = client.spots.filter((x) => now - x.at < SPOT_REPEAT_MS);
+          const repeat = client.spots.some((x) => x.text === text);
+          const flood = client.spots.filter((x) => now - x.at < SPOT_BURST_MS).length >= SPOT_BURST;
+          if (repeat || flood) return { logged: false };
+          client.spots.push({ text, at: now });
           this.opts.onActivity?.('order', orderEntry(...spotLine(msg.side, text, msg.sell ?? null, label(this.requireAccounts().get(userId))), msg.mint ?? null));
           return { logged: true };
         });
