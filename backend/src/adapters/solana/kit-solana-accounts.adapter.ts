@@ -11,6 +11,7 @@ import {
   getAddressDecoder,
   isSolanaError,
   SOLANA_ERROR__JSON_RPC__INVALID_PARAMS,
+  SOLANA_ERROR__RPC_SUBSCRIPTIONS__CHANNEL_FAILED_TO_CONNECT,
   type Rpc,
   type RpcSubscriptions,
   type SolanaRpcApi,
@@ -26,6 +27,10 @@ import {
   type AccountSubscription,
   type MintSupply,
 } from '../../ports/solana-accounts.js';
+
+/** Connect failures within REBUILD_WINDOW_MS that make a fresh subscriptions client. */
+const REBUILD_AFTER_FAILURES = 10;
+const REBUILD_WINDOW_MS = 60_000;
 
 /** Reconnect backoff bounds (ms). */
 const MIN_BACKOFF_MS = 500;
@@ -72,7 +77,10 @@ const EMPTY_WARN_INTERVAL_MS = 5 * 60_000;
 export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
   private readonly lastEmptyWarn = new Map<string, number>();
   private readonly rpc: Rpc<SolanaRpcApi>;
-  private readonly subs: RpcSubscriptions<SolanaRpcSubscriptionsApi>;
+  private subs: RpcSubscriptions<SolanaRpcSubscriptionsApi>;
+  /** Recent "failed to connect" times (ms), to spot a stuck subscriptions client. */
+  private connectFailures: number[] = [];
+  private lastRebuild = 0;
 
   /**
    * @param httpUrl RPC HTTPS endpoint. @param wssUrl RPC WebSocket endpoint. @param onError error sink for logging.
@@ -81,10 +89,12 @@ export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
    */
   constructor(
     private readonly httpUrl: string,
-    wssUrl: string,
+    private readonly wssUrl: string,
     private readonly onError: (err: unknown) => void,
     private readonly health: ConnectionHealth | null = null,
     private readonly onWarn: (err: unknown) => void = onError,
+    /** Told when the subscriptions client was stuck and got rebuilt (the owner's chat). */
+    private readonly onRepair: (message: string) => void = () => undefined,
   ) {
     super();
     this.rpc = createSolanaRpc(httpUrl);
@@ -186,6 +196,22 @@ export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
   }
 
   /**
+   * After a provider outage (a 503 from Chainstack, 2026-10-02 13:00 UTC) the subscriptions client kept failing to
+   * connect ~90 times a minute for 5 hours while a fresh client connected fine; only a restart fixed it. Many connect
+   * failures in a short time now rebuild the client (at most once a minute), and every retry uses the new one.
+   */
+  private noteConnectFailure(now = Date.now()): void {
+    this.connectFailures = this.connectFailures.filter((t) => now - t < REBUILD_WINDOW_MS);
+    this.connectFailures.push(now);
+    if (this.connectFailures.length < REBUILD_AFTER_FAILURES || now - this.lastRebuild < REBUILD_WINDOW_MS) return;
+    this.subs = createSolanaRpcSubscriptions(this.wssUrl);
+    this.lastRebuild = now;
+    this.connectFailures = [];
+    this.onWarn(new Error('Solana subscriptions kept failing to connect: rebuilt the connection'));
+    this.onRepair(`🔧 Solana connection was stuck (${REBUILD_AFTER_FAILURES}+ failed reconnects in a minute): rebuilt it automatically`);
+  }
+
+  /**
    * Subscribes with automatic reconnect. After each (re)connect the current state is fetched
    * and delivered, so updates missed while disconnected are recovered.
    */
@@ -217,6 +243,7 @@ export class KitSolanaAccountsAdapter extends SolanaAccountsPort {
           if (abort.signal.aborted) return;
           this.onError(err);
           this.health?.down(err);
+          if (isSolanaError(err, SOLANA_ERROR__RPC_SUBSCRIPTIONS__CHANNEL_FAILED_TO_CONNECT)) this.noteConnectFailure();
         }
         await sleep(backoff, abort.signal);
         backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);

@@ -99,7 +99,7 @@ async function main(): Promise<void> {
   const rpcSinks = (ctx: string) => ({ onError: logOnly(ctx), health: outages.for(ctx) });
   // Empty-update glitches are expected and self-healing: one log line each, no stack trace.
   const rpcWarn = (err: unknown): void => log(`[rpc] ${errorHeadline(err)}`);
-  const accounts = new KitSolanaAccountsAdapter(cfg.rpcHttp, cfg.rpcWss, logOnly('rpc'), outages.for('rpc'), rpcWarn);
+  const accounts = new KitSolanaAccountsAdapter(cfg.rpcHttp, cfg.rpcWss, logOnly('rpc'), outages.for('rpc'), rpcWarn, (m) => relay.record('server', m));
   const http = new FetchHttpJsonAdapter();
   const jupiterHttp = new FetchHttpJsonAdapter(cfg.jupiter.apiKey ? { 'x-api-key': cfg.jupiter.apiKey } : {});
   const quotes = new UsdQuotes(accounts, jupiterHttp, cfg.jupiter.url, 5_000, logError('quotes'));
