@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Segmented } from '@/components/orders/Segmented';
 import { AutoRiskAckSettings } from '@/components/AutoRiskAckSettings';
 import { UpdateBanner } from '@/components/UpdateBanner';
+import { AutoExitSettings } from '@/components/AutoExitSettings';
 import { KeepAwakeSettings } from '@/components/KeepAwakeSettings';
 import { OrderSounds } from '@/components/OrderSounds';
 import { ThemePicker } from '@/components/ThemePicker';
@@ -116,6 +117,7 @@ export default function App() {
               <p className="text-xs text-muted-foreground">Recolors fomo.family and the Limit panel in every open fomo tab.</p>
               <ThemePicker />
             </SettingsCard>}
+            {hasFeature(release, 'autoExit') && <AutoExitSettings send={send} />}
             {hasFeature(release, 'quickTrade') && <QuickTradeSettings />}
             <AutoRiskAckSettings />
             <KeepAwakeSettings />

@@ -2,7 +2,8 @@
  * @file order-engine.ts
  * @description Watches prices for open orders, triggers them atomically and executes them through the
  *              TradeExecutorPort — one trade at a time per account (each account's own extension trades), accounts
- *              in parallel. Slippage failures re-arm the order. Prices are shared by every account.
+ *              in parallel. Slippage failures re-arm the order. Prices are shared by every account. Trailing stops
+ *              (v2.1.0) have their high and stop raised on every new high before triggers are checked.
  * @author Reborn1987
  */
 
@@ -11,7 +12,7 @@ import type { OrderStorePort } from '../../ports/order-store.js';
 import type { PriceFeedPort, PriceTick, PriceWatch } from '../../ports/price-feed.js';
 import type { TradeConfirmerPort } from '../../ports/trade-confirmer.js';
 import type { ExecutionResult, TradeExecutorPort } from '../../ports/trade-executor.js';
-import { CreateOrderSchema, isTriggered, MARKET_MAX_WAIT_MS, metricValue, type Order, type OrderStatus } from './order.js';
+import { CreateOrderSchema, isTriggered, MARKET_MAX_WAIT_MS, metricValue, trailStop, type Order, type OrderSource, type OrderStatus } from './order.js';
 
 /** Resolves after `ms`, or immediately when `signal` aborts. */
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
@@ -23,7 +24,8 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 
 /** Events pushed to UIs / notifiers. */
 export type EngineEvent =
-  | { readonly type: 'order'; readonly order: Order }
+  /** `quiet`: a routine update the UI shows but monitoring skips (a trailing stop following a new high). */
+  | { readonly type: 'order'; readonly order: Order; readonly quiet?: boolean }
   | { readonly type: 'tick'; readonly tick: PriceTick };
 
 /** Orders in these statuses need a live price stream. */
@@ -45,6 +47,9 @@ export type ConfirmerLookup = (userId: string) => TradeConfirmerPort | null;
 /** Throws when an account may not place another order (e.g. free orders used and not unlocked). */
 export type AccessGate = (userId: string) => void;
 
+/** Told once when a buy order fills, with the token's latest USD price (null when none is known). */
+export type BuyFilledListener = (order: Order, priceUsd: number | null) => void;
+
 export class OrderEngine {
   private readonly watches = new Map<string, PriceWatch>();
   private readonly pendingWatches = new Map<string, Promise<PriceWatch>>();
@@ -58,6 +63,7 @@ export class OrderEngine {
   private sweepTimer: NodeJS.Timeout | null = null;
   private rewatchTimer: NodeJS.Timeout | null = null;
   private healing = false;
+  private buyFilled: BuyFilledListener[] = [];
 
   /**
    * @param store durable orders @param feed live prices @param executor trade placement
@@ -137,8 +143,16 @@ export class OrderEngine {
     }
   }
 
-  /** Validates input, checks the account's limit, confirms the token can be priced, then persists the order. */
-  async createOrder(userId: string, input: unknown): Promise<Order> {
+  /** Registers a listener for filled buys (v2.1.0 auto take profit / stop loss). */
+  onBuyFilled(cb: BuyFilledListener): void {
+    this.buyFilled.push(cb);
+  }
+
+  /**
+   * Validates input, checks the account's limit, confirms the token can be priced, then persists the order. `source`
+   * 'auto' marks orders limit places by itself after a buy.
+   */
+  async createOrder(userId: string, input: unknown, source: OrderSource = 'user'): Promise<Order> {
     const parsed = CreateOrderSchema.safeParse(input);
     if (!parsed.success) {
       throw new ValidationError(parsed.error.issues.map((i) => `${i.path.join('.') || 'order'}: ${i.message}`).join('; '));
@@ -149,7 +163,14 @@ export class OrderEngine {
     }
     await this.ensureWatch(parsed.data.mint); // throws UnsupportedPoolError before anything is saved
     if (parsed.data.side === 'sell') await this.requireHolding(userId, parsed.data.mint);
-    const order = this.store.create(parsed.data, userId);
+    let data = parsed.data;
+    const latest = this.lastTick.get(data.mint);
+    if (data.kind === 'trailing' && data.trailPct !== null && latest) {
+      // The server's own latest value is the starting high, not what the page showed a moment ago.
+      const peak = metricValue({ trigger: data.trigger }, latest);
+      if (peak > 0) data = { ...data, peak, trigger: { ...data.trigger, value: trailStop(peak, data.trailPct) } };
+    }
+    const order = this.store.create(data, userId, source);
     this.publish(order);
     // Only the new order needs checking against the latest price; the others were checked when that tick arrived.
     const tick = this.lastTick.get(order.mint);
@@ -292,11 +313,25 @@ export class OrderEngine {
     }
   }
 
-  /** Triggers every open order on the tick's mint whose condition is met. */
+  /** Raises trailing stops on a new high, then triggers every open order on the tick's mint whose condition is met. */
   private evaluate(tick: PriceTick): void {
     const queued = new Set<string>();
-    for (const o of this.store.list(['open'], undefined, tick.mint)) if (this.triggerIfMet(o, tick)) queued.add(o.userId);
+    for (const open of this.store.list(['open'], undefined, tick.mint)) {
+      const o = this.raiseTrail(open, tick);
+      if (this.triggerIfMet(o, tick)) queued.add(o.userId);
+    }
     for (const userId of queued) void this.pump(userId);
+  }
+
+  /** A trailing stop's high and stop follow the value up (never down). Returns the order as it now is. */
+  private raiseTrail(o: Order, tick: PriceTick): Order {
+    if (o.trailPct === null || o.peak === null) return o;
+    const v = metricValue(o, tick);
+    if (!(v > o.peak)) return o;
+    const raised = this.store.raisePeak(o.id, v, trailStop(v, o.trailPct));
+    if (!raised) return o;
+    this.onEvent({ type: 'order', order: raised, quiet: true });
+    return raised;
   }
 
   /** Moves an open order to triggered and queues it when `tick` meets its condition. True when it was queued. */
@@ -432,8 +467,22 @@ export class OrderEngine {
     return this.store.transition(order.id, ['executing'], next, { lastError });
   }
 
-  /** Emits an order event when a transition succeeded. */
+  /**
+   * Emits an order event when a transition succeeded. A buy reaching `filled` (exactly once: transitions are
+   * compare-and-set) is also told to the filled-buy listeners.
+   */
   private publish(order: Order | null): void {
-    if (order) this.onEvent({ type: 'order', order });
+    if (!order) return;
+    this.onEvent({ type: 'order', order });
+    if (order.status === 'filled' && order.side === 'buy') {
+      const price = this.lastTick.get(order.mint)?.priceUsd ?? null;
+      for (const cb of this.buyFilled) {
+        try {
+          cb(order, price);
+        } catch (err) {
+          this.onError(err);
+        }
+      }
+    }
   }
 }

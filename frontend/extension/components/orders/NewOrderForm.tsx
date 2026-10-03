@@ -3,7 +3,8 @@
  * @description FOMO-styled limit order form: amount with editable presets ($/%), market cap (or price)
  *              target with a −100%…+100% slider. The order type (limit buy, breakout, take profit, stop loss)
  *              is inferred from whether the target is below or above the current value. Shows what the order would
- *              give at its target (≈ $ for sells, ≈ tokens for buys; before fees and slippage).
+ *              give at its target (≈ $ for sells, ≈ tokens for buys; before fees and slippage). v2.1.0: sells can be a
+ *              trailing stop instead (sells once the value drops X% under its highest point since placing).
  * @author Reborn1987
  */
 
@@ -14,11 +15,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { usePresets, type AmountUnit } from '@/hooks/use-presets';
+import { useRelease } from '@/hooks/use-release';
 import { estimateFill, formatTokenCount } from '@/lib/estimate';
 import { formatPrice, formatUsdCompact, orderKind } from '@/lib/format';
 import { amountError as amountLimitError } from '@/lib/number-input';
+import { hasFeature } from '@/lib/release';
 import { inferDirection, percentFromTarget, syncWithLive, targetFromPercent, formatTargetInput, type TargetAnchor } from '@/lib/target';
-import { MIN_TRADE_USD, type NewOrder, type OrderSide, type PriceTick, type TriggerDirection, type TriggerMetric } from '@/lib/types';
+import { MAX_TRAIL_PCT, MIN_TRADE_USD, MIN_TRAIL_PCT, type NewOrder, type OrderSide, type PriceTick, type TriggerDirection, type TriggerMetric } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 import { FieldBox } from './FieldBox';
@@ -41,6 +44,9 @@ interface Props {
   readonly heldTokens?: number | null;
 }
 
+/** Trailing distances offered as one-tap presets (%). */
+const TRAIL_PRESETS = [10, 20, 30, 50] as const;
+
 /** Order entry form. */
 export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, mcSupply = null, holds = null, heldTokens = null }: Props) {
   const [mint, setMint] = useState(initialMint ?? '');
@@ -54,10 +60,14 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, m
   /** Pinned value: a % offset (target follows the live value) or an exact typed target (% follows). */
   const [anchor, setAnchor] = useState<TargetAnchor>('percent');
   const { presets, save: savePresets } = usePresets(side, unit);
+  const canTrail = hasFeature(useRelease(), 'trailingStop');
+  /** Sells: a fixed target (take profit / stop loss) or a trailing stop (v2.1.0). */
+  const [sellMode, setSellMode] = useState<'target' | 'trailing'>('target');
+  const [trail, setTrail] = useState('20');
 
   useEffect(() => { if (initialMint) setMint(initialMint); }, [initialMint]);
   // Buys default to $ amounts, sells to % of the position (like FOMO's own panel).
-  useEffect(() => { setUnit(side === 'buy' ? 'usd' : 'percent'); setAmount(''); }, [side]);
+  useEffect(() => { setUnit(side === 'buy' ? 'usd' : 'percent'); setAmount(''); if (side === 'buy') setSellMode('target'); }, [side]);
 
   // A different token needs a fresh target.
   useEffect(() => { setTarget(''); setPercent(0); setAnchor('percent'); }, [mint]);
@@ -92,20 +102,30 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, m
   const amountValue = Number(amount);
   const amountError = amountLimitError(unit, amount, MIN_TRADE_USD);
   const nothingToSell = side === 'sell' && holds === false;
-  const valid = mint.trim().length >= 32 && targetValue > 0 && amountValue > 0 && !amountError && !nothingToSell;
+  const trailing = canTrail && side === 'sell' && sellMode === 'trailing';
+  const trailValue = Number(trail);
+  const trailError = trailing && !(trailValue >= MIN_TRAIL_PCT && trailValue <= MAX_TRAIL_PCT) ? `Trail between ${MIN_TRAIL_PCT}% and ${MAX_TRAIL_PCT}%` : null;
+  const valid = mint.trim().length >= 32 && amountValue > 0 && !amountError && !nothingToSell
+    && (trailing ? current !== null && !trailError : targetValue > 0);
 
   const create = useMutation({
-    mutationFn: () => onCreate({
-      mint: mint.trim(),
-      side,
-      trigger: { metric, direction, value: targetValue, supply: metric === 'marketCap' ? mcSupply : null },
-      amount: { kind: unit, value: amountValue },
-    }),
+    mutationFn: () => onCreate(trailing
+      ? {
+        kind: 'trailing', mint: mint.trim(), side: 'sell', metric, trailPct: trailValue, reference: current ?? 0,
+        supply: metric === 'marketCap' ? mcSupply : null, amount: { kind: unit, value: amountValue },
+      }
+      : {
+        mint: mint.trim(),
+        side,
+        trigger: { metric, direction, value: targetValue, supply: metric === 'marketCap' ? mcSupply : null },
+        amount: { kind: unit, value: amountValue },
+      }),
     onSuccess: () => setAmount(''),
   });
 
-  const kind = orderKind({ side, trigger: { metric, direction, value: 0 } });
-  const estimate = estimateFill({
+  const kind = trailing ? 'Trailing stop' : orderKind({ side, trigger: { metric, direction, value: 0 } });
+  const fmt = (v: number): string => (metric === 'marketCap' ? formatUsdCompact(v) : formatPrice(v));
+  const estimate = trailing ? null : estimateFill({
     side, unit, amount: amountValue, metric, target: targetValue, heldTokens,
     supply: mcSupply ?? (tick && tick.priceUsd > 0 ? tick.marketCapUsd / tick.priceUsd : null),
   });
@@ -156,6 +176,42 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, m
         {unit === 'percent' && <p className="text-[11px] text-muted-foreground">% of your {side === 'buy' ? 'cash' : 'position'} when the order fires</p>}
       </div>
 
+      {canTrail && side === 'sell' && (
+        <Segmented value={sellMode} onChange={setSellMode} options={[{ value: 'target', label: 'Target price' }, { value: 'trailing', label: 'Trailing stop' }]} />
+      )}
+
+      {trailing ? (
+        <div className="space-y-2">
+          <FieldBox
+            label={<button type="button" onClick={switchMetric} title="Follow the market cap or the price" className="rounded border border-input px-1.5 py-0.5 uppercase transition-colors hover:border-foreground/40 hover:text-foreground">Trail {metric === 'marketCap' ? 'mkt cap' : 'price'} ⇄</button>}
+            value={trail}
+            onChange={setTrail}
+            placeholder="20"
+            suffix={<span className="text-sm font-semibold text-foreground">%</span>}
+          />
+          <div className="flex gap-1.5">
+            {TRAIL_PRESETS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setTrail(String(p))}
+                className={cn('h-7 flex-1 rounded-md text-xs font-semibold transition-colors', trailValue === p ? 'bg-sell/20 text-sell' : 'bg-secondary text-muted-foreground hover:bg-accent hover:text-foreground')}
+              >
+                {p}%
+              </button>
+            ))}
+          </div>
+          {trailError && <p className="text-xs text-destructive">{trailError}</p>}
+          <p className="text-xs text-muted-foreground">
+            {current === null ? 'Loading the price…' : (
+              <>
+                Sells if it drops <span className="font-semibold text-sell">{trailValue > 0 ? trailValue : '?'}%</span> from its highest point after you place it.
+                {!trailError && <> Stop now at <span className="font-semibold text-foreground">{fmt(current * (1 - trailValue / 100))}</span> (now {fmt(current)}), and it moves up as the price does.</>}
+              </>
+            )}
+          </p>
+        </div>
+      ) : (
       <div className="space-y-2">
         <FieldBox
           label={<button type="button" onClick={switchMetric} title="Switch between market cap and price" className="rounded border border-input px-1.5 py-0.5 uppercase transition-colors hover:border-foreground/40 hover:text-foreground">{metric === 'marketCap' ? 'Mkt cap' : 'Price'} ⇄</button>}
@@ -180,6 +236,7 @@ export function NewOrderForm({ ticks, onCreate, initialMint, lockMint = false, m
           {targetValue > 0 && <> at {targetLabel}{current !== null && ` (${percent > 0 ? '+' : ''}${percent}%)`}</>}
         </p>
       </div>
+      )}
 
       {estimate && (
         <p className="rounded-lg bg-secondary px-2.5 py-2 text-xs text-muted-foreground">

@@ -15,6 +15,7 @@ import { useHiddenOrders } from '@/hooks/use-hidden-orders';
 import { canRemove, hideOrder } from '@/lib/hidden-orders';
 import {
   amountShort,
+  formatPrice,
   formatUsdCompact,
   isCancellable,
   orderKind,
@@ -67,6 +68,9 @@ function OrderRow({ order, tick, onCancel, onRemove, showMint, label, linkTarget
     <div className={cn('min-w-0 rounded-lg bg-secondary px-2.5 py-2', done && 'opacity-60')}>
       <div className="flex items-center gap-2 text-xs">
         <span className={cn('shrink-0 font-bold', order.side === 'buy' ? 'text-buy' : 'text-sell')}>{orderKind(order)}</span>
+        {order.source === 'auto' && (
+          <span title="Placed automatically after your buy (Settings → Auto TP/SL)" className="shrink-0 rounded bg-primary/15 px-1 py-0.5 text-[10px] font-semibold text-primary">Auto</span>
+        )}
         <span className="min-w-0 flex-1 truncate text-foreground">
           {triggerLabel(order)} · {amountShort(order)}
           {showMint && (
@@ -91,7 +95,10 @@ function OrderRow({ order, tick, onCancel, onRemove, showMint, label, linkTarget
 
       {active && (
         <div className="mt-1.5 flex items-center justify-between gap-2">
-          <span className="text-[11px] text-muted-foreground">{tick ? `Now ${formatUsdCompact(orderMarketCap(order, tick))}` : ' '}</span>
+          <span className="text-[11px] text-muted-foreground">
+            {tick ? `Now ${formatUsdCompact(orderMarketCap(order, tick))}` : ' '}
+            {order.kind === 'trailing' && order.peak ? ` · high ${order.trigger.metric === 'marketCap' ? formatUsdCompact(order.peak) : formatPrice(order.peak)}` : ''}
+          </span>
           <button
             type="button"
             onClick={() => cancel.mutate()}

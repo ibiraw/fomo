@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
 
-import type { Order, OrderAmount, OrderStatus, ValidCreateOrder } from '../../core/orders/order.js';
+import type { Order, OrderAmount, OrderSource, OrderStatus, ValidCreateOrder } from '../../core/orders/order.js';
 import { OrderStorePort, type TransitionPatch } from '../../ports/order-store.js';
 
 /** Raw row shape as stored in SQLite. */
@@ -29,6 +29,9 @@ interface OrderRow {
   max_attempts: number;
   last_error: string | null;
   triggered_at_value: number | null;
+  trail_pct: number | null;
+  peak: number | null;
+  source: string;
   created_at: number;
   updated_at: number;
 }
@@ -64,6 +67,13 @@ const INDEX_USER = 'CREATE INDEX IF NOT EXISTS idx_orders_user_status ON orders(
 const INDEX_MINT = 'CREATE INDEX IF NOT EXISTS idx_orders_mint_status ON orders(mint, status)';
 /** v1.4.0: order kind: `limit` (waits for its trigger) or `market` (quick trade, right away). */
 const MIGRATION_KIND = "ALTER TABLE orders ADD COLUMN kind TEXT NOT NULL DEFAULT 'limit' CHECK (kind IN ('limit','market'))";
+/**
+ * v2.1.0: trailing stops and orders placed automatically after a buy. The `kind` column's CHECK can't be widened in
+ * place (SQLite), so a trailing stop is stored as kind 'limit' with a `trail_pct` and read back as kind 'trailing'.
+ */
+const MIGRATION_TRAIL_PCT = 'ALTER TABLE orders ADD COLUMN trail_pct REAL';
+const MIGRATION_PEAK = 'ALTER TABLE orders ADD COLUMN peak REAL';
+const MIGRATION_SOURCE = "ALTER TABLE orders ADD COLUMN source TEXT NOT NULL DEFAULT 'user'";
 
 /** Maps a DB row to the domain Order. */
 function toOrder(r: OrderRow): Order {
@@ -72,7 +82,7 @@ function toOrder(r: OrderRow): Order {
     userId: r.user_id,
     mint: r.mint,
     side: r.side as Order['side'],
-    kind: r.kind as Order['kind'],
+    kind: r.trail_pct !== null ? 'trailing' : (r.kind as Order['kind']),
     trigger: {
       metric: r.trigger_metric as Order['trigger']['metric'],
       direction: r.trigger_direction as Order['trigger']['direction'],
@@ -85,6 +95,9 @@ function toOrder(r: OrderRow): Order {
     maxAttempts: r.max_attempts,
     lastError: r.last_error,
     triggeredAtValue: r.triggered_at_value,
+    trailPct: r.trail_pct,
+    peak: r.peak,
+    source: r.source as OrderSource,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -94,6 +107,7 @@ export class SqliteOrderStoreAdapter extends OrderStorePort {
   private readonly db: DatabaseSync;
   private readonly insertStmt: StatementSync;
   private readonly getStmt: StatementSync;
+  private readonly raiseStmt: StatementSync;
   /** Prepared list queries by SQL text (a handful of shapes, reused on every tick). */
   private readonly listStmts = new Map<string, StatementSync>();
 
@@ -110,25 +124,30 @@ export class SqliteOrderStoreAdapter extends OrderStorePort {
     if (!cols.includes('trigger_supply')) this.db.exec(MIGRATION_TRIGGER_SUPPLY);
     if (!cols.includes('user_id')) this.db.exec(MIGRATION_USER_ID);
     if (!cols.includes('kind')) this.db.exec(MIGRATION_KIND);
+    if (!cols.includes('trail_pct')) this.db.exec(MIGRATION_TRAIL_PCT);
+    if (!cols.includes('peak')) this.db.exec(MIGRATION_PEAK);
+    if (!cols.includes('source')) this.db.exec(MIGRATION_SOURCE);
     this.db.prepare('UPDATE orders SET user_id = ? WHERE user_id IS NULL').run(legacyUserId);
     this.db.exec(INDEX_USER);
     this.db.exec(INDEX_MINT);
     this.insertStmt = this.db.prepare(`
       INSERT INTO orders (id, user_id, mint, side, kind, trigger_metric, trigger_direction, trigger_value, trigger_supply,
-        amount_kind, amount_value, status, attempts, max_attempts, created_at, updated_at)
-      VALUES (:id, :user, :mint, :side, :kind, :metric, :direction, :tvalue, :tsupply, :akind, :avalue, 'open', 0, :max, :now, :now)`);
+        amount_kind, amount_value, status, attempts, max_attempts, trail_pct, peak, source, created_at, updated_at)
+      VALUES (:id, :user, :mint, :side, :kind, :metric, :direction, :tvalue, :tsupply, :akind, :avalue, 'open', 0, :max, :trail, :peak, :source, :now, :now)`);
     this.getStmt = this.db.prepare('SELECT * FROM orders WHERE id = ?');
+    this.raiseStmt = this.db.prepare(`UPDATE orders SET peak = :peak, trigger_value = :stop, updated_at = :now
+      WHERE id = :id AND status = 'open' AND trail_pct IS NOT NULL AND peak < :peak`);
   }
 
   /** Inserts a new open order for `userId`. */
-  create(input: ValidCreateOrder, userId: string): Order {
+  create(input: ValidCreateOrder, userId: string, source: OrderSource = 'user'): Order {
     const id = randomUUID();
     this.insertStmt.run({
       id,
       user: userId,
       mint: input.mint,
       side: input.side,
-      kind: input.kind,
+      kind: input.kind === 'trailing' ? 'limit' : input.kind,
       metric: input.trigger.metric,
       direction: input.trigger.direction,
       tvalue: input.trigger.value,
@@ -136,9 +155,18 @@ export class SqliteOrderStoreAdapter extends OrderStorePort {
       akind: input.amount.kind,
       avalue: input.amount.value,
       max: input.maxAttempts,
+      trail: input.trailPct,
+      peak: input.peak,
+      source,
       now: this.now(),
     });
     return this.get(id) as Order;
+  }
+
+  /** Raises an open trailing stop's high and stop level; null when it isn't open or the high isn't higher. */
+  raisePeak(id: string, peak: number, stop: number): Order | null {
+    const res = this.raiseStmt.run({ id, peak, stop, now: this.now() });
+    return res.changes === 1 ? this.get(id) : null;
   }
 
   /** Fetches one order. */

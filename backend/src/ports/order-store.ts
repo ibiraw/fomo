@@ -4,7 +4,7 @@
  * @author Reborn1987
  */
 
-import type { Order, OrderStatus, ValidCreateOrder } from '../core/orders/order.js';
+import type { Order, OrderSource, OrderStatus, ValidCreateOrder } from '../core/orders/order.js';
 
 /** Optional field updates applied together with a status transition. */
 export interface TransitionPatch {
@@ -15,8 +15,14 @@ export interface TransitionPatch {
 
 /** Abstract order storage. Adapter: SqliteOrderStoreAdapter. */
 export abstract class OrderStorePort {
-  /** Persists a new order in status 'open' for `userId`. */
-  abstract create(input: ValidCreateOrder, userId: string): Order;
+  /** Persists a new order in status 'open' for `userId` (`source` 'auto' for orders limit placed after a buy). */
+  abstract create(input: ValidCreateOrder, userId: string, source?: OrderSource): Order;
+
+  /**
+   * Raises an open trailing stop's high to `peak` and its stop to `stop`, only if `peak` is above the stored high.
+   * Returns the updated order, or null when nothing changed.
+   */
+  abstract raisePeak(id: string, peak: number, stop: number): Order | null;
 
   /** Returns an order or null. */
   abstract get(id: string): Order | null;

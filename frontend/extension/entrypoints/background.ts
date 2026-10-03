@@ -231,6 +231,8 @@ export default defineBackground({
     let lastLayoutFailAt = 0;
     /** Token of the order limit is trading right now (null when idle). */
     let trading: string | null = null;
+    /** Tokens a quick button is trading, until when (ms): their toasts are reported as quick trades (v2.1.0). */
+    const quickUntil = new Map<string, number>();
     browser.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
       const quick = msg as Partial<QuickTradeRequest> | undefined;
       if (quick?.type === 'fomo.quick') {
@@ -239,6 +241,7 @@ export default defineBackground({
         void (async (): Promise<QuickTradeReply> => {
           if (!hasFeature(await loadRelease(), 'quickTrade')) return { ok: false, error: 'Quick trades arrive in limit v2.0.0' };
           if (typeof quick.mint !== 'string' || (quick.side !== 'buy' && quick.side !== 'sell') || !quick.amount) return { ok: false, error: 'Bad request' };
+          quickUntil.set(quick.mint, Date.now() + 90_000);
           const result = await tradeInNewTab(tabs, inject, quick.mint, { side: quick.side, amount: quick.amount });
           return result.ok ? { ok: true } : { ok: false, error: result.message, unknown: result.kind === 'unknown' };
         })().then(sendResponse, (err: unknown) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) } satisfies QuickTradeReply));
@@ -248,8 +251,12 @@ export default defineBackground({
       if (spot?.type === 'fomo.spot') {
         // limit's own trade shows the same toast: skip reports on the token it is trading, keep the user's other trades.
         if (!(trading !== null && (spot.mint === trading || !spot.mint)) && (spot.side === 'buy' || spot.side === 'sell') && typeof spot.detail === 'string') {
+          const now = Date.now();
+          for (const [m, until] of quickUntil) if (until < now) quickUntil.delete(m);
+          const origin = spot.mint && quickUntil.has(spot.mint) ? 'quick' : 'manual';
+          if (origin === 'quick' && spot.mint) quickUntil.delete(spot.mint); // one toast per tap
           void conn.request('trade.spot', {
-            side: spot.side, detail: spot.detail, ...(spot.mint ? { mint: spot.mint } : {}), ...(spot.sell ? { sell: spot.sell } : {}),
+            side: spot.side, detail: spot.detail, origin, ...(spot.mint ? { mint: spot.mint } : {}), ...(spot.sell ? { sell: spot.sell } : {}),
           }).catch(() => undefined);
         }
         return;
@@ -338,6 +345,10 @@ export default defineBackground({
           data = await conn.request('billing.quote', {});
         } else if (req.type === 'billing.claim') {
           data = await conn.request('billing.claim', { tx: req.tx });
+        } else if (req.type === 'autoExit.get') {
+          data = await conn.request('autoExit.get', {});
+        } else if (req.type === 'autoExit.set') {
+          data = await conn.request('autoExit.set', { settings: req.settings });
         } else if (req.type === 'x.latest') {
           if (!hasFeature(await loadRelease(), 'xPost')) throw new Error('The X post checker is not in your version yet');
           data = await xLatest.get(req.url, req.force ?? false);

@@ -38,6 +38,9 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('billing.status'), reqId: z.string() }),
   z.object({ type: z.literal('billing.quote'), reqId: z.string() }),
   z.object({ type: z.literal('billing.claim'), reqId: z.string(), tx: z.string().max(300) }),
+  /** v2.1.0 auto take profit / stop loss settings. */
+  z.object({ type: z.literal('autoExit.get'), reqId: z.string() }),
+  z.object({ type: z.literal('autoExit.set'), reqId: z.string(), settings: z.unknown() }),
   z.object({ type: z.literal('exec.result'), execId: z.string(), result: ExecutionResultSchema }),
   /** A trade the user made with fomo's own Buy/Sell (seen from fomo's "Buying …" / "Selling …" toast), for monitoring. */
   z.object({
@@ -47,6 +50,8 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
     mint: TokenKeySchema.optional().catch(undefined),
     /** Sells: measured against the position shown just before (all/partial, share, ~USD, PnL %). */
     sell: z.object({ all: z.boolean(), soldPct: z.number().min(0).max(100), usd: z.number().min(0).max(1e9), pnlPct: z.number().min(-100).max(1e7) }).strict().optional().catch(undefined),
+    /** v2.1.0: `quick` when the trade came from a quick Buy/Sell button, else a trade made by hand (older extensions: absent). */
+    origin: z.enum(['quick', 'manual']).optional().catch(undefined),
   }),
   /** The extension's fomo self-check (token page, logged in) and fomo's "new version" prompt. */
   z.object({

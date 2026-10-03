@@ -31,13 +31,18 @@ export function shortMint(mint: string): string {
 /** Human description of the order's kind, e.g. "Limit buy", "Take profit", "Stop loss", "Breakout buy", "Quick buy". */
 export function orderKind(o: Pick<Order, 'side' | 'trigger' | 'kind'>): string {
   if (o.kind === 'market') return o.side === 'buy' ? 'Quick buy' : 'Quick sell';
+  if (o.kind === 'trailing') return 'Trailing stop';
   if (o.side === 'buy') return o.trigger.direction === 'below' ? 'Limit buy' : 'Breakout buy';
   return o.trigger.direction === 'above' ? 'Take profit' : 'Stop loss';
 }
 
 /** "MC ≤ $3.0K" / "Price ≥ $0.00001000"; "Right away" for a quick trade. */
-export function triggerLabel(o: Pick<Order, 'trigger' | 'kind'>): string {
+export function triggerLabel(o: Pick<Order, 'trigger' | 'kind' | 'trailPct'>): string {
   if (o.kind === 'market') return 'Right away';
+  if (o.kind === 'trailing') {
+    const stop = o.trigger.metric === 'marketCap' ? formatUsdCompact(o.trigger.value) : formatPrice(o.trigger.value);
+    return `${o.trailPct ?? '?'}% under the high · stop ${o.trigger.metric === 'marketCap' ? 'MC ' : ''}${stop}`;
+  }
   const op = o.trigger.direction === 'below' ? '≤' : '≥';
   return o.trigger.metric === 'marketCap'
     ? `MC ${op} ${formatUsdCompact(o.trigger.value)}`

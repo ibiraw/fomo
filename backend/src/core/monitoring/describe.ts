@@ -24,16 +24,23 @@ export function tokenLabel(key: string): string {
   return chain ? `${chain}:${short}` : short;
 }
 
-/** "Limit buy", "Breakout buy", "Take profit", "Stop loss", or "Quick buy" / "Quick sell" for market orders. */
-export function orderKind(o: Pick<Order, 'side' | 'trigger'> & { readonly kind?: Order['kind'] }): string {
+/**
+ * "Limit buy", "Breakout buy", "Take profit", "Stop loss", "Trailing stop", or "Quick buy" / "Quick sell" for market
+ * orders; "Auto …" when limit placed it after a buy (v2.1.0).
+ */
+export function orderKind(o: Pick<Order, 'side' | 'trigger'> & { readonly kind?: Order['kind']; readonly source?: Order['source'] }): string {
+  const auto = o.source === 'auto' ? 'Auto ' : '';
   if (o.kind === 'market') return o.side === 'buy' ? 'Quick buy' : 'Quick sell';
+  if (o.kind === 'trailing') return `${auto}${auto ? 'trailing' : 'Trailing'} stop`;
   if (o.side === 'buy') return o.trigger.direction === 'below' ? 'Limit buy' : 'Breakout buy';
-  return o.trigger.direction === 'above' ? 'Take profit' : 'Stop loss';
+  const name = o.trigger.direction === 'above' ? 'Take profit' : 'Stop loss';
+  return auto ? `${auto}${name.toLowerCase()}` : name;
 }
 
-/** The order type's icon: 🟢 limit buy, 🚀 breakout buy, 🎯 take profit, 🛑 stop loss, ⚡ quick trade. */
+/** The order type's icon: 🟢 limit buy, 🚀 breakout buy, 🎯 take profit, 🛑 stop loss, 📉 trailing stop, ⚡ quick trade. */
 export function orderIcon(o: Pick<Order, 'side' | 'trigger'> & { readonly kind?: Order['kind'] }): string {
   if (o.kind === 'market') return '⚡';
+  if (o.kind === 'trailing') return '📉';
   if (o.side === 'buy') return o.trigger.direction === 'below' ? '🟢' : '🚀';
   return o.trigger.direction === 'above' ? '🎯' : '🛑';
 }
@@ -81,7 +88,9 @@ export function describeOrder(o: Order, who: string, current: number | null = nu
   const metric = o.trigger.metric === 'marketCap' ? 'MC' : 'price';
   const target = `${metric} ${o.trigger.direction === 'below' ? '≤' : '≥'} ${usdCompact(o.trigger.value)}`;
   // A quick trade has no target: its detail is just the value it was placed at.
-  const placedDetail = o.kind === 'market'
+  const placedDetail = o.kind === 'trailing' && o.trailPct !== null && o.peak !== null
+    ? `${o.trailPct}% under the high · stop ${usdCompact(o.trigger.value)} (high ${usdCompact(o.peak)})`
+    : o.kind === 'market'
     ? (current === null ? null : `current ${metric} = ${usdCompact(current)}`)
     : current === null ? target : `${target} - current ${metric} = ${usdCompact(current)}`;
   const what = `**${orderKind(o).toUpperCase()}** ${amount}`; // bold in Telegram: the transaction type

@@ -12,11 +12,12 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 
 import { WebSocketServer, type WebSocket } from 'ws';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 
 import type { AccountService } from '../../core/accounts/account-service.js';
 import type { WalletConfirmers } from '../../core/accounts/wallet-confirmers.js';
 import type { BillingService } from '../../core/billing/billing-service.js';
+import type { AutoExitService } from '../../core/orders/auto-exit.js';
 import { versionOf, type Feature, type ReleaseService } from '../../core/releases/releases.js';
 import type { LaunchpadService } from '../../core/tokens/launchpad-service.js';
 import type { TokenMetricsService } from '../../core/tokens/token-metrics.js';
@@ -166,6 +167,8 @@ export class WsGateway extends TradeExecutorPort {
   private launchpads: LaunchpadService | null = null;
   /** v1.9: top-10 share and dev holdings (null: not available on this server). */
   private tokenMetrics: TokenMetricsService | null = null;
+  /** v2.1.0 auto take profit / stop loss (null: not available on this server). */
+  private autoExit: AutoExitService | null = null;
   /** fomo page-layout overrides sent to extensions (null: they use their built-ins). */
   private fomoDom: unknown = null;
   private readonly clients = new Set<Client>();
@@ -242,6 +245,11 @@ export class WsGateway extends TradeExecutorPort {
   /** Sets the launchpad lookup (v1.8). */
   setLaunchpads(launchpads: LaunchpadService): void {
     this.launchpads = launchpads;
+  }
+
+  /** Sets the auto take profit / stop loss service (v2.1.0). */
+  setAutoExit(autoExit: AutoExitService): void {
+    this.autoExit = autoExit;
   }
 
   /** Sets the token metrics (v1.9). */
@@ -515,6 +523,7 @@ export class WsGateway extends TradeExecutorPort {
           // Quick (market) trades from fomo's Feed and Alerts arrive with v2.0.0.
           const kind = (msg.order as { kind?: unknown } | null)?.kind;
           if (kind === 'market') this.requireFeature(userId, 'quickTrade');
+          if (kind === 'trailing') this.requireFeature(userId, 'trailingStop');
           return engine.createOrder(userId, msg.order);
         });
       case 'order.cancel':
@@ -616,6 +625,25 @@ export class WsGateway extends TradeExecutorPort {
         this.settle(msg.execId, p, msg.result);
         return;
       }
+      case 'autoExit.get':
+        return this.reply(client, msg.reqId, async () => {
+          this.requireFeature(userId, 'autoExit');
+          if (!this.autoExit) throw new FomoError('Auto take profit / stop loss is not available on this server');
+          return this.autoExit.get(userId);
+        });
+      case 'autoExit.set':
+        return this.reply(client, msg.reqId, async () => {
+          this.requireFeature(userId, 'autoExit');
+          if (!this.autoExit) throw new FomoError('Auto take profit / stop loss is not available on this server');
+          try {
+            const saved = this.autoExit.set(userId, msg.settings);
+            this.opts.onActivity?.('account', `${label(this.requireAccounts().get(userId))} auto TP/SL ${saved.enabled ? `on: TP +${saved.takeProfit.pct}% sell ${saved.takeProfit.sellPct}%${saved.takeProfit.enabled ? '' : ' (off)'}, ${saved.stopLoss.trailing ? 'trailing ' : ''}SL −${saved.stopLoss.pct}% sell ${saved.stopLoss.sellPct}%${saved.stopLoss.enabled ? '' : ' (off)'}, for ${Object.entries(saved.buys).filter(([, v]) => v).map(([k]) => k).join('/') || 'no'} buys` : 'off'}`);
+            return saved;
+          } catch (err) {
+            if (err instanceof ZodError) throw new ValidationError(err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
+            throw err;
+          }
+        });
       case 'trade.spot':
         return this.reply(client, msg.reqId, async () => {
           const now = this.now();
@@ -625,6 +653,8 @@ export class WsGateway extends TradeExecutorPort {
           const flood = client.spots.filter((x) => now - x.at < SPOT_BURST_MS).length >= SPOT_BURST;
           if (repeat || flood) return { logged: false };
           client.spots.push({ text, at: now });
+          // A buy (quick button or by hand) may get automatic exits; they wait for the tokens to land.
+          if (msg.side === 'buy' && msg.mint) this.autoExit?.onBuy(userId, msg.mint, msg.origin ?? 'manual');
           this.opts.onActivity?.('order', orderEntry(...spotLine(msg.side, text, msg.sell ?? null, label(this.requireAccounts().get(userId))), msg.mint ?? null));
           return { logged: true };
         });

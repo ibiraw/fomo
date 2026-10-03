@@ -10,9 +10,8 @@ import { SqliteOrderStoreAdapter } from '../../src/adapters/storage/sqlite-order
 import { CreateOrderSchema } from '../../src/core/orders/order.js';
 
 const MINT = 'EcwFm5TJ3zuBXnsT6DngXMAMfsfELhwGc9JFgeVWpump';
-const input = CreateOrderSchema.parse({
-  mint: MINT, side: 'buy', trigger: { metric: 'marketCap', direction: 'below', value: 3000 }, amount: { kind: 'usd', value: 5 },
-});
+const RAW = { mint: MINT, side: 'buy', trigger: { metric: 'marketCap', direction: 'below', value: 3000 }, amount: { kind: 'usd', value: 5 } };
+const input = CreateOrderSchema.parse(RAW);
 
 describe('SqliteOrderStoreAdapter', () => {
   it('creates and reads back an open order', () => {
@@ -40,7 +39,7 @@ describe('SqliteOrderStoreAdapter', () => {
 
   it('filters by mint (with status and user) for per-tick lookups', () => {
     const store = new SqliteOrderStoreAdapter(':memory:');
-    const other = CreateOrderSchema.parse({ ...input, mint: 'base:0x0cbf291ba052174879d90bf781df1a5f2bc5bb07' });
+    const other = { ...input, mint: CreateOrderSchema.parse({ ...RAW, mint: 'base:0x0cbf291ba052174879d90bf781df1a5f2bc5bb07' }).mint };
     const a = store.create(input, 'u1');
     const b = store.create(other, 'u1');
     const c = store.create(input, 'u2');
@@ -58,5 +57,18 @@ describe('SqliteOrderStoreAdapter', () => {
     expect(t).toMatchObject({ status: 'triggered', triggeredAtValue: 2900, attempts: 1, lastError: 'x' });
     expect(store.transition(o.id, ['open'], 'triggered')).toBeNull(); // already moved — CAS fails
     expect(store.transition('missing', ['open'], 'cancelled')).toBeNull();
+  });
+
+  it('stores a trailing stop as a limit row and reads it back as trailing; raises only higher highs while open', () => {
+    const store = new SqliteOrderStoreAdapter(':memory:');
+    const t = store.create(CreateOrderSchema.parse({
+      kind: 'trailing', mint: MINT, side: 'sell', metric: 'price', trailPct: 20, reference: 10, amount: { kind: 'percent', value: 100 },
+    }), 'u1', 'auto');
+    expect(t).toMatchObject({ kind: 'trailing', trailPct: 20, peak: 10, source: 'auto', trigger: { direction: 'below', value: 8 } });
+    expect(store.raisePeak(t.id, 9, 7.2)).toBeNull(); // lower high
+    expect(store.raisePeak(t.id, 20, 16)).toMatchObject({ peak: 20, trigger: { value: 16 } });
+    store.transition(t.id, ['open'], 'triggered');
+    expect(store.raisePeak(t.id, 30, 24)).toBeNull(); // not open
+    expect(store.create(input, 'u1')).toMatchObject({ kind: 'limit', trailPct: null, peak: null, source: 'user' });
   });
 });

@@ -7,7 +7,7 @@
 import type { AccountView, Wallets } from './account';
 import type { BillingStatus } from './billing';
 import type { ConnectionStatus } from './server-connection';
-import type { NewOrder, Order, PriceTick } from './types';
+import type { AutoExitSettings, NewOrder, Order, PriceTick } from './types';
 
 /** Token details from the server (mirror of backend TokenInfo). */
 export interface TokenInfo {
@@ -73,7 +73,9 @@ export type PopupRequest =
   | { readonly type: 'token.metrics'; readonly reqId: string; readonly mint: string }
   | { readonly type: 'price.watch'; readonly reqId: string; readonly mint: string }
   | { readonly type: 'wallet.holds'; readonly reqId: string; readonly mint: string }
-  | { readonly type: 'x.latest'; readonly reqId: string; readonly url: string; readonly force?: boolean };
+  | { readonly type: 'x.latest'; readonly reqId: string; readonly url: string; readonly force?: boolean }
+  | { readonly type: 'autoExit.get'; readonly reqId: string }
+  | { readonly type: 'autoExit.set'; readonly reqId: string; readonly settings: AutoExitSettings };
 
 /** Sent by the fomo content script when it reads the user's wallets (page storage) and/or username (top bar). */
 export interface WalletsDetectedMessage {

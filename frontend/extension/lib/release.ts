@@ -8,7 +8,7 @@
  */
 
 /** A feature switched on by a release (mirror of backend/src/core/releases/releases.ts). */
-export type Feature = 'themes' | 'sounds' | 'xPost' | 'launchpad' | 'tokenMetrics' | 'quickTrade';
+export type Feature = 'themes' | 'sounds' | 'xPost' | 'launchpad' | 'tokenMetrics' | 'quickTrade' | 'trailingStop' | 'autoExit';
 
 /** What this account sees. */
 export interface ReleaseView {
@@ -25,7 +25,7 @@ export const RELEASE_STORAGE_KEY = 'release';
 /** Shown before the server has told us anything: the first version, no extras. */
 export const BASE_RELEASE: ReleaseView = { version: '1.0.0', features: [], early: false, latestExtension: null };
 
-const FEATURES: readonly Feature[] = ['themes', 'sounds', 'xPost', 'launchpad', 'tokenMetrics', 'quickTrade'];
+const FEATURES: readonly Feature[] = ['themes', 'sounds', 'xPost', 'launchpad', 'tokenMetrics', 'quickTrade', 'trailingStop', 'autoExit'];
 
 /** The stored value as a release view (anything malformed → the base release). */
 export function toRelease(value: unknown): ReleaseView {

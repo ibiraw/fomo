@@ -15,8 +15,17 @@ export interface Order {
   readonly id: string;
   readonly mint: string;
   readonly side: OrderSide;
-  /** `market`: a quick trade (v2.0.0), traded right away; absent on servers from before quick trades. */
-  readonly kind?: 'limit' | 'market';
+  /**
+   * `market`: a quick trade (v2.0.0), traded right away; `trailing`: a trailing stop (v2.1.0), its stop in
+   * `trigger.value` follows the highest value seen. Absent on servers from before quick trades.
+   */
+  readonly kind?: 'limit' | 'market' | 'trailing';
+  /** Trailing stops: distance under the high in % (v2.1.0). */
+  readonly trailPct?: number | null;
+  /** Trailing stops: the highest value seen since placing, in the trigger's metric (v2.1.0). */
+  readonly peak?: number | null;
+  /** `auto`: placed by limit after a buy (v2.1.0 auto take profit / stop loss). */
+  readonly source?: 'user' | 'auto';
   readonly trigger: {
     readonly metric: TriggerMetric;
     readonly direction: TriggerDirection;
@@ -34,12 +43,37 @@ export interface Order {
   readonly updatedAt: number;
 }
 
-export interface NewOrder {
-  readonly mint: string;
-  readonly side: OrderSide;
-  readonly trigger: Order['trigger'];
-  readonly amount: OrderAmount;
+export type NewOrder =
+  | {
+    readonly mint: string;
+    readonly side: OrderSide;
+    readonly trigger: Order['trigger'];
+    readonly amount: OrderAmount;
+  }
+  | {
+    /** v2.1.0 trailing stop: sells once the value drops `trailPct` % under its highest point since placing. */
+    readonly kind: 'trailing';
+    readonly mint: string;
+    readonly side: 'sell';
+    readonly metric: TriggerMetric;
+    readonly trailPct: number;
+    /** The current value seen on the page (the server uses its own latest value when it has one). */
+    readonly reference: number;
+    readonly supply: number | null;
+    readonly amount: OrderAmount;
+  };
+
+/** v2.1.0 auto take profit / stop loss settings (mirror of backend core/orders/auto-exit.ts). */
+export interface AutoExitSettings {
+  readonly enabled: boolean;
+  readonly buys: { readonly limit: boolean; readonly quick: boolean; readonly manual: boolean };
+  readonly takeProfit: { readonly enabled: boolean; readonly pct: number; readonly sellPct: number };
+  readonly stopLoss: { readonly enabled: boolean; readonly pct: number; readonly sellPct: number; readonly trailing: boolean };
 }
+
+/** Allowed trailing distance (%), as on the server. */
+export const MIN_TRAIL_PCT = 1;
+export const MAX_TRAIL_PCT = 90;
 
 export interface PriceTick {
   readonly mint: string;

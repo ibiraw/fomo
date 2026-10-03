@@ -67,3 +67,12 @@ describe('curveStatusFromSource', () => {
     expect(curveStatusFromSource(null)).toBeNull();
   });
 });
+
+describe('trailing stops (v2.1.0)', () => {
+  const t = { side: 'sell' as const, kind: 'trailing' as const, trailPct: 20, trigger: { metric: 'price' as const, direction: 'below' as const, value: 0.0008 } };
+  it('names the order and shows the distance and the current stop', () => {
+    expect(orderKind(t)).toBe('Trailing stop');
+    expect(triggerLabel(t)).toBe(`20% under the high · stop ${formatPrice(0.0008)}`);
+    expect(triggerLabel({ ...t, trigger: { ...t.trigger, metric: 'marketCap', value: 80_000 } })).toBe(`20% under the high · stop MC ${formatUsdCompact(80_000)}`);
+  });
+});

@@ -21,7 +21,7 @@ describe('featuresOf', () => {
     expect(featuresOf('1.0.0')).toEqual([]);
     expect(featuresOf('1.1.0')).toEqual(['themes', 'sounds']);
     expect(featuresOf('1.2.0')).toEqual(['themes', 'sounds', 'xPost']);
-    expect(featuresOf(LATEST_VERSION)).toEqual(['themes', 'sounds', 'xPost', 'launchpad', 'tokenMetrics', 'quickTrade']);
+    expect(featuresOf(LATEST_VERSION)).toEqual(['themes', 'sounds', 'xPost', 'launchpad', 'tokenMetrics', 'quickTrade', 'trailingStop', 'autoExit']);
     expect(() => featuresOf('1.5.0')).toThrow(/Unknown version/);
   });
 });

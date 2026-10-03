@@ -14,6 +14,7 @@
  *              v1.3.0  which launchpad a token came from
  *              v1.4.0  token metrics (top 10 holders' share, dev holdings)
  *              v2.0.0  quick Buy/Sell buttons in fomo's Feed and Alerts (trade right away)
+ *              v2.1.0  trailing stop orders, and auto take profit / stop loss after a buy (extension 1.0.4)
  *              Fixes between releases would be 1.0.1, 1.0.2 … (same features).
  * @author Reborn1987
  */
@@ -21,7 +22,7 @@
 import { z } from 'zod';
 
 /** A feature that can be switched on by a release. */
-export type Feature = 'themes' | 'sounds' | 'xPost' | 'launchpad' | 'tokenMetrics' | 'quickTrade';
+export type Feature = 'themes' | 'sounds' | 'xPost' | 'launchpad' | 'tokenMetrics' | 'quickTrade' | 'trailingStop' | 'autoExit';
 
 /** Every version in order, with the features it adds. */
 export const RELEASES: readonly { readonly version: string; readonly adds: readonly Feature[] }[] = [
@@ -34,6 +35,7 @@ export const RELEASES: readonly { readonly version: string; readonly adds: reado
   { version: '1.3.0', adds: ['launchpad'] },
   { version: '1.4.0', adds: ['tokenMetrics'] },
   { version: '2.0.0', adds: ['quickTrade'] },
+  { version: '2.1.0', adds: ['trailingStop', 'autoExit'] },
 ];
 
 export const FIRST_VERSION = RELEASES[0]!.version;

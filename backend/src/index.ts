@@ -11,6 +11,7 @@ import { WsGateway } from './adapters/gateway/ws-gateway.js';
 import { FetchHttpJsonAdapter } from './adapters/http/fetch-http-json.adapter.js';
 import { KitSolanaAccountsAdapter } from './adapters/solana/kit-solana-accounts.adapter.js';
 import { SqliteAccountStoreAdapter } from './adapters/storage/sqlite-account-store.adapter.js';
+import { SqliteAutoExitStoreAdapter } from './adapters/storage/sqlite-auto-exit-store.adapter.js';
 import { SqliteOrderStoreAdapter } from './adapters/storage/sqlite-order-store.adapter.js';
 import { buildBilling } from './billing-setup.js';
 import { loadConfig } from './config.js';
@@ -27,7 +28,7 @@ import { FileTailAdapter } from './adapters/logs/file-tail.adapter.js';
 import { ErrorLog, errorHeadline } from './core/monitoring/error-log.js';
 import { LayoutAlerts } from './core/monitoring/layout-alerts.js';
 import { OutageTracker } from './core/monitoring/outage-tracker.js';
-import { describeOrder } from './core/monitoring/describe.js';
+import { describeOrder, orderEntry } from './core/monitoring/describe.js';
 import { TokenLabeler } from './core/monitoring/token-line.js';
 import { AccountService } from './core/accounts/account-service.js';
 import { WalletConfirmers } from './core/accounts/wallet-confirmers.js';
@@ -37,6 +38,7 @@ import type { Chain, EvmChain } from './core/chains/token-key.js';
 import { buildEvmChain, type EvmChainParts } from './evm-chain.js';
 import { EvmWalletConfirmer } from './core/evm/evm-wallet-confirmer.js';
 import { metricValue } from './core/orders/order.js';
+import { AutoExitService } from './core/orders/auto-exit.js';
 import { OrderEngine } from './core/orders/order-engine.js';
 import { HoldingsGuard } from './core/orders/holdings-guard.js';
 import { WalletTradeConfirmer } from './core/orders/wallet-trade-confirmer.js';
@@ -195,7 +197,7 @@ async function main(): Promise<void> {
   let guard: HoldingsGuard | null = null;
   const engine = new OrderEngine(store, feed, gateway, (e) => {
     gateway.handleEngineEvent(e);
-    if (e.type === 'order') {
+    if (e.type === 'order' && !e.quiet) {
       guard?.onOrderChanged(e.order);
       log(`order ${e.order.id.slice(0, 8)} ${e.order.userId.slice(0, 8)} ${e.order.side} ${e.order.status}${e.order.lastError ? ` — ${e.order.lastError}` : ''}`);
       const tick = engine.latestTick(e.order.mint);
@@ -216,6 +218,15 @@ async function main(): Promise<void> {
     ...[...evm].map(([chain, p]) => [chain, new EvmHolderIndex(p.rpc, p.erc20, { ...DEFAULT_EVM_INDEX, maxChunks: EVM_SCAN_CHUNKS[chain] })] as const),
   ]);
   gateway.setTokenMetrics(new TokenMetricsService((chain) => metricsSources.get(chain) ?? null));
+  // v2.1.0: auto take profit / stop loss after a buy (each account's settings), placed through the engine as 'auto' orders.
+  const autoExit = new AutoExitService(
+    new SqliteAutoExitStoreAdapter(cfg.dbPath), engine, confirmerFor,
+    (userId) => releases.viewFor({ id: userId, shortId: accountStore.get(userId)?.shortId ?? '' }).features.includes('autoExit'),
+    (userId, mint, line) => tickers.push('order', orderEntry('🤖', who(userId), line, mint, null)),
+    logError('auto-exit'),
+  );
+  engine.onBuyFilled((order, price) => autoExit.onOrderFilled(order, price));
+  gateway.setAutoExit(autoExit);
 
   await quotes.start();
   await feed.start();
