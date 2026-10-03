@@ -10,7 +10,7 @@
  */
 
 /** The version the public has. */
-export const SITE_VERSION = '1.4.0';
+export const SITE_VERSION = '2.0.0';
 
 /** Numeric compare of "major.minor.patch" versions. */
 function compare(a: string, b: string): number {
@@ -33,6 +33,16 @@ export interface ChangelogEntry {
 
 /** Newest first; only released versions are shown. */
 export const CHANGELOG: readonly ChangelogEntry[] = [
+  {
+    version: '2.0.0',
+    date: '2026-10-03',
+    title: 'Quick Buy and Sell',
+    items: [
+      "Buy and Sell buttons right under every post in fomo's Feed and Alerts: one tap and the trade goes through",
+      'Set your own amounts in Settings: two buy sizes in $ and one sell size in %',
+      "Trades with fomo's own Buy and Sell, in a new tab, and the button shows when it's done. Nothing to download: it switches on in the version you already have",
+    ],
+  },
   {
     version: '1.4.0',
     date: '2026-10-02',
