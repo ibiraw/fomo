@@ -5,12 +5,12 @@
  *              together with `publicVersion` in the server's access.json, and add a CHANGELOG entry dated that day.
  *              Roadmap (mirror of backend/src/core/releases/releases.ts): 1.0.0 limit orders on every chain ·
  *              1.1.0 themes + sounds · 1.2.0 the token's latest X post · 1.3.0 launchpad · 1.4.0 token metrics ·
- *              2.0.0 quick Buy/Sell buttons in fomo's Feed and Alerts.
+ *              2.0.0 quick Buy/Sell buttons in fomo's Feed and Alerts · 2.1.0 trailing stops + Auto TP/SL (extension 1.0.5).
  * @author Reborn1987
  */
 
 /** The version the public has. */
-export const SITE_VERSION = '2.0.0';
+export const SITE_VERSION = '2.1.0';
 
 /** Numeric compare of "major.minor.patch" versions. */
 function compare(a: string, b: string): number {
@@ -33,6 +33,17 @@ export interface ChangelogEntry {
 
 /** Newest first; only released versions are shown. */
 export const CHANGELOG: readonly ChangelogEntry[] = [
+  {
+    version: '2.1.0',
+    date: '2026-10-04',
+    title: 'Trailing stops and Auto TP/SL',
+    items: [
+      "Trailing stop: a sell that follows the price up and sells once it drops your chosen % from its highest point",
+      "Auto TP/SL: after you buy, limit sets a take profit and a stop loss for you (default +100% and -50%, both selling all). Pick which buys get them: limit orders, quick buttons or buys made on fomo",
+      "Trades that get stuck now say where (for example \"waiting for fomo's quote\"), so problems are easier to fix",
+      "To update (this one adds new screens): download the new zip, replace your limit folder with it, then click reload on limit in your browser's extensions page",
+    ],
+  },
   {
     version: '2.0.0',
     date: '2026-10-03',
