@@ -1,7 +1,9 @@
 /**
  * @file trade.ts
  * @description Places one trade on the open FOMO token page by driving the trade panel like a user,
- *              then confirms it by watching the cash/position balance change.
+ *              then confirms it by watching the cash/position balance change. With a `deadline` every wait is cut
+ *              to fit, so the result (and the step it stopped at) reaches the server before the server's own time
+ *              limit; `onStep` reports each step as it starts, so a tab that never answers still says where it was.
  * @author Reborn1987
  */
 
@@ -35,6 +37,14 @@ export interface TradeTimings {
 }
 
 export const DEFAULT_TIMINGS: TradeTimings = { panelMs: 15_000, stepMs: 3_000, balanceMs: 8_000, settleMs: 500, readyMs: 10_000, confirmMs: 30_000 };
+
+/** Time limit and progress reporting for one trade. */
+export interface TradeRun {
+  /** Epoch ms by which a result must be returned (none: only the step timeouts apply). */
+  readonly deadline?: number;
+  /** Told each step as it starts ("waiting for fomo's quote"). */
+  readonly onStep?: (step: string) => void;
+}
 
 
 /**
@@ -92,9 +102,9 @@ function floorCents(v: number): number {
 }
 
 /** Executes `req` on the current page. Never throws; always returns a typed result. */
-export async function executeTrade(doc: Document, req: TradeRequest, t: TradeTimings = DEFAULT_TIMINGS): Promise<ExecutionResult> {
+export async function executeTrade(doc: Document, req: TradeRequest, t: TradeTimings = DEFAULT_TIMINGS, opts: TradeRun = {}): Promise<ExecutionResult> {
   try {
-    return await run(doc, req, t);
+    return await run(doc, req, t, opts);
   } catch (err) {
     return fail('ui_error', `Unexpected error on FOMO page: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -110,7 +120,7 @@ function loggedIn(): boolean {
 }
 
 /** The trade steps. Records how long each step took (appended to the result for diagnosis). */
-async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<ExecutionResult> {
+async function run(doc: Document, req: TradeRequest, t: TradeTimings, opts: TradeRun): Promise<ExecutionResult> {
   const t0 = Date.now();
   const marks: string[] = [];
   const mark = (step: string): void => { marks.push(`${step} ${((Date.now() - t0) / 1000).toFixed(1)}s`); };
@@ -119,7 +129,17 @@ async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<E
     const timing = ` (${marks.join(', ')})`;
     return r.ok ? { ...r, detail: r.detail + timing } : { ...r, message: r.message + timing };
   };
-  const panel = await waitFor(doc, () => findPanel(doc), t.panelMs);
+  let current = '';
+  const step = (s: string): void => { current = s; opts.onStep?.(s); };
+  /** A step's wait, cut to what is left before the deadline. */
+  const budget = (ms: number): number => (opts.deadline === undefined ? ms : Math.max(0, Math.min(ms, opts.deadline - Date.now())));
+  const outOfTime = (): boolean => opts.deadline !== undefined && Date.now() >= opts.deadline;
+  /** Nothing was clicked and the time is up: a timeout the server treats like any other (sells try again). */
+  const tooSlow = (): ExecutionResult => timed(fail('timeout', `Ran out of time while ${current} — nothing was clicked`));
+
+  step('looking for the trade panel');
+  const panel = await waitFor(doc, () => findPanel(doc), budget(t.panelMs));
+  if (!panel && outOfTime()) return tooSlow();
   if (!panel) {
     // Logged in (fomo's own storage says so) but no panel → fomo's layout changed; nothing was clicked.
     return loggedIn()
@@ -128,14 +148,18 @@ async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<E
   }
 
   // 1. Select the Buy/Sell tab.
+  step(`switching to the ${req.side} tab`);
   if (activeSide(panel) !== req.side) findTab(panel, req.side)?.click();
-  if (!(await waitFor(doc, () => (activeSide(findPanel(doc) ?? panel) === req.side ? true : null), t.stepMs))) {
+  if (!(await waitFor(doc, () => (activeSide(findPanel(doc) ?? panel) === req.side ? true : null), budget(t.stepMs)))) {
+    if (outOfTime()) return tooSlow();
     return fail('layout', `Could not switch to the ${req.side} tab (fomo layout changed?) — nothing was bought or sold`);
   }
   const p = (): HTMLElement => findPanel(doc) ?? panel;
 
   // 2. Work out the amount and fill it in.
-  const balance = await waitForSettledBalance(() => readBalance(p(), req.side), t.balanceMs, t.settleMs);
+  step(`waiting for the ${req.side === 'buy' ? 'cash' : 'position'} balance to load`);
+  const balance = await waitForSettledBalance(() => readBalance(p(), req.side), budget(t.balanceMs), t.settleMs);
+  if (outOfTime()) return tooSlow();
   if (balance === null) return fail('layout', 'Could not read the balance on the trade panel (fomo layout changed?) — nothing was clicked');
   mark('balance');
   const input = findAmountInput(p());
@@ -159,13 +183,19 @@ async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<E
 
   // 3. Wait for the quote, then submit.
   mark('amount');
-  if (!(await waitFor(doc, () => (submitReady(p(), req.side) ? true : null), t.readyMs))) {
+  step("waiting for fomo's quote");
+  if (!(await waitFor(doc, () => (submitReady(p(), req.side) ? true : null), budget(t.readyMs)))) {
+    if (outOfTime()) {
+      current = `waiting for fomo's quote (the button showed "${submitBlocker(p()) ?? 'unknown'}")`;
+      return tooSlow();
+    }
     return timed(fail('ui_error', `FOMO did not accept the amount: "${submitBlocker(p()) ?? 'unknown'}"`));
   }
   mark('quote');
   const before = notificationTexts(doc).length;
   findSubmit(p())!.click();
   mark('clicked');
+  step(`clicked ${req.side === 'buy' ? 'Buy' : 'Sell'}, waiting for the balance to change`);
 
   // 4. Confirm: the balance must drop (cash for buys, position for sells) or a failure notice appears.
   const outcome = await waitFor<ExecutionResult>(doc, () => {
@@ -179,6 +209,6 @@ async function run(doc: Document, req: TradeRequest, t: TradeTimings): Promise<E
       return { ok: true, detail: `${req.side === 'buy' ? 'Bought' : 'Sold'} ~$${usd.toFixed(2)} (balance $${balance.toFixed(2)} → $${now.toFixed(2)})` };
     }
     return null;
-  }, t.confirmMs);
-  return timed(outcome ?? fail('unknown', `Clicked ${req.side} but could not confirm within ${t.confirmMs / 1000}s — check FOMO`));
+  }, budget(t.confirmMs));
+  return timed(outcome ?? fail('unknown', `Clicked ${req.side} but could not confirm within ${((Date.now() - t0) / 1000).toFixed(0)}s — check FOMO`));
 }

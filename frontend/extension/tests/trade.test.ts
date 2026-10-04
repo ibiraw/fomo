@@ -58,6 +58,17 @@ describe('fomo-dom helpers', () => {
 });
 
 describe('executeTrade', () => {
+  it('stops before clicking when the deadline runs out, says where, and reports each step', async () => {
+    const fake = mountFakeFomo(document, { cash: 100, position: 0, blockSubmit: true });
+    const steps: string[] = [];
+    const r = await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, { ...FAST, readyMs: 5_000 }, {
+      deadline: Date.now() + 300, onStep: (s) => steps.push(s),
+    });
+    expect(r).toMatchObject({ ok: false, kind: 'timeout', message: expect.stringMatching(/Ran out of time while waiting for fomo's quote \(the button showed .*\) — nothing was clicked/) });
+    expect(fake.state.submitted).toBeNull();
+    expect(steps).toEqual(['looking for the trade panel', 'switching to the buy tab', 'waiting for the cash balance to load', "waiting for fomo's quote"]);
+  });
+
   it('buys a fixed USD amount and confirms by the cash drop', async () => {
     const fake = mountFakeFomo(document, { cash: 100, position: 0 });
     const r = await executeTrade(document, { side: 'buy', amount: { kind: 'usd', value: 5 } }, FAST);

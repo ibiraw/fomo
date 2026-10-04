@@ -10,7 +10,7 @@ import { executeInFomoTab, isTokenPage, prepareTab, tokenUrl, tradeInNewTab, typ
 import type { Order } from '../lib/types';
 
 const MINT = 'EcwFm5TJ3zuBXnsT6DngXMAMfsfELhwGc9JFgeVWpump';
-const FAST: TabTimings = { readyMs: 60, pollMs: 5, tradeMs: 60 };
+const FAST: TabTimings = { readyMs: 60, pollMs: 5, tradeMs: 60, totalMs: 10_000 };
 const noInject = async (): Promise<void> => undefined;
 
 /** In-memory worker-tab store. */
@@ -42,7 +42,7 @@ describe('tradeInNewTab (quick buttons)', () => {
     const r = await tradeInNewTab(tabs, noInject, MINT, req, FAST);
     expect(r).toMatchObject({ ok: true });
     expect(tabs.create).toHaveBeenCalledWith({ url: tokenUrl(MINT), active: true });
-    expect(tabs.sendMessage).toHaveBeenCalledWith(99, { type: 'fomo.trade', mint: MINT, request: req });
+    expect(tabs.sendMessage).toHaveBeenCalledWith(99, { type: 'fomo.trade', mint: MINT, request: req, deadline: expect.any(Number) });
     expect(tabs.remove).not.toHaveBeenCalled();
   });
 
@@ -130,7 +130,7 @@ describe('executeInFomoTab', () => {
   it('sends the trade request and returns the content script result', async () => {
     const tabs = fakeTabs([{ id: 1, url: tokenUrl(MINT) }]);
     expect(await executeInFomoTab(tabs, noInject, workerStore(), ORDER, FAST)).toMatchObject({ ok: true, detail: expect.stringMatching(/^sold \[tab \d+\.\ds total\]$/) });
-    expect(tabs.sendMessage).toHaveBeenLastCalledWith(1, { type: 'fomo.trade', mint: MINT, request: { side: 'sell', amount: { kind: 'percent', value: 50 } } });
+    expect(tabs.sendMessage).toHaveBeenLastCalledWith(1, { type: 'fomo.trade', mint: MINT, request: { side: 'sell', amount: { kind: 'percent', value: 50 } }, deadline: expect.any(Number) });
   });
 
   it('fails cleanly when the tab never becomes ready (nothing clicked)', async () => {
@@ -143,6 +143,14 @@ describe('executeInFomoTab', () => {
     expect(await executeInFomoTab(dead, noInject, workerStore(), ORDER, FAST)).toMatchObject({ ok: false, kind: 'unknown' });
     const hung = fakeTabs([{ id: 1, url: tokenUrl(MINT) }], { trade: () => new Promise(() => undefined) });
     expect(await executeInFomoTab(hung, noInject, workerStore(), ORDER, FAST)).toMatchObject({ ok: false, kind: 'unknown', message: expect.stringMatching(/did not answer/) });
+  });
+
+  it("names the tab's last reported step when it stops answering, and keeps to the whole budget", async () => {
+    const hung = fakeTabs([{ id: 1, url: tokenUrl(MINT) }], { trade: () => new Promise(() => undefined) });
+    const t0 = Date.now();
+    const r = await executeInFomoTab(hung, noInject, workerStore(), ORDER, { ...FAST, tradeMs: 5_000, totalMs: 1_200 }, (id) => (id === 1 ? "waiting for fomo's quote" : null));
+    expect(r).toMatchObject({ ok: false, kind: 'unknown', message: expect.stringMatching(/did not answer within \d+s \(last step: waiting for fomo's quote\)/) });
+    expect(Date.now() - t0).toBeLessThan(3_000);
   });
 });
 

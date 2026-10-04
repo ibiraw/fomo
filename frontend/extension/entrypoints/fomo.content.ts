@@ -22,7 +22,7 @@ import type { ExecutionResult, TradeRequest } from '@/lib/types';
 /** Messages the background worker sends to this script. */
 export type ContentMessage =
   | { readonly type: 'fomo.ping'; readonly mint: string }
-  | { readonly type: 'fomo.trade'; readonly mint: string; readonly request: TradeRequest };
+  | { readonly type: 'fomo.trade'; readonly mint: string; readonly request: TradeRequest; readonly deadline?: number };
 
 /** Reply to fomo.ping. */
 export interface PingReply {
@@ -86,7 +86,9 @@ export default defineContentScript({
       if (msg.type === 'fomo.trade') {
         const run = async (): Promise<ExecutionResult> => {
           if (!onMintPage(msg.mint)) return { ok: false, kind: 'ui_error', message: 'FOMO tab is not on the order token page' };
-          return executeTrade(document, msg.request);
+          // Each step is reported to the background, so a trade that stalls still says where it was.
+          const onStep = (step: string): void => { void browser.runtime.sendMessage({ type: 'fomo.step', step }).catch(() => undefined); };
+          return executeTrade(document, msg.request, undefined, { deadline: msg.deadline, onStep });
         };
         void run().then(sendResponse);
         return true; // async response

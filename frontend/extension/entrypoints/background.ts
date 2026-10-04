@@ -120,6 +120,9 @@ export default defineBackground({
       set: async (tabId) => { await browser.storage.session.set({ workerTabId: tabId }); },
       clear: async () => { await browser.storage.session.remove('workerTabId'); },
     };
+    /** Last trade step each fomo tab reported (tab id → step), for "did not answer" messages. */
+    const tradeSteps = new Map<number, string>();
+    browser.tabs.onRemoved.addListener((id) => tradeSteps.delete(id));
     const conn = new ServerConnection((url) => new WebSocket(url), {
       onStatus: (s) => { status = s; push(); },
       onSnapshot: (list, latest, acc) => {
@@ -157,7 +160,7 @@ export default defineBackground({
       onExecute: async (o) => {
         trading = o.mint;
         try {
-          return await executeInFomoTab(tabs, inject, worker, o);
+          return await executeInFomoTab(tabs, inject, worker, o, undefined, (id) => tradeSteps.get(id) ?? null);
         } finally {
           trading = null;
         }
@@ -242,10 +245,16 @@ export default defineBackground({
           if (!hasFeature(await loadRelease(), 'quickTrade')) return { ok: false, error: 'Quick trades arrive in limit v2.0.0' };
           if (typeof quick.mint !== 'string' || (quick.side !== 'buy' && quick.side !== 'sell') || !quick.amount) return { ok: false, error: 'Bad request' };
           quickUntil.set(quick.mint, Date.now() + 90_000);
-          const result = await tradeInNewTab(tabs, inject, quick.mint, { side: quick.side, amount: quick.amount });
+          const result = await tradeInNewTab(tabs, inject, quick.mint, { side: quick.side, amount: quick.amount }, undefined, (id) => tradeSteps.get(id) ?? null);
           return result.ok ? { ok: true } : { ok: false, error: result.message, unknown: result.kind === 'unknown' };
         })().then(sendResponse, (err: unknown) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) } satisfies QuickTradeReply));
         return true; // answered asynchronously
+      }
+      const stepMsg = msg as { type?: string; step?: unknown } | undefined;
+      if (stepMsg?.type === 'fomo.step') {
+        // A trade's progress in a fomo tab (shown when the tab stops answering).
+        if (sender.tab?.id !== undefined && typeof stepMsg.step === 'string') tradeSteps.set(sender.tab.id, stepMsg.step.slice(0, 200));
+        return;
       }
       const spot = msg as Partial<SpotTradeMessage> | undefined;
       if (spot?.type === 'fomo.spot') {

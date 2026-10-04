@@ -99,7 +99,8 @@ export function describeOrder(o: Order, who: string, current: number | null = nu
   const reason = (text: string | null): EntryDetail | null => (text ? { kind: 'reason', text } : null);
   switch (o.status) {
     case 'open':
-      return o.attempts === 0 ? entry(`placed ${what}`, placedDetail === null ? null : market(placedDetail)) : entry(`re-armed ${what} after slippage`, reason(o.lastError));
+      // Re-armed after a try that didn't go through: the reason line says why (slippage, fomo refused, no answer…).
+      return o.attempts === 0 ? entry(`placed ${what}`, placedDetail === null ? null : market(placedDetail)) : entry(`retrying ${what} · try ${o.attempts} of ${o.maxAttempts} didn't go through`, reason(o.lastError));
     case 'filled':
       return entry(`FILLED ${what}`, o.triggeredAtValue ? market(`at ${usdCompact(o.triggeredAtValue)}`) : null);
     case 'failed':

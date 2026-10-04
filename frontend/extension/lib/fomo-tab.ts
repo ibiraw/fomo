@@ -38,9 +38,19 @@ export interface TabTimings {
   readonly pollMs: number;
   /** Must exceed the content script's own trade timeouts. */
   readonly tradeMs: number;
+  /**
+   * The whole trade (tab ready + trade), so the result reaches the server before its own limit (90 s): the content
+   * script gets a deadline a little earlier and cuts its waits to fit.
+   */
+  readonly totalMs: number;
 }
 
-export const DEFAULT_TAB_TIMINGS: TabTimings = { readyMs: 30_000, pollMs: 500, tradeMs: 75_000 };
+export const DEFAULT_TAB_TIMINGS: TabTimings = { readyMs: 30_000, pollMs: 500, tradeMs: 75_000, totalMs: 80_000 };
+/** The content script must answer this long before the whole budget runs out. */
+const ANSWER_MARGIN_MS = 3_000;
+
+/** The last step each tab's content script reported (for "did not answer" messages). */
+export type LastStep = (tabId: number) => string | null;
 
 const FOMO_MATCH = 'https://fomo.family/*';
 
@@ -102,7 +112,7 @@ export async function prepareTab(
 
 /** Waits until the tab's content script reports the token page, adding the script once if it's missing. */
 async function waitForTokenPage(tabs: TabsApi, inject: InjectFn, id: number, mint: string, t: TabTimings): Promise<void> {
-  const deadline = Date.now() + t.readyMs;
+  const deadline = Date.now() + Math.min(t.readyMs, t.totalMs);
   let injected = false;
   let injectFailure: string | null = null;
   let lastProblem = 'page did not finish loading';
@@ -154,8 +164,9 @@ export async function executeInFomoTab(
   worker: WorkerTabStore,
   order: Order,
   t: TabTimings = DEFAULT_TAB_TIMINGS,
+  lastStep: LastStep = () => null,
 ): Promise<ExecutionResult> {
-  const result = await runInFomoTab(tabs, inject, worker, order, t);
+  const result = await runInFomoTab(tabs, inject, worker, order, t, lastStep);
   if (result.tabId !== null) await closeWorkerTab(tabs, worker, result.tabId, result.result).catch(() => undefined);
   return result.result;
 }
@@ -167,6 +178,7 @@ async function runInFomoTab(
   worker: WorkerTabStore,
   order: Order,
   t: TabTimings = DEFAULT_TAB_TIMINGS,
+  lastStep: LastStep = () => null,
 ): Promise<{ tabId: number | null; result: ExecutionResult }> {
   let id: number;
   const t0 = Date.now();
@@ -176,7 +188,7 @@ async function runInFomoTab(
     // Nothing was clicked yet, so this is a definite failure, not an unknown outcome.
     return { tabId: null, result: { ok: false, kind: 'ui_error', message: err instanceof Error ? err.message : String(err) } };
   }
-  return { tabId: id, result: await trade(tabs, id, order.mint, toTradeRequest(order), t, t0) };
+  return { tabId: id, result: await trade(tabs, id, order.mint, toTradeRequest(order), t, t0, lastStep) };
 }
 
 /**
@@ -189,27 +201,33 @@ export async function tradeInNewTab(
   mint: string,
   request: TradeRequest,
   t: TabTimings = DEFAULT_TAB_TIMINGS,
+  lastStep: LastStep = () => null,
 ): Promise<ExecutionResult> {
   const t0 = Date.now();
   try {
     const tab = await tabs.create({ url: tokenUrl(mint), active: true });
     if (tab.id === undefined) throw new Error('Could not open a FOMO tab');
     await waitForTokenPage(tabs, inject, tab.id, mint, t);
-    return await trade(tabs, tab.id, mint, request, t, t0);
+    return await trade(tabs, tab.id, mint, request, t, t0, lastStep);
   } catch (err) {
     // The tab never got ready, so nothing was clicked: a definite failure.
     return { ok: false, kind: 'ui_error', message: err instanceof Error ? err.message : String(err) };
   }
 }
 
-/** Sends the trade to the prepared tab's content script. */
-async function trade(tabs: TabsApi, id: number, mint: string, request: TradeRequest, t: TabTimings, t0: number): Promise<ExecutionResult> {
+/** Sends the trade to the prepared tab's content script, within what is left of the whole budget. */
+async function trade(tabs: TabsApi, id: number, mint: string, request: TradeRequest, t: TabTimings, t0: number, lastStep: LastStep = () => null): Promise<ExecutionResult> {
+  const end = t0 + t.totalMs;
+  const waitMs = Math.max(1_000, Math.min(t.tradeMs, end - Date.now()));
   try {
     const result = await timeout(
-      tabs.sendMessage(id, { type: 'fomo.trade', mint, request }) as Promise<ExecutionResult | undefined>,
-      t.tradeMs,
-      'FOMO tab did not answer',
-    );
+      tabs.sendMessage(id, { type: 'fomo.trade', mint, request, deadline: end - ANSWER_MARGIN_MS }) as Promise<ExecutionResult | undefined>,
+      waitMs,
+      `FOMO tab did not answer within ${((Date.now() - t0 + waitMs) / 1000).toFixed(0)}s`,
+    ).catch((err: unknown) => {
+      const step = lastStep(id);
+      throw new Error(`${err instanceof Error ? err.message : String(err)}${step ? ` (last step: ${step})` : ''}`);
+    });
     if (!result) return { ok: false, kind: 'unknown', message: 'FOMO tab closed or reloaded during the trade — check FOMO' };
     const tabTime = `tab ${((Date.now() - t0) / 1000).toFixed(1)}s total`;
     return result.ok ? { ...result, detail: `${result.detail} [${tabTime}]` } : { ...result, message: `${result.message} [${tabTime}]` };

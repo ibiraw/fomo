@@ -14,7 +14,7 @@
  *              v1.3.0  which launchpad a token came from
  *              v1.4.0  token metrics (top 10 holders' share, dev holdings)
  *              v2.0.0  quick Buy/Sell buttons in fomo's Feed and Alerts (trade right away)
- *              v2.1.0  trailing stop orders, and auto take profit / stop loss after a buy (extension 1.0.4)
+ *              v2.1.0  trailing stop orders, and auto take profit / stop loss after a buy (extension 1.0.4+; 1.0.5 adds the 80 s trade budget)
  *              Fixes between releases would be 1.0.1, 1.0.2 … (same features).
  * @author Reborn1987
  */
